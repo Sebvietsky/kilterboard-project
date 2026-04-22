@@ -1,0 +1,424 @@
+// ============================================================
+// KILTERBOARD — Prisma Schema
+//
+// Domaines principaux :
+//   - Utilisateurs & social    : User, UserFollow
+//   - Matériel                 : BoardLayout, Board, Hold, Angle
+//   - Blocs                    : Boulder, BoulderHold, BoulderTag, Tag, Grade
+//   - Activité grimpe          : BoardSession, Ascent, AscentNote, AscentNoteLike
+//   - Collections              : Playlist, PlaylistBoulder
+// ============================================================
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// UTILISATEURS & SOCIAL
+// ============================================================
+
+// Compte grimpeur. Contient le profil public (avatar, bio, pays),
+// les préférences (système de cotation) et la progression (xp/level).
+// Le mot de passe est stocké sous forme de hash — jamais en clair.
+model User {
+  id           Int         @id @default(autoincrement())
+  username     String      @unique @db.VarChar(50)
+  email        String      @unique @db.VarChar(255)
+  passwordHash String      @map("password_hash")
+  avatarUrl    String?     @map("avatar_url")
+  bio          String?
+  country      String?     @db.VarChar(100)
+
+  // Rôle d'accès : USER pour les grimpeurs, ADMIN pour la modération
+  role         Role        @default(USER)
+
+  // Système de cotation préféré de l'utilisateur (V-scale ou Fontainebleau)
+  gradeSystem  GradeSystem @default(FONT_SCALE)
+
+  // Si false, le profil est masqué des autres utilisateurs
+  isPublic     Boolean     @default(true)  @map("is_public")
+
+  // Points d'expérience et niveau — calculés à partir des ascensions
+  xpPoints     Int         @default(0)     @map("xp_points")
+  level        Int         @default(1)
+
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime    @updatedAt      @map("updated_at") @db.Timestamptz
+
+  boulders        Boulder[]
+  boardSessions   BoardSession[]
+  ascents         Ascent[]
+  ascentNotes     AscentNote[]
+  ascentNoteLikes AscentNoteLike[]
+
+  // Relation auto-référentielle pour le système de suivi social.
+  // followedBy = les gens qui suivent cet utilisateur (ses followers)
+  // follows    = les gens que cet utilisateur suit
+  followedBy UserFollow[] @relation("FollowingRelation")
+  follows    UserFollow[] @relation("FollowerRelation")
+
+  playlists Playlist[]
+
+  @@map("users")
+}
+
+// Relation de suivi entre deux utilisateurs (follower → following).
+// Clé composite (followerId, followingId) : un utilisateur ne peut suivre
+// une même personne qu'une seule fois.
+model UserFollow {
+  followerId  Int      @map("follower_id")
+  follower    User     @relation("FollowerRelation",  fields: [followerId],  references: [id], onDelete: Cascade)
+  followingId Int      @map("following_id")
+  following   User     @relation("FollowingRelation", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([followerId, followingId])
+  @@map("user_follows")
+}
+
+// ============================================================
+// MATÉRIEL — BOARD & PRISES
+// ============================================================
+
+// Modèle de planche (ex. Kilter Board 12x12°).
+// Sert de référence partagée entre les prises (Hold), les blocs (Boulder)
+// et les installations physiques (Board).
+model BoardLayout {
+  id           Int     @id @default(autoincrement())
+  name         String  @db.VarChar(100) @unique
+  manufacturer String? @db.VarChar(100)
+
+  // Dimensions en nombre de prises (pas en cm)
+  width        Int
+  height       Int
+  description  String?
+
+  boulders Boulder[]
+  holds    Hold[]
+  boards   Board[]
+
+  @@map("board_layouts")
+}
+
+// Installation physique d'une planche dans une salle ou chez un particulier.
+// Un Board référence un BoardLayout : plusieurs boards peuvent partager le même layout.
+// boardId est nullable sur BoardSession : on peut grimper sans board référencé.
+model Board {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(100)
+  gymName     String? @map("gym_name") @db.VarChar(150)
+  country     String? @db.VarChar(100)
+  city        String? @db.VarChar(100)
+
+  // Coordonnées GPS pour localiser la salle sur une carte
+  latitude    Decimal?
+  longitude   Decimal?
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  layoutId    Int         @map("layout_id")
+  boardLayout BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Restrict)
+
+  boardSessions BoardSession[]
+
+  @@map("boards")
+}
+
+// Prise physique sur un layout, identifiée par un code (ex. "A3").
+// La position (x, y) est exprimée en coordonnées de grille.
+// Contrainte UNIQUE(layoutId, holdCode) : un code de prise est unique par layout.
+model Hold {
+  id       Int         @id @default(autoincrement())
+  layout   BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  layoutId Int         @map("layout_id")
+
+  // Code alphanumérique identifiant la prise sur le layout (ex. "B7")
+  holdCode String @map("hold_code") @db.VarChar(20)
+
+  x Int
+  y Int
+
+  boulderHolds BoulderHold[]
+
+  @@unique([layoutId, holdCode])
+  @@map("holds")
+}
+
+// Angle d'inclinaison de la planche en degrés.
+// Table de référence : les valeurs sont prédéfinies (ex. 20°, 40°).
+model Angle {
+  id           Int     @id @default(autoincrement())
+  valueDegrees Int     @unique @map("value_degrees")
+  label        String? @db.VarChar(50) // ex. "Vertical", "Overhang"
+
+  boulders Boulder[]
+
+  @@map("angles")
+}
+
+// ============================================================
+// BLOCS (PROBLÈMES D'ESCALADE)
+// ============================================================
+
+// Table de référence des cotations, double-indexée V-scale et Fontainebleau.
+// `rank` permet d'ordonner les grades sans dépendre du format texte.
+// Utilisée à deux endroits : cotation officielle d'un bloc + grade ressenti d'une ascension.
+model Grade {
+  id        Int     @id @default(autoincrement())
+  vScale    String  @unique @db.VarChar(5)  // ex. "V5"
+  fontScale String  @unique @db.VarChar(5)  // ex. "7A"
+  rank      Int     @unique                  // ordre de difficulté croissante
+
+  boulders Boulder[] @relation("BoulderGrade")
+  ascents  Ascent[]  @relation("AscentFeltGrade")
+
+  @@map("grades")
+}
+
+// Problème d'escalade créé par un utilisateur sur un layout à un angle donné.
+// `isDraft` permet de sauvegarder un bloc sans le publier.
+// `isPublic` contrôle la visibilité (profils privés ou blocs non partagés).
+// onDelete: Restrict sur grade/layout/angle — on ne peut pas supprimer
+// une référence tant que des blocs y sont rattachés.
+model Boulder {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(150)
+  description String?
+
+  grade     Grade @relation("BoulderGrade", fields: [gradeId], references: [id], onDelete: Restrict)
+  gradeId   Int   @map("grade_id")
+  creator   User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creatorId Int   @map("creator_id")
+  layout    BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Restrict)
+  layoutId  Int         @map("layout_id")
+  angle     Angle @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  angleId   Int   @map("angle_id")
+
+  isPublic Boolean  @default(true)  @map("is_public")
+  isDraft  Boolean  @default(false) @map("is_draft")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt      @map("updated_at") @db.Timestamptz
+
+  boulderHolds     BoulderHold[]
+  boulderTags      BoulderTag[]
+  ascents          Ascent[]
+  ascentNotes      AscentNote[]
+  playlistBoulders PlaylistBoulder[]
+
+  @@map("boulders")
+}
+
+// Table de jonction entre un bloc et ses prises.
+// Clé composite (boulderId, holdId) : une prise ne peut apparaître qu'une fois par bloc.
+// `role` définit le rôle de la prise dans le mouvement (départ, main, pied, top).
+model BoulderHold {
+  boulder   Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId Int      @map("boulder_id")
+  hold      Hold     @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  holdId    Int      @map("hold_id")
+  role      HoldRole
+
+  @@id([boulderId, holdId])
+  @@map("boulder_holds")
+}
+
+// Tag de catégorisation (ex. "crimp", "dynamic", "coordination").
+// `slug` : version URL-friendly du nom, utilisée pour les filtres côté API.
+model Tag {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique @db.VarChar(50)
+  slug        String       @unique @db.VarChar(50)
+  boulderTags BoulderTag[]
+
+  @@map("tags")
+}
+
+// Table de jonction Boulder ↔ Tag.
+// onDelete: Restrict sur Tag : on ne peut pas supprimer un tag encore utilisé.
+model BoulderTag {
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId Int     @map("boulder_id")
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Restrict)
+  tagId     Int     @map("tag_id")
+
+  @@id([boulderId, tagId])
+  @@map("boulder_tags")
+}
+
+// ============================================================
+// ACTIVITÉ DE GRIMPE
+// ============================================================
+
+// Session de grimpe d'un utilisateur sur une planche.
+// Règle métier : endedAt IS NULL = session active.
+// Un utilisateur ne peut avoir qu'une seule session active à la fois —
+// cette contrainte est enforced dans SessionsService (pas via un index DB
+// car Prisma ne supporte pas encore les index partiels natifs).
+// boardId est nullable : on peut logger une session sans board référencé.
+model BoardSession {
+  id      Int    @id @default(autoincrement())
+  userId  Int    @map("user_id")
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId Int?   @map("board_id")
+  board   Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)
+
+  title    String?  @db.VarChar(100)
+  note     String?
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  endedAt   DateTime? @map("ended_at")  @db.Timestamptz // NULL = session en cours
+
+  // Si true, la session est visible sur le feed des followers
+  isShared Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ascents Ascent[]
+
+  @@map("board_sessions")
+}
+
+// Enregistrement d'une tentative ou d'une réussite sur un bloc.
+// `status` : FLASH (premier essai), SENT (réussi), PROJECT (en cours), REPEAT (re-grimpe).
+// `feltGrade` : cotation ressentie par le grimpeur — obligatoire pour SENT/FLASH.
+// `sendDate` : date d'envoi, null si status = PROJECT.
+// sessionId nullable : une ascension peut être enregistrée hors session.
+model Ascent {
+  id        Int  @id @default(autoincrement())
+  userId    Int  @map("user_id")
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int  @map("boulder_id")
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  sessionId Int?          @map("session_id")
+  session   BoardSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  status        AscentStatus
+  attemptsCount Int       @default(0) @map("attempts_count")
+  sendDate      DateTime? @map("send_date") @db.Timestamptz
+
+  feltGrade   Grade? @relation("AscentFeltGrade", fields: [feltGradeId], references: [id], onDelete: Restrict)
+  feltGradeId Int?   @map("felt_grade_id")
+
+  // Note de 1 à 5 sur la qualité du bloc, donnée par le grimpeur
+  rating    Int?
+  wasProject Boolean  @default(false) @map("was_project")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt      @map("updated_at") @db.Timestamptz
+
+  ascentNotes AscentNote[]
+
+  @@map("ascents")
+}
+
+// Commentaire associé à une ascension sur un bloc précis.
+// Règle métier : PUBLIC uniquement pour SENT/FLASH (premier envoi).
+// Pour REPEAT, seul PRIVATE est autorisé — enforced dans AscentNotesService.
+// boulderId est dénormalisé ici pour faciliter les requêtes "tous les commentaires d'un bloc".
+model AscentNote {
+  id        Int     @id @default(autoincrement())
+  userId    Int     @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int     @map("boulder_id")
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Restrict)
+  ascentId  Int     @map("ascent_id")
+  ascent    Ascent  @relation(fields: [ascentId], references: [id], onDelete: Cascade)
+
+  content    String
+  visibility Visibility
+
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  ascentNoteLikes AscentNoteLike[]
+
+  @@map("ascent_notes")
+}
+
+// Like sur un commentaire d'ascension.
+// Clé composite (userId, ascentNoteId) : un user ne peut liker qu'une fois.
+model AscentNoteLike {
+  userId       Int        @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ascentNoteId Int        @map("ascent_note_id")
+  ascentNote   AscentNote @relation(fields: [ascentNoteId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, ascentNoteId])
+  @@map("ascent_note_likes")
+}
+
+// ============================================================
+// COLLECTIONS
+// ============================================================
+
+// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Favoris").
+// Privée par défaut — isPublic = true pour partager avec la communauté.
+model Playlist {
+  id          Int     @id @default(autoincrement())
+  userId      Int     @map("user_id")
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String  @db.VarChar(100)
+  description String?
+  isPublic    Boolean @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  playlistBoulders PlaylistBoulder[]
+
+  @@map("playlists")
+}
+
+// Table de jonction Playlist ↔ Boulder, avec position optionnelle pour l'ordre.
+// Clé composite (boulderId, playlistId) : un bloc n'apparaît qu'une fois par playlist.
+model PlaylistBoulder {
+  boulder    Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId  Int      @map("boulder_id")
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  playlistId Int      @map("playlist_id")
+  position   Int?     // Ordre d'affichage dans la playlist, null = non ordonné
+  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  @@id([boulderId, playlistId])
+  @@map("playlist_boulders")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+// Rôle d'accès d'un utilisateur dans l'application
+enum Role {
+  USER  // Grimpeur standard
+  ADMIN // Accès administration et modération
+}
+
+// Visibilité d'un commentaire d'ascension
+enum Visibility {
+  PUBLIC  // Visible par tous (feed, page du bloc)
+  PRIVATE // Visible uniquement par l'auteur
+}
+
+// Système de cotation préféré de l'utilisateur pour l'affichage
+enum GradeSystem {
+  V_SCALE    // Système américain (V0, V1… V17)
+  FONT_SCALE // Système Fontainebleau (4a, 6b+… 9a)
+}
+
+// Rôle d'une prise dans la définition d'un bloc
+enum HoldRole {
+  START  // Prise de départ (mains au départ)
+  HAND   // Prise de main intermédiaire
+  FOOT   // Prise de pied uniquement
+  FINISH // Prise de finition (top)
+}
+
+// Statut d'une ascension
+enum AscentStatus {
+  FLASH   // Réussi du premier coup, sans beta préalable
+  SENT    // Réussi après plusieurs essais
+  PROJECT // En cours, pas encore réussi
+  REPEAT  // Re-grimpe d'un bloc déjà envoyé
+}

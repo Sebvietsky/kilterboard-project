@@ -1,30 +1,24 @@
-# kilterboard-project
-Re-visiting the kilterboard app for better UI/UX design
+# Kilterboard API
 
-cat > README.md << 'EOF'
-# Kilterboard App
-
-Application mobile d'escalade pour Kilterboard — découverte de blocs, suivi d'ascensions et sessions de grimpe.
+Backend NestJS de l'application Kilterboard.
 
 ## Stack
+- NestJS + TypeScript strict
+- PostgreSQL 16 + Prisma
+- JWT + bcrypt
 
-- **Backend** : NestJS · PostgreSQL · Prisma
-- **Frontend** : React Native
-- **CI/CD** : GitHub Actions
-
-## Prérequis
-
-- Node.js 20+
-- PostgreSQL 16
-- npm 9+
-
-## Installation
+## Lancer en local
 
 ```bash
-# À compléter
+npm install
+npm run start:dev
 ```
 
-## Statut
+## Scripts
 
-🚧 En cours de développement
-EOF
+```bash
+npm run lint        # ESLint
+npm run type-check  # TypeScript check
+npm run test        # Jest
+npm run build       # Compilation
+```
