@@ -92,7 +92,7 @@ model UserFollow {
 // et les installations physiques (Board).
 model BoardLayout {
   id           Int     @id @default(autoincrement())
-  name         String  @db.VarChar(100)
+  name         String  @db.VarChar(100) @unique
   manufacturer String? @db.VarChar(100)
 
   // Dimensions en nombre de prises (pas en cm)
@@ -173,8 +173,8 @@ model Angle {
 // Utilisée à deux endroits : cotation officielle d'un bloc + grade ressenti d'une ascension.
 model Grade {
   id        Int     @id @default(autoincrement())
-  vScale    String  @unique @db.VarChar(4)  // ex. "V5"
-  fontScale String  @unique @db.VarChar(4)  // ex. "7A"
+  vScale    String  @unique @db.VarChar(5)  // ex. "V5"
+  fontScale String  @unique @db.VarChar(5)  // ex. "7A"
   rank      Int     @unique                  // ordre de difficulté croissante
 
   boulders Boulder[] @relation("BoulderGrade")
