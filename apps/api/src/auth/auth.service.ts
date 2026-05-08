@@ -7,14 +7,16 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
-import { randomBytes } from 'node:crypto';
+import { TokenService } from './token.service';
+import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private jwtService: JwtService,
+    private tokenService: TokenService,
   ) {}
 
   async register(
@@ -43,9 +45,7 @@ export class AuthService {
 
     return { success: true, message: 'Account created successfully' };
   }
-  async login(
-    dto: LoginDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  async login(dto: LoginDto): Promise<AuthTokens> {
     const identifier: boolean = dto.identifier.includes('@');
 
     const user = await this.prisma.user.findFirst({
@@ -75,36 +75,54 @@ export class AuthService {
     }
 
     // si ok générer 2 token : access token (short period of time) +  refresh token (longer) en bdd
-    const payload = {
-      userId: user.id,
-      role: user.role,
-      username: user.username,
-    };
+    const { accessToken, refreshToken } =
+      await this.tokenService.generateTokens(user);
 
-    const accessToken = {
-      token: await this.jwtService.signAsync(payload),
-      type: 'Bearer',
-      expiresInMs: 15 * 60 * 1000,
-    };
-    const refreshToken = {
-      token: randomBytes(64).toString('hex'),
-      type: 'Bearer',
-      expiresInMs: 7 * 24 * 60 * 60 * 1000,
-    };
+    return { accessToken, refreshToken };
+  }
 
-    await this.prisma.refreshToken.deleteMany({
-      where: {
-        userId: user.id,
-      },
+  async logoutUser(userId: number): Promise<void> {
+    await this.tokenService.deleteRefreshToken(userId);
+  }
+
+  async getAuthenticateUser(userId: number): Promise<UserResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      omit: { passwordHash: true, xpPoints: true, level: true },
     });
-    await this.prisma.refreshToken.create({
-      data: {
-        token: refreshToken.token,
-        userId: user.id,
-        issuedAt: new Date(),
-        expiresAt: new Date(new Date().valueOf() + refreshToken.expiresInMs),
-      },
+
+    if (!user)
+      throw new UnauthorizedException("Token payload doesn't match any user");
+
+    return user;
+  }
+
+  async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<AuthTokens> {
+    const token = refreshTokenDto.refreshToken;
+
+    if (!token) throw new UnauthorizedException('Refresh token not provided');
+
+    // On charge l'utilisateur directement depuis la DB en incluant le user associé,
+    // évitant une seconde requête pour récupérer ses informations
+    const existingToken = await this.prisma.refreshToken.findFirst({
+      where: { token },
+      include: { user: true },
     });
+    if (!existingToken)
+      throw new UnauthorizedException('Invalid Refresh token');
+
+    // Vérification de l'expiration côté serveur (double sécurité avec la date en DB)
+    if (existingToken.expiresAt < new Date()) {
+      await this.prisma.refreshToken.delete({
+        where: { id: existingToken.id },
+      });
+      throw new UnauthorizedException('Invalid Refresh token');
+    }
+
+    const { accessToken, refreshToken } =
+      await this.tokenService.generateTokens(existingToken.user);
+
+    await this.tokenService.deleteRefreshToken(existingToken.userId);
 
     return { accessToken, refreshToken };
   }
