@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
@@ -107,6 +108,141 @@ async function main() {
   });
 
   console.log(`✅ ${holdsData.length} holds seeded`);
+
+  console.log('Seeding admin user...');
+  const adminPassword = await bcrypt.hash('Admin123!@#', 10);
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@kilterboard.com' },
+    update: {},
+    create: {
+      username: 'kilter_admin',
+      email: 'admin@kilterboard.com',
+      passwordHash: adminPassword,
+      role: 'ADMIN',
+    },
+  });
+  console.log(`✅ Admin user seeded`);
+
+  console.log('Seeding tags...');
+  const tagsData = [
+    { name: 'Dyno', slug: 'dyno' },
+    { name: 'Crimp', slug: 'crimp' },
+    { name: 'Sloper', slug: 'sloper' },
+    { name: 'Compression', slug: 'compression' },
+    { name: 'Coordination', slug: 'coordination' },
+    { name: 'Power', slug: 'power' },
+    { name: 'Technical', slug: 'technical' },
+  ];
+  for (const tag of tagsData) {
+    await prisma.tag.upsert({
+      where: { slug: tag.slug },
+      update: {},
+      create: tag,
+    });
+  }
+  console.log(`✅ ${tagsData.length} tags seeded`);
+
+  console.log('Seeding boulders...');
+  const holds = await prisma.hold.findMany({
+    where: { layoutId: kilterboardLayout.id },
+  });
+  const getHold = (code: string) => holds.find((h) => h.holdCode === code)!;
+  const angle40 = await prisma.angle.findUnique({
+    where: { valueDegrees: 40 },
+  });
+  const angle30 = await prisma.angle.findUnique({
+    where: { valueDegrees: 30 },
+  });
+  const gradeV5 = await prisma.grade.findUnique({ where: { rank: 7 } });
+  const gradeV7 = await prisma.grade.findUnique({ where: { rank: 9 } });
+  const gradeV3 = await prisma.grade.findUnique({ where: { rank: 4 } });
+
+  const bouldersData = [
+    {
+      name: 'Midnight Sun',
+      description: 'A classic powerful boulder with a dynamic crux move.',
+      gradeId: gradeV7!.id,
+      angleId: angle40!.id,
+      holds: [
+        { code: 'A1', role: 'START' },
+        { code: 'B3', role: 'START' },
+        { code: 'C5', role: 'HAND' },
+        { code: 'D6', role: 'HAND' },
+        { code: 'E8', role: 'HAND' },
+        { code: 'F10', role: 'FINISH' },
+        { code: 'A2', role: 'FOOT' },
+        { code: 'B4', role: 'FOOT' },
+      ],
+      tags: ['dyno', 'power'],
+    },
+    {
+      name: 'Silent Sky',
+      description: 'Technical balance problem requiring precise footwork.',
+      gradeId: gradeV5!.id,
+      angleId: angle30!.id,
+      holds: [
+        { code: 'C2', role: 'START' },
+        { code: 'D2', role: 'START' },
+        { code: 'E4', role: 'HAND' },
+        { code: 'F6', role: 'HAND' },
+        { code: 'G8', role: 'HAND' },
+        { code: 'H9', role: 'FINISH' },
+        { code: 'C3', role: 'FOOT' },
+        { code: 'D5', role: 'FOOT' },
+      ],
+      tags: ['technical', 'crimp'],
+    },
+    {
+      name: 'The Orbit',
+      description: 'Classic V3 compression problem, great for beginners.',
+      gradeId: gradeV3!.id,
+      angleId: angle30!.id,
+      holds: [
+        { code: 'B2', role: 'START' },
+        { code: 'C2', role: 'START' },
+        { code: 'D4', role: 'HAND' },
+        { code: 'E5', role: 'HAND' },
+        { code: 'F7', role: 'FINISH' },
+        { code: 'B3', role: 'FOOT' },
+      ],
+      tags: ['compression'],
+    },
+  ];
+
+  for (const boulderData of bouldersData) {
+    const { holds: holdRoles, tags, ...boulderFields } = boulderData;
+
+    const boulder = await prisma.boulder.upsert({
+      where: {
+        id:
+          (
+            await prisma.boulder.findFirst({
+              where: { name: boulderFields.name },
+            })
+          )?.id ?? 0,
+      },
+      update: {},
+      create: {
+        ...boulderFields,
+        creatorId: adminUser.id,
+        layoutId: kilterboardLayout.id,
+        isPublic: true,
+        isDraft: false,
+        boulderHolds: {
+          create: holdRoles.map(({ code, role }) => ({
+            holdId: getHold(code).id,
+            role: role as any,
+          })),
+        },
+        boulderTags: {
+          create: tags.map((slug) => ({
+            tag: { connect: { slug } },
+          })),
+        },
+      },
+    });
+    console.log(`✅ Boulder seeded: ${boulder.name}`);
+  }
 
   console.log('✅ Seed completed');
 }
