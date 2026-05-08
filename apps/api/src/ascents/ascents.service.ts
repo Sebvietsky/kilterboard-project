@@ -147,10 +147,15 @@ export class AscentsService {
     if (!ascent) throw new NotFoundException('Ascent not found');
     if (ascent.userId !== user.userId) throw new ForbiddenException();
 
-    // Règle métier : note publique uniquement sur SENT ou FLASH
-    if (dto.visibility === 'PUBLIC' && ascent.status === AscentStatus.PROJECT) {
+    // Règle métier : 1 seule note publique par user par bloc (premier SENT ou FLASH uniquement)
+    // Les REPEAT ne peuvent avoir que des notes privées
+    if (
+      dto.visibility === 'PUBLIC' &&
+      ascent.status !== AscentStatus.SENT &&
+      ascent.status !== AscentStatus.FLASH
+    ) {
       throw new BadRequestException(
-        'Public notes are only allowed on SENT or FLASH ascents.',
+        'Public notes are only allowed on your first SENT or FLASH ascent.',
       );
     }
 
