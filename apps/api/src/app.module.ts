@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { BouldersModule } from './boulders/boulders.module';
+import { AscentsModule } from './ascents/ascents.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { BouldersModule } from './boulders/boulders.module';
     PrismaModule,
     AuthModule,
     BouldersModule,
+    AscentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
