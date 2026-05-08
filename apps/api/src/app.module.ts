@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { BouldersModule } from './boulders/boulders.module';
 import { AscentsModule } from './ascents/ascents.module';
+import { SessionsModule } from './sessions/sessions.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AscentsModule } from './ascents/ascents.module';
     AuthModule,
     BouldersModule,
     AscentsModule,
+    SessionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
