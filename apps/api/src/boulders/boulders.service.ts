@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
@@ -153,5 +157,17 @@ export class BouldersService {
       likesCount: note._count.ascentNoteLikes,
       createdAt: note.createdAt,
     }));
+  }
+
+  async publishBoulder(id: number, userId: number): Promise<void> {
+    const boulder = await this.prisma.boulder.findUnique({ where: { id } });
+    if (!boulder) throw new NotFoundException('Boulder not found');
+
+    if (boulder.creatorId !== userId) throw new ForbiddenException();
+
+    await this.prisma.boulder.update({
+      where: { id },
+      data: { isDraft: false, isPublic: true },
+    });
   }
 }
