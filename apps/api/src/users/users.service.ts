@@ -35,9 +35,10 @@ export class UsersService {
       include: {
         _count: {
           select: {
-            followers: true,
+            followedBy: true,
             follows: true,
             boulders: true,
+            ascents: true,
           },
         },
       },

@@ -6,7 +6,7 @@ import {
   Min,
   IsArray,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class FilterBoulderDto {
   @IsOptional()
@@ -32,6 +32,7 @@ export class FilterBoulderDto {
   @IsArray()
   @IsString({ each: true })
   @Type(() => String)
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   tags?: string[];
 
   @IsOptional()
