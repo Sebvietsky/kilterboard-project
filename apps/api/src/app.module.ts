@@ -8,6 +8,7 @@ import { BouldersModule } from './boulders/boulders.module';
 import { AscentsModule } from './ascents/ascents.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { UsersModule } from './users/users.module';
+import { PlaylistsModule } from './playlists/playlists.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     AscentsModule,
     SessionsModule,
     UsersModule,
+    PlaylistsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
