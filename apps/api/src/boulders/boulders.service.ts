@@ -36,9 +36,11 @@ export class BouldersService {
         },
       }),
       ...(filters.tags?.length && {
-        boulderTags: {
-          some: { tag: { slug: { in: filters.tags } } },
-        },
+        AND: filters.tags.map((slug) => ({
+          boulderTags: {
+            some: { tag: { slug } },
+          },
+        })),
       }),
     };
 

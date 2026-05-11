@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { BouldersModule } from './boulders/boulders.module';
 import { AscentsModule } from './ascents/ascents.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SessionsModule } from './sessions/sessions.module';
     BouldersModule,
     AscentsModule,
     SessionsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
