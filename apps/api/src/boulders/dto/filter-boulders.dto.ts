@@ -32,9 +32,10 @@ export class FilterBoulderDto {
   @IsArray()
   @IsString({ each: true })
   @Type(() => String)
-  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  @Transform(({ value }: { value: string | string[] }) =>
+    Array.isArray(value) ? value : [value],
+  )
   tags?: string[];
-
   @IsOptional()
   @IsString()
   name?: string;
