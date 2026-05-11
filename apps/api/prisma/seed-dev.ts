@@ -168,6 +168,54 @@ async function main() {
     }
   }
 
+  console.log('Seeding fake playlists...');
+  const allBouldersList = await prisma.boulder.findMany({
+    select: { id: true },
+  });
+
+  for (const user of users.slice(0, 10)) {
+    const playlistCount = faker.number.int({ min: 1, max: 3 });
+
+    for (let i = 0; i < playlistCount; i++) {
+      const playlist = await prisma.playlist.create({
+        data: {
+          userId: user.id,
+          name: faker.helpers.arrayElement([
+            'Warm Up',
+            'Power Session',
+            'Projects',
+            'Favorites',
+            'Competition Prep',
+            'Technique',
+            'Endurance',
+          ]),
+          description: faker.datatype.boolean(0.5)
+            ? faker.lorem.sentence()
+            : null,
+          isPublic: faker.datatype.boolean(0.4),
+        },
+      });
+
+      const bouldersToAdd = faker.helpers.arrayElements(allBouldersList, {
+        min: 2,
+        max: 6,
+      });
+
+      for (const [index, b] of bouldersToAdd.entries()) {
+        await prisma.playlistBoulder.create({
+          data: {
+            playlistId: playlist.id,
+            boulderId: b.id,
+            position: index + 1,
+            addedAt: faker.date.recent({ days: 30 }),
+          },
+        });
+      }
+    }
+  }
+
+  console.log('✅ Playlists seeded');
+
   console.log(`✅ ${ascentCount} ascents seeded`);
   console.log(`✅ ${noteCount} notes seeded`);
   console.log('✅ Dev seed completed');
