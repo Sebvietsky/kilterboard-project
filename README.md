@@ -2,6 +2,14 @@
 
 Backend NestJS de l'application Kilterboard.
 
+## Status du projet
+
+### Front
+A venir
+
+### Back
+API terminé pour un MVP
+
 ## Stack
 - NestJS + TypeScript strict
 - PostgreSQL 16 + Prisma
