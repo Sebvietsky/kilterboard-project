@@ -20,6 +20,8 @@ export class AscentsService {
       where: { id: dto.boulderId },
     });
     if (!boulder) throw new NotFoundException('Boulder not found');
+    if (!boulder.isPublic || boulder.isDraft)
+      throw new NotFoundException('Boulder not found');
 
     // Règle métier : si déjà en project, bloquer flash/sent depuis Discover
     const existingProject = await this.prisma.ascent.findFirst({

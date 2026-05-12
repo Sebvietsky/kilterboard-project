@@ -49,8 +49,9 @@ export class PlaylistsController {
   @Get(':id')
   async findOne(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
   ): Promise<PlaylistDetailDto> {
-    return this.playlistService.findOne(id);
+    return this.playlistService.findOne(id, user);
   }
 
   @Patch(':id')

@@ -19,9 +19,17 @@ export class AdminQueryDto {
 
   // Tri
   @IsOptional()
-  @IsString()
+  @IsIn([
+    'createdAt',
+    'username',
+    'email',
+    'role',
+    'country',
+    'name',
+    'isPublic',
+    'isDraft',
+  ])
   orderBy?: string;
-
   @IsOptional()
   @IsIn(['asc', 'desc'])
   order?: 'asc' | 'desc';

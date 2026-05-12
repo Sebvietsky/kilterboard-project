@@ -13,6 +13,21 @@ export class TokenService {
   ) {}
 
   async generateTokens(user: User): Promise<AuthTokens> {
+    const refreshTokenValue = randomBytes(64).toString('hex');
+    const expiresInMs = 7 * 24 * 60 * 60 * 1000;
+
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+      this.prisma.refreshToken.create({
+        data: {
+          token: refreshTokenValue,
+          userId: user.id,
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + expiresInMs),
+        },
+      }),
+    ]);
+
     const payload = {
       userId: user.id,
       role: user.role,
@@ -24,23 +39,12 @@ export class TokenService {
       type: 'Bearer' as const,
       expiresInMs: 15 * 60 * 1000,
     };
-    const refreshToken = {
-      token: randomBytes(64).toString('hex'),
-      type: 'Bearer' as const,
-      expiresInMs: 7 * 24 * 60 * 60 * 1000,
-    };
 
-    await this.prisma.$transaction([
-      this.prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
-      this.prisma.refreshToken.create({
-        data: {
-          token: refreshToken.token,
-          userId: user.id,
-          issuedAt: new Date(),
-          expiresAt: new Date(new Date().valueOf() + refreshToken.expiresInMs),
-        },
-      }),
-    ]);
+    const refreshToken = {
+      token: refreshTokenValue,
+      type: 'Bearer' as const,
+      expiresInMs,
+    };
 
     return { accessToken, refreshToken };
   }

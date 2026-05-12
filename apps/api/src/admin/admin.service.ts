@@ -7,10 +7,30 @@ import {
   AdminBoulderResult,
   AdminPlaylistResult,
 } from './dto/admin-responst.types';
+import { getPaginationParams, getSafeOrderBy } from '../utils/pagination.utils';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly ALLOWED_USER_ORDER_BY = [
+    'createdAt',
+    'username',
+    'email',
+    'role',
+    'country',
+  ] as const;
+  private readonly ALLOWED_BOULDER_ORDER_BY = [
+    'createdAt',
+    'name',
+    'isPublic',
+    'isDraft',
+  ] as const;
+  private readonly ALLOWED_PLAYLIST_ORDER_BY = [
+    'createdAt',
+    'name',
+    'isPublic',
+  ] as const;
 
   async findAllUsers(query: AdminQueryDto): Promise<AdminUserResult[]> {
     const where: Prisma.UserWhereInput = {
@@ -20,9 +40,12 @@ export class AdminService {
       }),
     };
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const { skip, take } = getPaginationParams(query.page, query.limit);
+    const orderField = getSafeOrderBy(
+      this.ALLOWED_USER_ORDER_BY,
+      query.orderBy,
+      'createdAt',
+    );
 
     return await this.prisma.user.findMany({
       where,
@@ -33,8 +56,8 @@ export class AdminService {
         },
       },
       skip,
-      take: limit,
-      orderBy: { [query.orderBy ?? 'createdAt']: query.order ?? 'desc' },
+      take,
+      orderBy: { [orderField]: query.order ?? 'desc' },
     });
   }
 
@@ -46,9 +69,12 @@ export class AdminService {
       ...(query.isPublic !== undefined && { isPublic: query.isPublic }),
     };
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const { skip, take } = getPaginationParams(query.page, query.limit);
+    const orderField = getSafeOrderBy(
+      this.ALLOWED_BOULDER_ORDER_BY,
+      query.orderBy,
+      'createdAt',
+    );
 
     return await this.prisma.boulder.findMany({
       where,
@@ -58,8 +84,8 @@ export class AdminService {
         _count: { select: { ascents: true } },
       },
       skip,
-      take: limit,
-      orderBy: { [query.orderBy ?? 'createdAt']: query.order ?? 'desc' },
+      take,
+      orderBy: { [orderField]: query.order ?? 'desc' },
     });
   }
 
@@ -71,9 +97,12 @@ export class AdminService {
       ...(query.isPublic !== undefined && { isPublic: query.isPublic }),
     };
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const { skip, take } = getPaginationParams(query.page, query.limit);
+    const orderField = getSafeOrderBy(
+      this.ALLOWED_PLAYLIST_ORDER_BY,
+      query.orderBy,
+      'createdAt',
+    );
 
     return this.prisma.playlist.findMany({
       where,
@@ -82,8 +111,8 @@ export class AdminService {
         _count: { select: { playlistBoulders: true } },
       },
       skip,
-      take: limit,
-      orderBy: { [query.orderBy ?? 'createdAt']: query.order ?? 'desc' },
+      take,
+      orderBy: { [orderField]: query.order ?? 'desc' },
     });
   }
 

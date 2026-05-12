@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
-import { JwtPayload } from '../common/interfaces/auth-payload.interface';
+import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
 import {
   PlaylistDetailDto,
   PlaylistResponseDto,
@@ -19,10 +19,13 @@ import { AddBoulderDto } from './dto/add-boulder.dto';
 export class PlaylistsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findOne(id: number): Promise<PlaylistDetailDto> {
+  async findOne(
+    playlistId: number,
+    user: JwtPayload,
+  ): Promise<PlaylistDetailDto> {
     const playlist = await this.prisma.playlist.findUnique({
       where: {
-        id,
+        id: playlistId,
       },
       include: {
         user: {
@@ -48,6 +51,9 @@ export class PlaylistsService {
     });
 
     if (!playlist) throw new NotFoundException('Playlist not found');
+    if (!playlist.isPublic && playlist.userId !== user.userId) {
+      throw new ForbiddenException();
+    }
 
     return {
       id: playlist.id,
