@@ -1,9 +1,5 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { EndSessionDto } from './dto/end-session.dto';
@@ -47,8 +43,8 @@ export class SessionsService {
       where: { id },
     });
 
-    if (!session) throw new NotFoundException('Session not found');
-    if (session.userId !== user.userId) throw new ForbiddenException();
+    assertFound(session, 'Session');
+    assertOwnerShip(session, user.userId);
     if (session.endedAt) {
       throw new ConflictException('Session is already ended.');
     }

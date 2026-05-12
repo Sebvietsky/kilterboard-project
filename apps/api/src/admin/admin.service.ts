@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { assertFound } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { AdminQueryDto } from './dto/admin-query.dto';
@@ -7,7 +8,10 @@ import {
   AdminBoulderResult,
   AdminPlaylistResult,
 } from './dto/admin-responst.types';
-import { getPaginationParams, getSafeOrderBy } from '../utils/pagination.utils';
+import {
+  getPaginationParams,
+  getSafeOrderBy,
+} from '../common/utils/pagination.utils';
 
 @Injectable()
 export class AdminService {
@@ -118,7 +122,7 @@ export class AdminService {
 
   async deleteBoulder(id: number): Promise<void> {
     const boulder = await this.prisma.boulder.findUnique({ where: { id } });
-    if (!boulder) throw new NotFoundException('Boulder not found');
+    assertFound(boulder, 'Boulder');
     await this.prisma.boulder.delete({ where: { id } });
   }
 }
