@@ -133,7 +133,7 @@ export class AscentsService {
     });
   }
 
-  async remove(id: number, user: JwtPayload) {
+  async remove(id: number, user: JwtPayload): Promise<void> {
     const ascent = await this.prisma.ascent.findUnique({ where: { id } });
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
@@ -141,7 +141,7 @@ export class AscentsService {
       throw new BadRequestException('Only PROJECT ascents can be deleted.');
     }
 
-    return this.prisma.ascent.delete({ where: { id } });
+    await this.prisma.ascent.delete({ where: { id } });
   }
 
   async createNote(id: number, dto: CreateNoteDto, user: JwtPayload) {
