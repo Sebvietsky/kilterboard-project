@@ -14,6 +14,7 @@ import {
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddBoulderDto } from './dto/add-boulder.dto';
+import { PlaylistBoulder } from '../generated/prisma/client';
 
 @Injectable()
 export class PlaylistsService {
@@ -118,7 +119,7 @@ export class PlaylistsService {
     }));
   }
 
-  async removePlaylist(user: JwtPayload, id: number) {
+  async removePlaylist(user: JwtPayload, id: number): Promise<void> {
     const playlist = await this.prisma.playlist.findUnique({ where: { id } });
     assertFound(playlist, 'Playlist');
     assertOwnerShip(playlist, user.userId);
@@ -153,14 +154,20 @@ export class PlaylistsService {
     return updatedPlaylist;
   }
 
-  async addBoulder(user: JwtPayload, dto: AddBoulderDto, playlistId: number) {
+  async addBoulder(
+    user: JwtPayload,
+    dto: AddBoulderDto,
+    playlistId: number,
+  ): Promise<PlaylistBoulder> {
     const playlist = await this.prisma.playlist.findUnique({
       where: {
         id: playlistId,
       },
     });
+
     assertFound(playlist, 'Playlist');
     assertOwnerShip(playlist, user.userId);
+
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: dto.boulderId },
     });

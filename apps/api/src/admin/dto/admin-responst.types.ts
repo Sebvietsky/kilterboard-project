@@ -2,8 +2,14 @@ import { Prisma } from '../../generated/prisma/client';
 
 // Type inféré pour findAllUsers
 export type AdminUserResult = Prisma.UserGetPayload<{
-  omit: { passwordHash: true };
-  include: {
+  select: {
+    id: true;
+    username: true;
+    email: true;
+    role: true;
+    country: true;
+    isPublic: true;
+    createdAt: true;
     _count: {
       select: { ascents: true; boulders: true; followedBy: true };
     };

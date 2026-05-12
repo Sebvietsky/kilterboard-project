@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { assertFound } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '../generated/prisma/client';
+import { Boulder, Prisma } from '../generated/prisma/client';
 import { AdminQueryDto } from './dto/admin-query.dto';
 import {
   AdminUserResult,
@@ -53,8 +53,14 @@ export class AdminService {
 
     return await this.prisma.user.findMany({
       where,
-      omit: { passwordHash: true },
-      include: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        country: true,
+        isPublic: true,
+        createdAt: true,
         _count: {
           select: { ascents: true, boulders: true, followedBy: true },
         },
@@ -108,7 +114,7 @@ export class AdminService {
       'createdAt',
     );
 
-    return this.prisma.playlist.findMany({
+    return await this.prisma.playlist.findMany({
       where,
       include: {
         user: { select: { username: true } },
@@ -121,7 +127,9 @@ export class AdminService {
   }
 
   async deleteBoulder(id: number): Promise<void> {
-    const boulder = await this.prisma.boulder.findUnique({ where: { id } });
+    const boulder: Boulder | null = await this.prisma.boulder.findUnique({
+      where: { id },
+    });
     assertFound(boulder, 'Boulder');
     await this.prisma.boulder.delete({ where: { id } });
   }

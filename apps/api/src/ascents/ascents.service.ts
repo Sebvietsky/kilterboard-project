@@ -7,16 +7,28 @@ import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAscentDto } from './dto/update-ascent.dto';
 import { JwtPayload } from '../common/interfaces/auth-payload.interface';
-import { AscentStatus } from '../generated/prisma/client';
+import {
+  Ascent,
+  AscentNote,
+  AscentStatus,
+  Boulder,
+} from '../generated/prisma/client';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { CreateAscentDto } from './dto/create-ascent.dto';
+import {
+  AscentWithBoulderDetails,
+  AscentWithDetails,
+  AscentCreated,
+  AscentUpdated,
+  AscentNoteCreated,
+} from './dto/ascent-response.types';
 
 @Injectable()
 export class AscentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateAscentDto, user: JwtPayload) {
-    const boulder = await this.prisma.boulder.findUnique({
+  async create(dto: CreateAscentDto, user: JwtPayload): Promise<AscentCreated> {
+    const boulder: Boulder | null = await this.prisma.boulder.findUnique({
       where: { id: dto.boulderId },
     });
     assertFound(boulder, 'Boulder');
@@ -24,7 +36,7 @@ export class AscentsService {
       throw new NotFoundException('Boulder not found');
 
     // Règle métier : si déjà en project, bloquer flash/sent depuis Discover
-    const existingProject = await this.prisma.ascent.findFirst({
+    const existingProject: Ascent | null = await this.prisma.ascent.findFirst({
       where: {
         userId: user.userId,
         boulderId: dto.boulderId,
@@ -52,9 +64,9 @@ export class AscentsService {
     }
 
     // Calcul wasProject
-    const wasProject = !!existingProject;
+    const wasProject: boolean = !!existingProject;
 
-    return this.prisma.ascent.create({
+    return await this.prisma.ascent.create({
       data: {
         userId: user.userId,
         boulderId: dto.boulderId,
@@ -69,8 +81,8 @@ export class AscentsService {
     });
   }
 
-  async findMyAscents(userId: number) {
-    return this.prisma.ascent.findMany({
+  async findMyAscents(userId: number): Promise<AscentWithDetails[]> {
+    return await this.prisma.ascent.findMany({
       where: { userId },
       include: {
         boulder: {
@@ -89,8 +101,11 @@ export class AscentsService {
     });
   }
 
-  async findMyAscentOnBoulder(userId: number, boulderId: number) {
-    return this.prisma.ascent.findMany({
+  async findMyAscentOnBoulder(
+    userId: number,
+    boulderId: number,
+  ): Promise<AscentWithBoulderDetails[]> {
+    return await this.prisma.ascent.findMany({
       where: { userId, boulderId },
       include: {
         feltGrade: { select: { vScale: true, fontScale: true } },
@@ -100,8 +115,14 @@ export class AscentsService {
     });
   }
 
-  async update(id: number, dto: UpdateAscentDto, user: JwtPayload) {
-    const ascent = await this.prisma.ascent.findUnique({ where: { id } });
+  async update(
+    id: number,
+    dto: UpdateAscentDto,
+    user: JwtPayload,
+  ): Promise<AscentUpdated> {
+    const ascent: Ascent | null = await this.prisma.ascent.findUnique({
+      where: { id },
+    });
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
@@ -120,7 +141,7 @@ export class AscentsService {
       ascent.status === AscentStatus.PROJECT &&
       (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH);
 
-    return this.prisma.ascent.update({
+    return await this.prisma.ascent.update({
       where: { id },
       data: {
         ...dto,
@@ -144,8 +165,14 @@ export class AscentsService {
     await this.prisma.ascent.delete({ where: { id } });
   }
 
-  async createNote(id: number, dto: CreateNoteDto, user: JwtPayload) {
-    const ascent = await this.prisma.ascent.findUnique({ where: { id } });
+  async createNote(
+    id: number,
+    dto: CreateNoteDto,
+    user: JwtPayload,
+  ): Promise<AscentNoteCreated> {
+    const ascent: Ascent | null = await this.prisma.ascent.findUnique({
+      where: { id },
+    });
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
@@ -163,13 +190,14 @@ export class AscentsService {
 
     // Règle métier : 1 seule note publique par user par bloc
     if (dto.visibility === 'PUBLIC') {
-      const existingPublicNote = await this.prisma.ascentNote.findFirst({
-        where: {
-          userId: user.userId,
-          boulderId: ascent.boulderId,
-          visibility: 'PUBLIC',
-        },
-      });
+      const existingPublicNote: AscentNote | null =
+        await this.prisma.ascentNote.findFirst({
+          where: {
+            userId: user.userId,
+            boulderId: ascent.boulderId,
+            visibility: 'PUBLIC',
+          },
+        });
       if (existingPublicNote) {
         throw new BadRequestException(
           'You already have a public note on this boulder.',
@@ -177,7 +205,7 @@ export class AscentsService {
       }
     }
 
-    return this.prisma.ascentNote.create({
+    return await this.prisma.ascentNote.create({
       data: {
         ascentId: id,
         userId: user.userId,

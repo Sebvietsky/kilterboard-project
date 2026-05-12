@@ -4,10 +4,11 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import 'dotenv/config';
+import { AppConfig } from './common/interfaces/config-service.interface';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  const configService: ConfigService<unknown, boolean> = app.get(ConfigService);
+  const configService: ConfigService<AppConfig> = app.get(ConfigService);
   const isDev: boolean =
     configService.get<string>('NODE_ENV') === 'development';
 

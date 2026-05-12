@@ -27,7 +27,7 @@ export class SessionsService {
         year: 'numeric',
       })}`;
 
-    return this.prisma.boardSession.create({
+    return await this.prisma.boardSession.create({
       data: {
         userId: user.userId,
         boardId: dto.boardId ?? null,
@@ -49,7 +49,7 @@ export class SessionsService {
       throw new ConflictException('Session is already ended.');
     }
 
-    return this.prisma.boardSession.update({
+    return await this.prisma.boardSession.update({
       where: { id },
       data: {
         endedAt: new Date(),
@@ -60,7 +60,7 @@ export class SessionsService {
   }
 
   async getActiveSession(userId: number) {
-    return this.prisma.boardSession.findFirst({
+    return await this.prisma.boardSession.findFirst({
       where: { userId, endedAt: null },
       include: {
         board: { select: { name: true, gymName: true } },
