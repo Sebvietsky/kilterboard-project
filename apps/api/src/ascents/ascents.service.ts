@@ -22,6 +22,9 @@ import {
   AscentUpdated,
   AscentNoteCreated,
 } from './dto/ascent-response.types';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { getPaginationParams } from '../common/utils/pagination.utils';
+import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @Injectable()
 export class AscentsService {
@@ -81,24 +84,47 @@ export class AscentsService {
     });
   }
 
-  async findMyAscents(userId: number): Promise<AscentWithDetails[]> {
-    return await this.prisma.ascent.findMany({
-      where: { userId },
-      include: {
-        boulder: {
-          select: {
-            name: true,
-            grade: { select: { vScale: true, fontScale: true, rank: true } },
-            angle: { select: { valueDegrees: true } },
+  async findMyAscents(
+    userId: number,
+    filters: FilterAscentDto,
+  ): Promise<PaginatedResponse<AscentWithDetails>> {
+    const { skip, take, page, limit } = getPaginationParams(
+      filters.page,
+      filters.limit,
+    );
+
+    const [ascents, total] = await Promise.all([
+      this.prisma.ascent.findMany({
+        where: { userId },
+        include: {
+          boulder: {
+            select: {
+              name: true,
+              grade: { select: { vScale: true, fontScale: true, rank: true } },
+              angle: { select: { valueDegrees: true } },
+            },
+          },
+          feltGrade: { select: { vScale: true, fontScale: true } },
+          ascentNotes: {
+            where: { userId },
           },
         },
-        feltGrade: { select: { vScale: true, fontScale: true } },
-        ascentNotes: {
-          where: { userId },
-        },
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.ascent.count({ where: { userId } }),
+    ]);
+
+    return {
+      data: ascents,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   async findMyAscentOnBoulder(

@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AscentsService } from './ascents.service';
@@ -24,6 +25,8 @@ import {
   AscentWithBoulderDetails,
   AscentWithDetails,
 } from './dto/ascent-response.types';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('ascents')
@@ -42,8 +45,9 @@ export class AscentsController {
   @Get('me')
   async findMyAscents(
     @CurrentUser() user: JwtPayload,
-  ): Promise<AscentWithDetails[]> {
-    return this.ascentsService.findMyAscents(user.userId);
+    @Query() filters: FilterAscentDto,
+  ): Promise<PaginatedResponse<AscentWithDetails>> {
+    return this.ascentsService.findMyAscents(user.userId, filters);
   }
 
   @Get('me/:boulderId')
