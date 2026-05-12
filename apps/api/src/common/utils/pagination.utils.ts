@@ -1,9 +1,16 @@
-export function getPaginationParams(page?: number, limit?: number) {
-  const currentPage = page ?? 1;
-  const currentLimit = limit ?? 20;
+import { PaginationOutput } from '../interfaces/get-pagination.interface';
+
+export function getPaginationParams(
+  page?: number,
+  limit?: number,
+): PaginationOutput {
+  const currentPage: number = page ?? 1;
+  const currentLimit: number = limit ?? 20;
   return {
     skip: (currentPage - 1) * currentLimit,
     take: currentLimit,
+    page: currentPage,
+    limit: currentLimit,
   };
 }
 

@@ -18,6 +18,7 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('boulders')
 export class BouldersController {
@@ -26,7 +27,7 @@ export class BouldersController {
   @HttpCode(200)
   async findAll(
     @Query() filters: FilterBoulderDto,
-  ): Promise<BoulderSummaryDto[]> {
+  ): Promise<PaginatedResponse<BoulderSummaryDto>> {
     return this.boulderService.findAll(filters);
   }
 

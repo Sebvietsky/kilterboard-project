@@ -8,12 +8,16 @@ import {
   PublicNoteDto,
 } from './dto/boulder-response.dto';
 import { Prisma } from '../generated/prisma/client';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { getPaginationParams } from '../common/utils/pagination.utils';
 
 @Injectable()
 export class BouldersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(filters: FilterBoulderDto): Promise<BoulderSummaryDto[]> {
+  async findAll(
+    filters: FilterBoulderDto,
+  ): Promise<PaginatedResponse<BoulderSummaryDto>> {
     const where: Prisma.BoulderWhereInput = {
       isPublic: true,
       isDraft: false,
@@ -44,36 +48,48 @@ export class BouldersService {
         })),
       }),
     };
+    const { skip, take, page, limit } = getPaginationParams(
+      filters.page,
+      filters.limit,
+    );
 
-    const boulders = await this.prisma.boulder.findMany({
-      where,
-      include: {
-        grade: { select: { vScale: true, fontScale: true, rank: true } },
-        creator: { select: { username: true } },
-        angle: { select: { valueDegrees: true } },
-        boulderTags: {
-          select: { tag: { select: { name: true, slug: true } } },
+    const [boulders, total] = await Promise.all([
+      this.prisma.boulder.findMany({
+        where,
+        include: {
+          grade: { select: { vScale: true, fontScale: true, rank: true } },
+          creator: { select: { username: true } },
+          angle: { select: { valueDegrees: true } },
+          boulderTags: {
+            select: { tag: { select: { name: true, slug: true } } },
+          },
+          _count: { select: { ascents: true } },
         },
-        _count: { select: { ascents: true } },
-      },
-      orderBy: {
-        ascents: { _count: 'desc' },
-      },
-    });
+        skip,
+        take,
+        orderBy: {
+          ascents: { _count: 'desc' },
+        },
+      }),
+      this.prisma.boulder.count({ where }),
+    ]);
 
-    return boulders.map((boulder) => ({
-      id: boulder.id,
-      name: boulder.name,
-      gradeLabel: boulder.grade.vScale,
-      gradeRank: boulder.grade.rank,
-      angleDegrees: boulder.angle.valueDegrees,
-      creatorUsername: boulder.creator.username,
-      tags: boulder.boulderTags.map((bt) => bt.tag.slug),
-      ascentCount: boulder._count.ascents,
-      averageRating: null,
-      isPublic: boulder.isPublic,
-      createdAt: boulder.createdAt,
-    }));
+    return {
+      data: boulders.map((boulder) => ({
+        id: boulder.id,
+        name: boulder.name,
+        gradeLabel: boulder.grade.vScale,
+        gradeRank: boulder.grade.rank,
+        angleDegrees: boulder.angle.valueDegrees,
+        creatorUsername: boulder.creator.username,
+        tags: boulder.boulderTags.map((bt) => bt.tag.slug),
+        ascentCount: boulder._count.ascents,
+        averageRating: null,
+        isPublic: boulder.isPublic,
+        createdAt: boulder.createdAt,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: number): Promise<BoulderDetailDto> {
