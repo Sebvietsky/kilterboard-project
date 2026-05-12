@@ -12,6 +12,7 @@ import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { Throttle } from '@nestjs/throttler';
+import { User } from '../generated/prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -24,7 +25,7 @@ export class AuthService {
   async register(
     dto: RegisterDto,
   ): Promise<{ success: true; message: string }> {
-    const existingUser = await this.prisma.user.findFirst({
+    const existingUser: User | null = await this.prisma.user.findFirst({
       where: {
         OR: [{ email: dto.email }, { username: dto.username }],
       },
@@ -52,7 +53,7 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthTokens> {
     const identifier: boolean = dto.identifier.includes('@');
 
-    const user = await this.prisma.user.findFirst({
+    const user: User | null = await this.prisma.user.findFirst({
       where: {
         ...(identifier
           ? { email: dto.identifier }
@@ -90,10 +91,11 @@ export class AuthService {
   }
 
   async getAuthenticateUser(userId: number): Promise<UserResponseDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      omit: { passwordHash: true, xpPoints: true, level: true },
-    });
+    const user: Omit<User, 'passwordHash' | 'xpPoints' | 'level'> | null =
+      await this.prisma.user.findUnique({
+        where: { id: userId },
+        omit: { passwordHash: true, xpPoints: true, level: true },
+      });
 
     if (!user)
       throw new UnauthorizedException("Token payload doesn't match any user");

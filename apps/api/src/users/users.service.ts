@@ -22,7 +22,7 @@ export class UsersService {
   }
 
   async updateMe(userId: number, dto: UpdateUserDto) {
-    return this.prisma.user.update({
+    return await this.prisma.user.update({
       where: { id: userId },
       data: dto,
       omit: { passwordHash: true, xpPoints: true, level: true },
@@ -69,7 +69,7 @@ export class UsersService {
 
     if (existing) throw new ConflictException('Already following this user');
 
-    return this.prisma.userFollow.create({
+    return await this.prisma.userFollow.create({
       data: { followerId, followingId: target.id },
     });
   }
@@ -90,7 +90,7 @@ export class UsersService {
     if (!existing)
       throw new NotFoundException('You are not following this user');
 
-    return this.prisma.userFollow.delete({
+    return await this.prisma.userFollow.delete({
       where: {
         followerId_followingId: {
           followerId,

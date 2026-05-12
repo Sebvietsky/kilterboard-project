@@ -17,6 +17,13 @@ import { CreateNoteDto } from './dto/create-note.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
+import {
+  AscentCreated,
+  AscentNoteCreated,
+  AscentUpdated,
+  AscentWithBoulderDetails,
+  AscentWithDetails,
+} from './dto/ascent-response.types';
 
 @UseGuards(JwtAuthGuard)
 @Controller('ascents')
@@ -25,12 +32,17 @@ export class AscentsController {
 
   @Post()
   @HttpCode(201)
-  async create(@Body() dto: CreateAscentDto, @CurrentUser() user: JwtPayload) {
+  async create(
+    @Body() dto: CreateAscentDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AscentCreated> {
     return this.ascentsService.create(dto, user);
   }
 
   @Get('me')
-  async findMyAscents(@CurrentUser() user: JwtPayload) {
+  async findMyAscents(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AscentWithDetails[]> {
     return this.ascentsService.findMyAscents(user.userId);
   }
 
@@ -38,7 +50,7 @@ export class AscentsController {
   async findMyAscentOnBoulder(
     @Param('boulderId', ParseIntPipe) boulderId: number,
     @CurrentUser() user: JwtPayload,
-  ) {
+  ): Promise<AscentWithBoulderDetails[]> {
     return this.ascentsService.findMyAscentOnBoulder(user.userId, boulderId);
   }
 
@@ -47,7 +59,7 @@ export class AscentsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAscentDto,
     @CurrentUser() user: JwtPayload,
-  ) {
+  ): Promise<AscentUpdated> {
     return this.ascentsService.update(id, dto, user);
   }
 
@@ -56,7 +68,7 @@ export class AscentsController {
   async remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
-  ) {
+  ): Promise<void> {
     return this.ascentsService.remove(id, user);
   }
 
@@ -66,7 +78,7 @@ export class AscentsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateNoteDto,
     @CurrentUser() user: JwtPayload,
-  ) {
+  ): Promise<AscentNoteCreated> {
     return this.ascentsService.createNote(id, dto, user);
   }
 }
