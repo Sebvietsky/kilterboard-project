@@ -1,8 +1,5 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
@@ -99,7 +96,7 @@ export class BouldersService {
       },
     });
 
-    if (!boulder) throw new NotFoundException('Boulder not found');
+    assertFound(boulder, 'Boulder');
 
     const publicNotes = await this.findComments(id);
 
@@ -161,9 +158,10 @@ export class BouldersService {
 
   async publishBoulder(id: number, userId: number): Promise<void> {
     const boulder = await this.prisma.boulder.findUnique({ where: { id } });
-    if (!boulder) throw new NotFoundException('Boulder not found');
+    assertFound(boulder, 'Boulder');
 
-    if (boulder.creatorId !== userId) throw new ForbiddenException();
+    // Boulder uses creatorId instead of userId
+    assertOwnerShip({ userId: boulder.creatorId }, userId);
 
     await this.prisma.boulder.update({
       where: { id },

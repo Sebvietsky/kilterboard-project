@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import 'dotenv/config';
 
 async function bootstrap(): Promise<void> {
@@ -16,6 +17,8 @@ async function bootstrap(): Promise<void> {
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

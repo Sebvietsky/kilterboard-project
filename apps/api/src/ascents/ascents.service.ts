@@ -1,9 +1,9 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAscentDto } from './dto/update-ascent.dto';
 import { JwtPayload } from '../common/interfaces/auth-payload.interface';
@@ -19,7 +19,7 @@ export class AscentsService {
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: dto.boulderId },
     });
-    if (!boulder) throw new NotFoundException('Boulder not found');
+    assertFound(boulder, 'Boulder');
     if (!boulder.isPublic || boulder.isDraft)
       throw new NotFoundException('Boulder not found');
 
@@ -102,8 +102,8 @@ export class AscentsService {
 
   async update(id: number, dto: UpdateAscentDto, user: JwtPayload) {
     const ascent = await this.prisma.ascent.findUnique({ where: { id } });
-    if (!ascent) throw new NotFoundException('Ascent not found');
-    if (ascent.userId !== user.userId) throw new ForbiddenException();
+    assertFound(ascent, 'Ascent');
+    assertOwnerShip(ascent, user.userId);
 
     // Règle métier : feltGradeId obligatoire si on passe à SENT ou FLASH
     if (
@@ -135,8 +135,8 @@ export class AscentsService {
 
   async remove(id: number, user: JwtPayload) {
     const ascent = await this.prisma.ascent.findUnique({ where: { id } });
-    if (!ascent) throw new NotFoundException('Ascent not found');
-    if (ascent.userId !== user.userId) throw new ForbiddenException();
+    assertFound(ascent, 'Ascent');
+    assertOwnerShip(ascent, user.userId);
     if (ascent.status !== AscentStatus.PROJECT) {
       throw new BadRequestException('Only PROJECT ascents can be deleted.');
     }
@@ -146,8 +146,8 @@ export class AscentsService {
 
   async createNote(id: number, dto: CreateNoteDto, user: JwtPayload) {
     const ascent = await this.prisma.ascent.findUnique({ where: { id } });
-    if (!ascent) throw new NotFoundException('Ascent not found');
-    if (ascent.userId !== user.userId) throw new ForbiddenException();
+    assertFound(ascent, 'Ascent');
+    assertOwnerShip(ascent, user.userId);
 
     // Règle métier : 1 seule note publique par user par bloc (premier SENT ou FLASH uniquement)
     // Les REPEAT ne peuvent avoir que des notes privées

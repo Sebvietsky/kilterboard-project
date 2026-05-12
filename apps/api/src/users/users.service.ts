@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { assertFound } from '../common/utils/ownership.utils';
 
 @Injectable()
 export class UsersService {
@@ -16,7 +17,7 @@ export class UsersService {
       where: { id: userId },
       omit: { passwordHash: true, xpPoints: true, level: true },
     });
-    if (!user) throw new NotFoundException('User not found');
+    assertFound(user, 'User');
     return user;
   }
 
@@ -44,7 +45,7 @@ export class UsersService {
       },
     });
 
-    if (!user) throw new NotFoundException('User not found');
+    assertFound(user, 'User');
     if (!user.isPublic) throw new ForbiddenException('This profile is private');
 
     return user;
@@ -52,7 +53,7 @@ export class UsersService {
 
   async follow(followerId: number, username: string) {
     const target = await this.prisma.user.findUnique({ where: { username } });
-    if (!target) throw new NotFoundException('User not found');
+    assertFound(target, 'User');
     if (target.id === followerId) {
       throw new ConflictException('You cannot follow yourself');
     }
@@ -75,7 +76,7 @@ export class UsersService {
 
   async unfollow(followerId: number, username: string) {
     const target = await this.prisma.user.findUnique({ where: { username } });
-    if (!target) throw new NotFoundException('User not found');
+    assertFound(target, 'User');
 
     const existing = await this.prisma.userFollow.findUnique({
       where: {

@@ -2,8 +2,8 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
@@ -50,7 +50,7 @@ export class PlaylistsService {
       },
     });
 
-    if (!playlist) throw new NotFoundException('Playlist not found');
+    assertFound(playlist, 'Playlist');
     if (!playlist.isPublic && playlist.userId !== user.userId) {
       throw new ForbiddenException();
     }
@@ -120,8 +120,8 @@ export class PlaylistsService {
 
   async removePlaylist(user: JwtPayload, id: number) {
     const playlist = await this.prisma.playlist.findUnique({ where: { id } });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId) throw new ForbiddenException();
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
 
     await this.prisma.playlist.delete({ where: { id } });
   }
@@ -137,8 +137,8 @@ export class PlaylistsService {
       },
     });
 
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId) throw new ForbiddenException();
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
 
     const updatedPlaylist = await this.prisma.playlist.update({
       data: {
@@ -159,16 +159,13 @@ export class PlaylistsService {
         id: playlistId,
       },
     });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId)
-      throw new ForbiddenException('You need to be the owner of this playlist');
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: dto.boulderId },
     });
 
-    if (!boulder) {
-      throw new NotFoundException('Boulder not found');
-    }
+    assertFound(boulder, 'Boulder');
 
     const existing = await this.prisma.playlistBoulder.findUnique({
       where: { boulderId_playlistId: { boulderId: dto.boulderId, playlistId } },
@@ -195,16 +192,13 @@ export class PlaylistsService {
         id: playlistId,
       },
     });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId)
-      throw new ForbiddenException('You need to be the owner of this playlist');
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: boulderId },
     });
 
-    if (!boulder) {
-      throw new NotFoundException('Boulder not found');
-    }
+    assertFound(boulder, 'Boulder');
 
     await this.prisma.playlistBoulder.delete({
       where: { boulderId_playlistId: { boulderId, playlistId } },
