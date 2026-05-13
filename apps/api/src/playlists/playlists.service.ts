@@ -2,11 +2,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
-import { JwtPayload } from '../common/interfaces/auth-payload.interface';
+import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
 import {
   PlaylistDetailDto,
   PlaylistResponseDto,
@@ -14,15 +14,19 @@ import {
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddBoulderDto } from './dto/add-boulder.dto';
+import { PlaylistBoulder } from '../generated/prisma/client';
 
 @Injectable()
 export class PlaylistsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findOne(id: number): Promise<PlaylistDetailDto> {
+  async findOne(
+    playlistId: number,
+    user: JwtPayload,
+  ): Promise<PlaylistDetailDto> {
     const playlist = await this.prisma.playlist.findUnique({
       where: {
-        id,
+        id: playlistId,
       },
       include: {
         user: {
@@ -47,7 +51,10 @@ export class PlaylistsService {
       },
     });
 
-    if (!playlist) throw new NotFoundException('Playlist not found');
+    assertFound(playlist, 'Playlist');
+    if (!playlist.isPublic && playlist.userId !== user.userId) {
+      throw new ForbiddenException();
+    }
 
     return {
       id: playlist.id,
@@ -112,10 +119,10 @@ export class PlaylistsService {
     }));
   }
 
-  async removePlaylist(user: JwtPayload, id: number) {
+  async removePlaylist(user: JwtPayload, id: number): Promise<void> {
     const playlist = await this.prisma.playlist.findUnique({ where: { id } });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId) throw new ForbiddenException();
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
 
     await this.prisma.playlist.delete({ where: { id } });
   }
@@ -131,8 +138,8 @@ export class PlaylistsService {
       },
     });
 
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId) throw new ForbiddenException();
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
 
     const updatedPlaylist = await this.prisma.playlist.update({
       data: {
@@ -147,22 +154,25 @@ export class PlaylistsService {
     return updatedPlaylist;
   }
 
-  async addBoulder(user: JwtPayload, dto: AddBoulderDto, playlistId: number) {
+  async addBoulder(
+    user: JwtPayload,
+    dto: AddBoulderDto,
+    playlistId: number,
+  ): Promise<PlaylistBoulder> {
     const playlist = await this.prisma.playlist.findUnique({
       where: {
         id: playlistId,
       },
     });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId)
-      throw new ForbiddenException('You need to be the owner of this playlist');
+
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
+
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: dto.boulderId },
     });
 
-    if (!boulder) {
-      throw new NotFoundException('Boulder not found');
-    }
+    assertFound(boulder, 'Boulder');
 
     const existing = await this.prisma.playlistBoulder.findUnique({
       where: { boulderId_playlistId: { boulderId: dto.boulderId, playlistId } },
@@ -189,16 +199,13 @@ export class PlaylistsService {
         id: playlistId,
       },
     });
-    if (!playlist) throw new NotFoundException('Playlist not found');
-    if (playlist.userId !== user.userId)
-      throw new ForbiddenException('You need to be the owner of this playlist');
+    assertFound(playlist, 'Playlist');
+    assertOwnerShip(playlist, user.userId);
     const boulder = await this.prisma.boulder.findUnique({
       where: { id: boulderId },
     });
 
-    if (!boulder) {
-      throw new NotFoundException('Boulder not found');
-    }
+    assertFound(boulder, 'Boulder');
 
     await this.prisma.playlistBoulder.delete({
       where: { boulderId_playlistId: { boulderId, playlistId } },

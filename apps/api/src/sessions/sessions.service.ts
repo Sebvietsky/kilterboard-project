@@ -1,9 +1,5 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { EndSessionDto } from './dto/end-session.dto';
@@ -31,7 +27,7 @@ export class SessionsService {
         year: 'numeric',
       })}`;
 
-    return this.prisma.boardSession.create({
+    return await this.prisma.boardSession.create({
       data: {
         userId: user.userId,
         boardId: dto.boardId ?? null,
@@ -47,13 +43,13 @@ export class SessionsService {
       where: { id },
     });
 
-    if (!session) throw new NotFoundException('Session not found');
-    if (session.userId !== user.userId) throw new ForbiddenException();
+    assertFound(session, 'Session');
+    assertOwnerShip(session, user.userId);
     if (session.endedAt) {
       throw new ConflictException('Session is already ended.');
     }
 
-    return this.prisma.boardSession.update({
+    return await this.prisma.boardSession.update({
       where: { id },
       data: {
         endedAt: new Date(),
@@ -64,7 +60,7 @@ export class SessionsService {
   }
 
   async getActiveSession(userId: number) {
-    return this.prisma.boardSession.findFirst({
+    return await this.prisma.boardSession.findFirst({
       where: { userId, endedAt: null },
       include: {
         board: { select: { name: true, gymName: true } },

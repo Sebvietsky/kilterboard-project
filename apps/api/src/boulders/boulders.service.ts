@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
@@ -7,12 +8,16 @@ import {
   PublicNoteDto,
 } from './dto/boulder-response.dto';
 import { Prisma } from '../generated/prisma/client';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { getPaginationParams } from '../common/utils/pagination.utils';
 
 @Injectable()
 export class BouldersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(filters: FilterBoulderDto): Promise<BoulderSummaryDto[]> {
+  async findAll(
+    filters: FilterBoulderDto,
+  ): Promise<PaginatedResponse<BoulderSummaryDto>> {
     const where: Prisma.BoulderWhereInput = {
       isPublic: true,
       isDraft: false,
@@ -43,36 +48,48 @@ export class BouldersService {
         })),
       }),
     };
+    const { skip, take, page, limit } = getPaginationParams(
+      filters.page,
+      filters.limit,
+    );
 
-    const boulders = await this.prisma.boulder.findMany({
-      where,
-      include: {
-        grade: { select: { vScale: true, fontScale: true, rank: true } },
-        creator: { select: { username: true } },
-        angle: { select: { valueDegrees: true } },
-        boulderTags: {
-          select: { tag: { select: { name: true, slug: true } } },
+    const [boulders, total] = await Promise.all([
+      this.prisma.boulder.findMany({
+        where,
+        include: {
+          grade: { select: { vScale: true, fontScale: true, rank: true } },
+          creator: { select: { username: true } },
+          angle: { select: { valueDegrees: true } },
+          boulderTags: {
+            select: { tag: { select: { name: true, slug: true } } },
+          },
+          _count: { select: { ascents: true } },
         },
-        _count: { select: { ascents: true } },
-      },
-      orderBy: {
-        ascents: { _count: 'desc' },
-      },
-    });
+        skip,
+        take,
+        orderBy: {
+          ascents: { _count: 'desc' },
+        },
+      }),
+      this.prisma.boulder.count({ where }),
+    ]);
 
-    return boulders.map((boulder) => ({
-      id: boulder.id,
-      name: boulder.name,
-      gradeLabel: boulder.grade.vScale,
-      gradeRank: boulder.grade.rank,
-      angleDegrees: boulder.angle.valueDegrees,
-      creatorUsername: boulder.creator.username,
-      tags: boulder.boulderTags.map((bt) => bt.tag.slug),
-      ascentCount: boulder._count.ascents,
-      averageRating: null,
-      isPublic: boulder.isPublic,
-      createdAt: boulder.createdAt,
-    }));
+    return {
+      data: boulders.map((boulder) => ({
+        id: boulder.id,
+        name: boulder.name,
+        gradeLabel: boulder.grade.vScale,
+        gradeRank: boulder.grade.rank,
+        angleDegrees: boulder.angle.valueDegrees,
+        creatorUsername: boulder.creator.username,
+        tags: boulder.boulderTags.map((bt) => bt.tag.slug),
+        ascentCount: boulder._count.ascents,
+        averageRating: null,
+        isPublic: boulder.isPublic,
+        createdAt: boulder.createdAt,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: number): Promise<BoulderDetailDto> {
@@ -95,7 +112,7 @@ export class BouldersService {
       },
     });
 
-    if (!boulder) throw new NotFoundException('Boulder not found');
+    assertFound(boulder, 'Boulder');
 
     const publicNotes = await this.findComments(id);
 
@@ -153,5 +170,18 @@ export class BouldersService {
       likesCount: note._count.ascentNoteLikes,
       createdAt: note.createdAt,
     }));
+  }
+
+  async publishBoulder(id: number, userId: number): Promise<void> {
+    const boulder = await this.prisma.boulder.findUnique({ where: { id } });
+    assertFound(boulder, 'Boulder');
+
+    // Boulder uses creatorId instead of userId
+    assertOwnerShip({ userId: boulder.creatorId }, userId);
+
+    await this.prisma.boulder.update({
+      where: { id },
+      data: { isDraft: false, isPublic: true },
+    });
   }
 }

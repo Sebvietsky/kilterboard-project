@@ -1,8 +1,7 @@
 name: CI
-
-"on":
+on:
   push:
-    branches: ['**']
+    branches: ["**"]
   pull_request:
     branches: [main, develop]
 
@@ -10,36 +9,33 @@ jobs:
   ci:
     name: Lint, Type Check & Test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: "22"
+          cache: "pnpm"
 
       - name: Install dependencies
-        working-directory: apps/api
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma Client
-        working-directory: apps/api
-        run: npx prisma generate
+        run: pnpm --filter api exec prisma generate
 
       - name: Lint
-        working-directory: apps/api
-        run: npm run lint:ci
+        run: pnpm --filter api lint:ci
 
       - name: Type check
-        working-directory: apps/api
-        run: npm run type-check
+        run: pnpm --filter api type-check
 
       - name: Test
-        working-directory: apps/api
-        run: npm run test
+        run: pnpm --filter api test
 
       - name: Build
-        working-directory: apps/api
-        run: npm run build
+        run: pnpm --filter api build

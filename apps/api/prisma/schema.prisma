@@ -203,8 +203,8 @@ model Boulder {
   angle     Angle       @relation(fields: [angleId], references: [id], onDelete: Restrict)
   angleId   Int         @map("angle_id")
 
-  isPublic  Boolean  @default(true) @map("is_public")
-  isDraft   Boolean  @default(false) @map("is_draft")
+  isPublic  Boolean  @default(false) @map("is_public") // false par défaut car isDraft = true
+  isDraft   Boolean  @default(true) @map("is_draft") // true par défaut -> false dès la création du boulder
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
