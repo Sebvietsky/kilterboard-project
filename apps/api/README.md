@@ -1,98 +1,148 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Kilterboard — API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend de l'application Kilterboard. API REST construite avec **NestJS** selon une architecture de **Modular Monolith** : chaque domaine métier est encapsulé dans son propre module NestJS, avec une séparation stricte entre controllers, services et DTOs.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Stack technique
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **NestJS 11** + TypeScript strict (no `any`)
+- **PostgreSQL 16** + Prisma ORM
+- **JWT** (access token) + **bcrypt** pour les mots de passe
+- **class-validator** / **class-transformer** pour la validation des DTOs
+- **@nestjs/throttler** pour le rate limiting
+- **Jest** pour les tests
 
-## Project setup
+---
 
-```bash
-$ npm install
-```
+## Prérequis
 
-## Compile and run the project
+- [Node.js](https://nodejs.org/) ≥ 20
+- [pnpm](https://pnpm.io/) ≥ 9
+- [PostgreSQL 16](https://www.postgresql.org/) installé et démarré en local
+
+---
+
+## Installation
+
+### 1. Dépendances
+
+Depuis la **racine du monorepo** :
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+pnpm install
 ```
 
-## Run tests
+Ou depuis ce dossier uniquement :
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+pnpm install
 ```
 
-## Deployment
+### 2. Variables d'environnement
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Copie le fichier d'exemple et renseigne tes valeurs :
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cp .env.example .env
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+| Variable              | Description                                      | Exemple                                              |
+|-----------------------|--------------------------------------------------|------------------------------------------------------|
+| `DATABASE_URL`        | URL de connexion PostgreSQL                      | `postgresql://user:pass@localhost:5432/kilterboard`  |
+| `NODE_ENV`            | Environnement d'exécution                        | `development`                                        |
+| `ACCESS_TOKEN_SECRET` | Clé secrète pour signer les JWT                  | Une chaîne longue et aléatoire                       |
+| `PORT`                | Port d'écoute du serveur                         | `3000`                                               |
+| `ALLOWED_ORIGIN`      | Origine autorisée pour CORS (production)         | `https://votre-app.com`                              |
 
-## Resources
+### 3. Base de données
 
-Check out a few resources that may come in handy when working with NestJS:
+Crée la base de données PostgreSQL si elle n'existe pas encore :
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+psql -U postgres -c "CREATE DATABASE kilterboard;"
+```
 
-## Support
+Lance les migrations Prisma pour initialiser le schéma :
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+pnpm db:migrate dev
+```
 
-## Stay in touch
+*(Optionnel)* Initialise la base avec des données de test :
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```bash
+# Données de référence (grades, layouts, holds…)
+pnpm db:seed
 
-## License
+# Données de développement (utilisateurs, blocs, ascensions…)
+pnpm db:seed:dev
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 4. Lancer le serveur
+
+```bash
+# Mode développement avec hot-reload
+pnpm start:dev
+
+# Mode production
+pnpm build && pnpm start:prod
+```
+
+L'API est disponible sur `http://localhost:3000` (ou le `PORT` défini dans `.env`).
+
+---
+
+## Scripts disponibles
+
+```bash
+pnpm start:dev      # Serveur en mode watch (hot-reload)
+pnpm start:debug    # Mode debug avec inspector Node.js
+pnpm build          # Compilation TypeScript → dist/
+pnpm start:prod     # Démarrage depuis le build compilé
+
+pnpm lint           # ESLint avec auto-fix
+pnpm lint:ci        # ESLint sans auto-fix (pour la CI)
+pnpm type-check     # Vérification TypeScript sans compilation
+
+pnpm test           # Tests unitaires (Jest)
+pnpm test:watch     # Tests en mode watch
+pnpm test:cov       # Tests avec rapport de couverture
+pnpm test:e2e       # Tests end-to-end
+
+pnpm db:migrate     # Lance les migrations Prisma
+pnpm db:generate    # Régénère le client Prisma
+pnpm db:seed        # Données de référence
+pnpm db:seed:dev    # Données de développement
+pnpm db:reset       # Réinitialise la base (⚠️ supprime toutes les données)
+```
+
+---
+
+## Architecture des modules
+
+```
+src/
+├── auth/           → Inscription, connexion, stratégie JWT, guards
+├── users/          → Profil utilisateur, suivi, progression (XP/level)
+├── boulders/       → Création et gestion des blocs
+├── ascents/        → Enregistrement des passages
+├── sessions/       → Sessions de grimpe actives/terminées
+├── playlists/      → Collections de blocs
+├── admin/          → Actions réservées au rôle ADMIN
+├── common/         → Guards, interceptors, pipes et décorateurs partagés
+└── prisma/         → Module Prisma injectable dans toute l'app
+```
+
+Chaque module respecte la structure NestJS standard :
+`module` → `controller` (routing) → `service` (logique métier) → `dto` (validation entrées).
+
+---
+
+## Règles métier notables
+
+- **Session active** : `ended_at IS NULL`. Un utilisateur ne peut avoir qu'une seule session active à la fois (index partiel unique en base).
+- **Premier sent/flash** : le grade ressenti (`felt_grade`) est obligatoire. Un commentaire public est optionnel.
+- **Repeat** : seule une note privée est autorisée, pas de commentaire public.
+- **Prises d'un bloc** (`boulder_holds`) : contrainte `UNIQUE(boulder_id, hold_id)` — une prise ne peut avoir qu'un seul rôle par bloc.
+- **Rôles** : `USER` (défaut) et `ADMIN`. Les routes admin sont protégées par un `RolesGuard`.
