@@ -19,6 +19,14 @@ const palette = {
   gold: "#FFD166",  // flash, records, session active, holds finish
   moss: "#2EBD85",  // ascent, board connecté, holds start
   coral: "#FF6B57", // project, likes, destructif, holds feet
+  // Déclinaisons (badges, overlays, dots) — uniquement référencées par les tokens
+  goldInk: "#553D00",
+  mossSoft: "#D9F3E7",
+  mossInk: "#177350",
+  coralLine: "#FF9A83",
+  coralInk: "#C2452F",
+  skyDots: "rgba(157, 184, 255, 0.22)",
+  inkOverlay: "rgba(20, 30, 54, 0.5)",
 } as const;
 
 // Tokens sémantiques : ce que le code applicatif consomme.
@@ -53,7 +61,7 @@ export const colors = {
   warning: palette.gold,   // alertes, records, flash
   info: palette.sky,       // informations, progression
   // Overlays
-  overlay: "rgba(20, 30, 54, 0.5)",
+  overlay: palette.inkOverlay,
 } as const;
 
 export const spacing = {
@@ -69,14 +77,32 @@ export const radii = {
 
 export const typography = {
   size: { xs: 12, sm: 14, md: 16, lg: 18, xl: 22, xxl: 28, display: 34 },
+  // ⚠️ fontWeight n'a AUCUN effet sur une police custom en React Native :
+  // la graisse se choisit via fontFamily (nom de la variante ci-dessous).
+  // weight ne sert que pour la police système (fallback, splash natif…).
   weight: { regular: "400", medium: "500", semibold: "600", bold: "700" },
   lineHeight: { tight: 1.2, normal: 1.4, relaxed: 1.6 },
-  // family: {...} → ajouté à l'étape 3, une fois les fonts chargées
+  // Familles par RÔLE (les clés = noms enregistrés par useFonts dans _layout).
+  // Ne jamais combiner family.* avec weight.* — une variante = une graisse.
+  family: {
+    display: "BricolageGrotesque_800ExtraBold", // gros titres, wordmark
+    heading: "BricolageGrotesque_700Bold",      // titres de section, noms de blocs, cotations
+    body: "Figtree_400Regular",
+    bodyMedium: "Figtree_500Medium",
+    bodySemibold: "Figtree_600SemiBold",
+    bodyBold: "Figtree_700Bold",
+    data: "SpaceGrotesk_600SemiBold", // données chiffrées : timer, stats, angles, compteurs
+    dataBold: "SpaceGrotesk_700Bold",
+  },
+  // La DA demande -0.02em sur les gros titres. RN n'a pas d'unité em :
+  // letterSpacing est en points absolus → appliquer proportionnellement,
+  // ex. letterSpacing: size.display * letterSpacing.tight
+  letterSpacing: { tight: -0.02 },
 } as const;
 
 export const shadows = {
   card: {
-    shadowColor: "#141E36", // ink teinté
+    shadowColor: palette.ink,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -86,9 +112,9 @@ export const shadows = {
 
 // Un statut d'ascension = couleur forte + recette de badge
 export const status = {
-  flash:   { color: colors.gold,  badgeBg: "#FFD166", badgeText: "#553D00" },
-  ascent:  { color: colors.moss,  badgeBg: "#D9F3E7", badgeText: "#177350" },
-  project: { color: colors.coral, badgeBorder: "#FF9A83", badgeText: "#C2452F" }, // fond transparent, bordure dashed
+  flash:   { color: colors.gold,  badgeBg: palette.gold,     badgeText: palette.goldInk },
+  ascent:  { color: colors.moss,  badgeBg: palette.mossSoft, badgeText: palette.mossInk },
+  project: { color: colors.coral, badgeBorder: palette.coralLine, badgeText: palette.coralInk }, // fond transparent, bordure dashed
 } as const;
 
 // Prises sur la carte board LED
@@ -96,7 +122,7 @@ export const holds = {
   start: colors.moss, hands: colors.sky, finish: colors.gold, feet: colors.coral,
 } as const;
 
-export const boardDots = "rgba(157,184,255,0.22)";
+export const boardDots = palette.skyDots;
 
 export const theme = {
   colors, spacing, radii, typography, shadows, status, holds, boardDots,
