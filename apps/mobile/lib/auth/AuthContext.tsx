@@ -118,20 +118,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function bootstrap() {
-      const newAccessToken = await refreshTokens();
-
-      if (!newAccessToken) {
-        setStatus("unauthenticated");
-        return;
-      }
-
+      // Tout le bootstrap est sous try/catch : quelle que soit l'erreur
+      // (SecureStore indisponible, réseau, /auth/me KO), on doit TOUJOURS
+      // sortir de "loading" — sinon splash screen éternel.
       try {
+        const newAccessToken = await refreshTokens();
+
+        if (!newAccessToken) {
+          setStatus("unauthenticated");
+          return;
+        }
+
         await fetchAndSetUser(newAccessToken);
         setStatus("authenticated");
       } catch {
-        await authStorage.clearRefreshToken();
-        setStatus("unauthenticated");
+        await authStorage.clearRefreshToken().catch(() => {});
         setAccessToken(null);
+        setStatus("unauthenticated");
       }
     }
 

@@ -19,8 +19,11 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   title: {
+    // Wordmark → display. Ce splash ne s'affiche que quand les fonts sont
+    // chargées (gate dans _layout), donc pas de risque de fallback visible.
+    fontFamily: typography.family.display,
     fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
+    letterSpacing: typography.size.xxl * typography.letterSpacing.tight,
     color: colors.text,
   },
 });
