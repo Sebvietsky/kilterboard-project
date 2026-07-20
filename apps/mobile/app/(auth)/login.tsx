@@ -91,8 +91,9 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   title: {
+    fontFamily: typography.family.display,
     fontSize: typography.size.display,
-    fontWeight: typography.weight.bold,
+    letterSpacing: typography.size.display * typography.letterSpacing.tight,
     color: colors.text,
     marginBottom: spacing.lg,
   },
@@ -100,8 +101,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   label: {
+    fontFamily: typography.family.bodyMedium,
     fontSize: typography.size.sm,
-    fontWeight: typography.weight.medium,
     color: colors.textMuted,
   },
   input: {
@@ -110,6 +111,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
+    fontFamily: typography.family.body,
     fontSize: typography.size.md,
     color: colors.text,
     backgroundColor: colors.surface,
@@ -130,17 +132,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
+    fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
   },
   link: {
     color: colors.primary,
+    fontFamily: typography.family.body,
     fontSize: typography.size.sm,
     textAlign: "center",
     marginTop: spacing.lg,
   },
   error: {
     color: colors.danger,
+    fontFamily: typography.family.body,
     fontSize: typography.size.sm,
   },
 });
