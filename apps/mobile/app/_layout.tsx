@@ -48,7 +48,7 @@ export default function RootLayout() {
 
 function RootNavigation() {
   const { status } = useAuth(); // OK, on est dans AuthProvider
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     BricolageGrotesque_700Bold,
     BricolageGrotesque_800ExtraBold,
     Figtree_400Regular,
@@ -60,16 +60,22 @@ function RootNavigation() {
   });
 
 
-  const ready = fontsLoaded && status !== "loading";
-
   useEffect(() => {
-    if (ready) {
-      SplashScreen.hideAsync();   // on lâche le splash natif
+    if (fontError) {
+      // On ne bloque jamais l'app sur un échec de police : on log et on
+      // continue en police système.
+      console.warn("Font loading failed:", fontError);
     }
-  }, [ready]);
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync(); // fonts résolues (succès ou échec) → on lâche le splash natif
+    }
+  }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded) return null;          // splash natif encore visible → rien à rendre
-  if (status === "loading") return <SplashScreenComponent />;  // fonts OK, auth en cours
+  // Après tous les hooks (l'ordre des hooks doit rester inconditionnel).
+  // Deux portes empilées : fonts (splash natif) PUIS auth (splash custom,
+  // qui rend ainsi toujours avec les vraies polices).
+  if (!fontsLoaded && !fontError) return null;
+  if (status === "loading") return <SplashScreenComponent />;
 
 
   return (
