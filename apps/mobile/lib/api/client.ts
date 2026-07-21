@@ -1,5 +1,6 @@
 import { getAuthBridge } from "./authBridge";
 import { config } from "./config";
+import { extractApiErrorMessage } from "./errors";
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -51,12 +52,8 @@ async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      message: `Request failed with status ${res.status}`,
-    }));
-    throw new Error(
-      error.message ?? `Request failed with status ${res.status}`,
-    );
+    const error = await res.json().catch(() => null);
+    throw new Error(extractApiErrorMessage(error, `Request failed with status ${res.status}`));
   }
 
   return res.json() as Promise<T>;
