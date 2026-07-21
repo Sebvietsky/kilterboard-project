@@ -28,15 +28,14 @@ async function main() {
   const users = [];
 
   for (let i = 0; i < 20; i++) {
+    const email = `test-user-${i}@kilterboard.dev`;
+    const username = `test_user_${i}`;
     const user = await prisma.user.upsert({
-      where: { email: faker.internet.email() },
-      update: {},
+      where: { email },
+      update: { passwordHash },
       create: {
-        username: faker.internet
-          .username()
-          .slice(0, 20)
-          .replace(/[^a-zA-Z0-9_-]/g, '_'),
-        email: faker.internet.email(),
+        username,
+        email,
         passwordHash,
         bio: faker.lorem.sentence(),
         country: faker.location.countryCode(),
