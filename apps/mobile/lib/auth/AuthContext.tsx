@@ -11,6 +11,7 @@ import { authStorage } from "./storage";
 import type { AuthContextValue, AuthStatus, AuthTokens, User } from "./types";
 import { config } from "@/lib/api/config";
 import { configureAuthBridge } from "../api/authBridge";
+import { extractApiErrorMessage } from "../api/errors";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -40,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ message: "Login failed" }));
-      throw new Error(error.message ?? "Login failed");
+      const error = await res.json().catch(() => null);
+      throw new Error(extractApiErrorMessage(error, "Login failed"));
     }
 
     const data: AuthTokens = await res.json();
@@ -62,10 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!res.ok) {
-      const error = await res
+      const payload = await res
         .json()
-        .catch(() => ({ message: "Register failed" }));
-      throw new Error(error.message ?? "Register failed");
+        .catch(() => null);
+      throw new Error(extractApiErrorMessage(payload, "Register failed"));
     }
 
     await login(email, password);

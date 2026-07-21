@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma/client';
+import { HoldRole, PrismaClient } from '../src/generated/prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({
@@ -110,10 +110,10 @@ async function main() {
   console.log(`✅ ${holdsData.length} holds seeded`);
 
   console.log('Seeding admin user...');
-  const adminPassword = await bcrypt.hash('Admin123!@#', 10);
+  const adminPassword = await bcrypt.hash('Admin123!@#1', 10);
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@kilterboard.com' },
-    update: {},
+    update: { passwordHash: adminPassword },
     create: {
       username: 'kilter_admin',
       email: 'admin@kilterboard.com',
@@ -231,7 +231,7 @@ async function main() {
         boulderHolds: {
           create: holdRoles.map(({ code, role }) => ({
             holdId: getHold(code).id,
-            role: role as any,
+            role: role as HoldRole,
           })),
         },
         boulderTags: {

@@ -2,7 +2,13 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { colors, spacing, typography, radii } from "@/constants/theme";
+import {
+  colors,
+  spacing,
+  typography,
+  radii,
+  shadows,
+} from "@/constants/theme";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -27,55 +33,57 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Connexion</Text>
+      <Text style={styles.title}>Sign in</Text>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Email or username</Text>
-        <TextInput
-          style={styles.input}
-          value={identifier}
-          onChangeText={setIdentifier}
-          placeholder="ton@email.com"
-          placeholderTextColor={colors.textSubtle}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          editable={!isSubmitting}
-        />
+      <View style={styles.card}>
+        <View style={styles.field}>
+          <Text style={styles.label}>Email or username</Text>
+          <TextInput
+            style={styles.input}
+            value={identifier}
+            onChangeText={setIdentifier}
+            placeholder="you@email.com"
+            placeholderTextColor={colors.textSubtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            editable={!isSubmitting}
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            placeholderTextColor={colors.textSubtle}
+            secureTextEntry
+            editable={!isSubmitting}
+          />
+        </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        <Pressable
+          onPress={handleSubmit}
+          disabled={isSubmitting || !identifier || !password}
+          style={({ pressed }) => [
+            styles.button,
+            (isSubmitting || !identifier || !password) && styles.buttonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.buttonText}>
+            {isSubmitting ? "Signing in..." : "Sign in"}
+          </Text>
+        </Pressable>
       </View>
-
-      <View style={styles.field}>
-        <Text style={styles.label}>Mot de passe</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••"
-          placeholderTextColor={colors.textSubtle}
-          secureTextEntry
-          editable={!isSubmitting}
-        />
-      </View>
-
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      <Pressable
-        onPress={handleSubmit}
-        disabled={isSubmitting || !identifier || !password}
-        style={({ pressed }) => [
-          styles.button,
-          (isSubmitting || !identifier || !password) && styles.buttonDisabled,
-          pressed && styles.buttonPressed,
-        ]}
-      >
-        <Text style={styles.buttonText}>
-          {isSubmitting ? "Connexion..." : "Se connecter"}
-        </Text>
-      </Pressable>
 
       <Link href="/register" asChild>
         <Pressable>
-          <Text style={styles.link}>Pas encore de compte ? S'inscrire</Text>
+          <Text style={styles.link}>Don&apos;t have an account? Sign up</Text>
         </Pressable>
       </Link>
     </View>
@@ -95,7 +103,14 @@ const styles = StyleSheet.create({
     fontSize: typography.size.display,
     letterSpacing: typography.size.display * typography.letterSpacing.tight,
     color: colors.text,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    ...shadows.card,
   },
   field: {
     gap: spacing.xs,
@@ -119,10 +134,10 @@ const styles = StyleSheet.create({
   button: {
     height: 48,
     backgroundColor: colors.primary,
-    borderRadius: radii.md,
+    borderRadius: radii.full,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -131,20 +146,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryPressed,
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: colors.surface,
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
   },
   link: {
-    color: colors.primary,
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
+    color: colors.primary,
     textAlign: "center",
-    marginTop: spacing.lg,
   },
   error: {
-    color: colors.danger,
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
+    lineHeight: typography.size.sm * typography.lineHeight.normal,
+    color: colors.danger,
   },
 });
