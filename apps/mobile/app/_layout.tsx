@@ -82,6 +82,7 @@ function RootNavigation() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === "authenticated"}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="search" />
         <Stack.Screen
           name="boulder/[id]"
           options={{ headerShown: true, title: "" }}
