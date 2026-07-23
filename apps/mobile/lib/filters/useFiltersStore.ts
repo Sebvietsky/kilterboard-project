@@ -1,29 +1,15 @@
 import { create } from "zustand";
+import { FiltersState, FiltersValues } from "./types";
 
-interface FiltersState {
-  // l'état (les filtres appliqués)
-  name?: string;
-  creator?: string;
-  angle?: number;
-  gradeMin?: number;
-  gradeMax?: number;
-  tags: string[];
-  // les actions qui le modifient
-  setAngle: (angle?: number) => void;
-  setGrade: (rank?: number) => void;
-  reset: () => void;
-}
+const INITIAL: FiltersValues = {
+  name: undefined, creator: undefined, angle: undefined,
+  gradeMin: undefined, gradeMax: undefined, tags: []
+};
 
 export const useFiltersStore = create<FiltersState>((set) => ({
-  name: undefined,
-  creator: undefined,
-  angle: undefined,
-  gradeMin: undefined,
-  gradeMax: undefined,
-  tags: [],
+  ...INITIAL,
   setAngle: (angle) => set({ angle }),
   setGrade: (rank) => set({ gradeMin: rank, gradeMax: rank }),
-  reset: () =>
-    set({ name: undefined, creator: undefined, angle: undefined,
-          gradeMin: undefined, gradeMax: undefined, tags: [] }),
+  setFilters: (values: Partial<FiltersValues>) => set(values),
+  reset: () => set(INITIAL)
 }));

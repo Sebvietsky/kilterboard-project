@@ -12,4 +12,10 @@ export const GRADES = [
   { rank: 10, label: "V8" },
   { rank: 11, label: "V9" },
   { rank: 12, label: "V10" },
+  { rank: 13, label: "V11" },
+  { rank: 14, label: "V12" },
+  { rank: 15, label: "V13" },
+  { rank: 16, label: "V14" },
+  { rank: 17, label: "V15" },
+  { rank: 18, label: "V16" },
   ] as const

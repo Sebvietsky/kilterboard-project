@@ -40,6 +40,15 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
         <Text style={styles.metaData}>{item.angleDegrees}°</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
+        {
+          item.averageRating !== null &&
+            <>
+              <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.ratingText}>★ {item.averageRating.toFixed(1)}</Text>
+
+
+            </>
+        }
       </View>
 
       <Text style={styles.creator}>by {item.creatorUsername}</Text>
@@ -315,5 +324,10 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
     color: colors.surface,
+  },
+  ratingText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
 });

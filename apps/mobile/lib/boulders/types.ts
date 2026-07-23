@@ -7,7 +7,7 @@ export interface BoulderSummary {
   creatorUsername: string;
   tags: string[];
   ascentCount: number;
-  averageRating: number | null;  // TOUJOURS null en liste
+  averageRating: number;
   isPublic: boolean;
   createdAt: string;       // string JSON, PAS Date
 }
