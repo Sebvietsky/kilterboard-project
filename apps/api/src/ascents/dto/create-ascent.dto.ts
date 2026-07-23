@@ -19,7 +19,7 @@ export class CreateAscentDto {
   @IsOptional()
   @IsInt()
   @Type(() => Number)
-  feltGradeId?: number;
+  feltGradeRank?: number;
 
   @IsOptional()
   @IsInt()
