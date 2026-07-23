@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { colors } from "@/constants/theme";
+import { AppHeader } from "@/components/AppHeader";
 
 export default function TabsLayout() {
   return (
@@ -7,7 +8,8 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        headerShown: false,
+        headerShown: true,
+        header: () => <AppHeader />,
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Accueil" }} />
