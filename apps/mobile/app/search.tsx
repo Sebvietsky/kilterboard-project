@@ -17,8 +17,9 @@ import {
   radii,
   shadows,
 } from "@/constants/theme";
+import { useFiltersStore } from "@/lib/filters/useFiltersStore";
 
-// Échelle de cotation en RANK backend : V0 = rank 2 … V16 = rank 18.
+
 const GRADE_MIN_RANK = 2;
 const GRADE_MAX_RANK = 18;
 const rankToLabel = (rank: number) => `V${rank - GRADE_MIN_RANK}`;
@@ -34,17 +35,15 @@ const TAGS = [
   { slug: "technical", label: "Technical" },
 ];
 
+
+
 export default function SearchScreen() {
   const router = useRouter();
-
-  // ── Draft local (staged) ─────────────────────────────────────────
-  // TODO(Seb 3b) : initialiser depuis le store plutôt que des valeurs par
-  // défaut, ex. useState(() => useFiltersStore.getState().gradeMin ?? GRADE_MIN_RANK)
-  const [creatorDraft, setCreatorDraft] = useState("");
-  const [low, setLow] = useState(GRADE_MIN_RANK);
-  const [high, setHigh] = useState(GRADE_MAX_RANK);
-  const [angleDraft, setAngleDraft] = useState<number | undefined>();
-  const [tagsDraft, setTagsDraft] = useState<string[]>([]);
+  const [creatorDraft, setCreatorDraft] = useState(() => useFiltersStore.getState().creator ?? "");
+  const [low, setLow] = useState(() => useFiltersStore.getState().gradeMin ?? GRADE_MIN_RANK);
+  const [high, setHigh] = useState(() => useFiltersStore.getState().gradeMax ?? GRADE_MAX_RANK);
+  const [angleDraft, setAngleDraft] = useState<number | undefined>(() => useFiltersStore.getState().angle );
+  const [tagsDraft, setTagsDraft] = useState<string[]>(() => useFiltersStore.getState().tags);
 
   const handleGradeChange = useCallback((l: number, h: number) => {
     setLow(l);
@@ -58,16 +57,16 @@ export default function SearchScreen() {
   }
 
   function apply() {
-    // TODO(Seb 3b) — commit du draft dans le store puis retour :
-    //   useFiltersStore.getState().setFilters({
-    //     creator: creatorDraft || undefined,
-    //     gradeMin: low,
-    //     gradeMax: high,
-    //     angle: angleDraft,
-    //     tags: tagsDraft,
-    //   });
-    //   router.back();
-    // (Il te faudra ajouter l'action setFilters au store.)
+    const isFullRange = low === GRADE_MIN_RANK && high === GRADE_MAX_RANK;
+
+    useFiltersStore.getState().setFilters({
+      creator: creatorDraft || undefined,   // "" → undefined
+      gradeMin: isFullRange ? undefined : low,
+      gradeMax: isFullRange ? undefined : high,
+      angle: angleDraft,
+      tags: tagsDraft,
+    });
+    router.back();
   }
 
   // ── Render functions du slider (présentation) ────────────────────
