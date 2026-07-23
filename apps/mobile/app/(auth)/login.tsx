@@ -1,20 +1,14 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { Link } from "expo-router";
-import { useAuth } from "@/lib/auth/AuthContext";
-import {
-  colors,
-  spacing,
-  typography,
-  radii,
-  shadows,
-} from "@/constants/theme";
+import { useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,7 +19,7 @@ export default function LoginScreen() {
       await login(identifier, password);
       // Pas besoin de naviguer : le gating bascule automatiquement
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed");
+      setError(e instanceof Error ? e.message : 'Login failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -76,7 +70,7 @@ export default function LoginScreen() {
           ]}
         >
           <Text style={styles.buttonText}>
-            {isSubmitting ? "Signing in..." : "Sign in"}
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
           </Text>
         </Pressable>
       </View>
@@ -135,8 +129,8 @@ const styles = StyleSheet.create({
     height: 48,
     backgroundColor: colors.primary,
     borderRadius: radii.full,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: spacing.sm,
   },
   buttonDisabled: {
@@ -154,7 +148,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
     color: colors.primary,
-    textAlign: "center",
+    textAlign: 'center',
   },
   error: {
     fontFamily: typography.family.body,

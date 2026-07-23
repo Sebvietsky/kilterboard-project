@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { colors, spacing, typography, radii } from "@/constants/theme";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { colors, spacing, typography, radii } from '@/constants/theme';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
@@ -34,8 +34,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: typography.size.xl,
@@ -45,8 +45,8 @@ const styles = StyleSheet.create({
   logoutButton: {
     height: 48,
     borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.border,

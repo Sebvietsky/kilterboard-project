@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet } from "react-native";
-import { colors, spacing, typography } from "@/constants/theme";
+import { View, Text, StyleSheet } from 'react-native';
+import { colors, spacing, typography } from '@/constants/theme';
 
 // Échantillon temporaire de contrôle des fonts (tâche 4) : les 3 rendus
 // doivent être visiblement DIFFÉRENTS de la police système — seul moyen de
@@ -10,8 +10,8 @@ export default function AccueilScreen() {
       <Text style={styles.display}>Kilterboard</Text>
       <Text style={styles.heading}>Session du jour</Text>
       <Text style={styles.body}>
-        Un paragraphe en Figtree pour vérifier le rendu du corps de texte,
-        avec assez de mots pour juger la lisibilité.
+        Un paragraphe en Figtree pour vérifier le rendu du corps de texte, avec
+        assez de mots pour juger la lisibilité.
       </Text>
       <View style={styles.dataRow}>
         <Text style={styles.data}>47:12</Text>
@@ -25,7 +25,7 @@ export default function AccueilScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: 'center',
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
     gap: spacing.lg,
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   dataRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: spacing.xl,
   },
   data: {

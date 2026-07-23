@@ -1,5 +1,5 @@
-import Svg, { Circle, Path } from "react-native-svg";
-import { colors } from "@/constants/theme";
+import Svg, { Circle, Path } from 'react-native-svg';
+import { colors } from '@/constants/theme';
 
 // Logo Beta (source : docs/beta-logo.svg). viewBox 48×48, couleur = ink.
 export function BetaLogo({

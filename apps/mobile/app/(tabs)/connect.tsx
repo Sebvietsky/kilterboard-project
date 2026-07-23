@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet } from "react-native";
-import { colors, spacing, typography } from "@/constants/theme";
+import { View, Text, StyleSheet } from 'react-native';
+import { colors, typography } from '@/constants/theme';
 
 export default function ConnectScreen() {
   return (
@@ -12,8 +12,8 @@ export default function ConnectScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.background,
   },
   title: {

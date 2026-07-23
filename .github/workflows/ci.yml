@@ -6,8 +6,8 @@ on:
     branches: [main, develop]
 
 jobs:
-  ci:
-    name: Lint, Type Check & Test
+  api:
+    name: API — Lint, Type Check & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,3 +39,28 @@ jobs:
 
       - name: Build
         run: pnpm --filter api build
+
+  mobile:
+    name: Mobile — Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter mobile lint:ci
+
+      - name: Type check
+        run: pnpm --filter mobile type-check

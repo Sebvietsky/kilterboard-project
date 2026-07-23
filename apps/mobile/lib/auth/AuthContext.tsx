@@ -6,17 +6,17 @@ import {
   useState,
   ReactNode,
   useRef,
-} from "react";
-import { authStorage } from "./storage";
-import type { AuthContextValue, AuthStatus, AuthTokens, User } from "./types";
-import { config } from "@/lib/api/config";
-import { configureAuthBridge } from "../api/authBridge";
-import { extractApiErrorMessage } from "../api/errors";
+} from 'react';
+import { authStorage } from './storage';
+import type { AuthContextValue, AuthStatus, AuthTokens, User } from './types';
+import { config } from '@/lib/api/config';
+import { configureAuthBridge } from '../api/authBridge';
+import { extractApiErrorMessage } from '../api/errors';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>("loading");
+  const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const accessTokenRef = useRef<string | null>(null);
@@ -28,21 +28,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    if (!resUser.ok) throw new Error("Fetch user failed");
+    if (!resUser.ok) throw new Error('Fetch user failed');
     const dataUser = await resUser.json();
     setUser(dataUser.user);
   }
 
   async function login(identifier: string, password: string) {
     const res = await fetch(`${config.API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
     });
 
     if (!res.ok) {
       const error = await res.json().catch(() => null);
-      throw new Error(extractApiErrorMessage(error, "Login failed"));
+      throw new Error(extractApiErrorMessage(error, 'Login failed'));
     }
 
     const data: AuthTokens = await res.json();
@@ -52,21 +52,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchAndSetUser(data.accessToken.token);
     setAccessToken(data.accessToken.token);
 
-    setStatus("authenticated");
+    setStatus('authenticated');
   }
 
   async function register(email: string, password: string, username: string) {
     const res = await fetch(`${config.API_URL}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, username }),
     });
 
     if (!res.ok) {
-      const payload = await res
-        .json()
-        .catch(() => null);
-      throw new Error(extractApiErrorMessage(payload, "Register failed"));
+      const payload = await res.json().catch(() => null);
+      throw new Error(extractApiErrorMessage(payload, 'Register failed'));
     }
 
     await login(email, password);
@@ -76,10 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = await authStorage.getRefreshToken();
     if (refreshToken) {
       fetch(`${config.API_URL}/auth/logout`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessTokenRef.current}`,
         },
         body: JSON.stringify({ refreshToken }),
       }).catch(() => {
@@ -90,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authStorage.clearRefreshToken();
     setAccessToken(null);
     setUser(null);
-    setStatus("unauthenticated");
+    setStatus('unauthenticated');
   }
 
   async function refreshTokens(): Promise<string | null> {
@@ -99,12 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const res = await fetch(`${config.API_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
       if (!res.ok) {
-        throw new Error("Refresh tokens failed");
+        throw new Error('Refresh tokens failed');
       }
       const data: AuthTokens = await res.json();
       await authStorage.setRefreshToken(data.refreshToken.token);
@@ -126,16 +124,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const newAccessToken = await refreshTokens();
 
         if (!newAccessToken) {
-          setStatus("unauthenticated");
+          setStatus('unauthenticated');
           return;
         }
 
         await fetchAndSetUser(newAccessToken);
-        setStatus("authenticated");
+        setStatus('authenticated');
       } catch {
         await authStorage.clearRefreshToken().catch(() => {});
         setAccessToken(null);
-        setStatus("unauthenticated");
+        setStatus('unauthenticated');
       }
     }
 
@@ -168,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used inside an AuthProvider");
+    throw new Error('useAuth must be used inside an AuthProvider');
   }
   return ctx;
 }

@@ -1,8 +1,8 @@
 // Types du wrapper @/lib/vendor/RangeSlider (voir RangeSlider.js).
 // Ne PAS importer rn-range-slider ici : ce fichier fournit les types sans
 // référencer le .tsx cassé de la lib.
-import { ComponentType, ReactNode } from "react";
-import { StyleProp, ViewStyle } from "react-native";
+import { ComponentType, ReactNode } from 'react';
+import { StyleProp, ViewStyle } from 'react-native';
 
 export interface RangeSliderProps {
   style?: StyleProp<ViewStyle>;
@@ -13,7 +13,7 @@ export interface RangeSliderProps {
   high?: number;
   disableRange?: boolean;
   floatingLabel?: boolean;
-  renderThumb: (name: "high" | "low") => ReactNode;
+  renderThumb: (name: 'high' | 'low') => ReactNode;
   renderRail: () => ReactNode;
   renderRailSelected: () => ReactNode;
   renderLabel?: (value: number) => ReactNode;

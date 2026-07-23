@@ -1,35 +1,29 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { Link } from "expo-router";
-import { useAuth } from "@/lib/auth/AuthContext";
-import {
-  colors,
-  spacing,
-  typography,
-  radii,
-  shadows,
-} from "@/constants/theme";
+import { useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
 
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = !!email && !!username && !!password && !isSubmitting;
 
   async function handleSubmit() {
-    setError(null)
-    setIsSubmitting(true)
+    setError(null);
+    setIsSubmitting(true);
     try {
-      await register(email, password, username)
+      await register(email, password, username);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Register failed");
+      setError(e instanceof Error ? e.message : 'Register failed');
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
@@ -81,8 +75,8 @@ export default function RegisterScreen() {
             editable={!isSubmitting}
           />
           <Text style={styles.hint}>
-            12+ characters, with an uppercase, a number and a special
-            character (#?!@$%^&*-)
+            12+ characters, with an uppercase, a number and a special character
+            (#?!@$%^&*-)
           </Text>
         </View>
 
@@ -98,7 +92,7 @@ export default function RegisterScreen() {
           ]}
         >
           <Text style={styles.buttonText}>
-            {isSubmitting ? "Creating account..." : "Sign up"}
+            {isSubmitting ? 'Creating account...' : 'Sign up'}
           </Text>
         </Pressable>
       </View>
@@ -163,8 +157,8 @@ const styles = StyleSheet.create({
     height: 48,
     backgroundColor: colors.primary,
     borderRadius: radii.full,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: spacing.sm,
   },
   buttonDisabled: {
@@ -182,7 +176,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
     color: colors.primary,
-    textAlign: "center",
+    textAlign: 'center',
   },
   error: {
     fontFamily: typography.family.body,

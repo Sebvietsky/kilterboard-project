@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-} from "react-native";
-import { useRouter } from "expo-router";
-import RangeSlider from "@/lib/vendor/RangeSlider";
-import { ANGLES } from "@/lib/filters/const";
-import {
-  colors,
-  spacing,
-  typography,
-  radii,
-  shadows,
-} from "@/constants/theme";
-import { useFiltersStore } from "@/lib/filters/useFiltersStore";
-
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import RangeSlider from '@/lib/vendor/RangeSlider';
+import { ANGLES } from '@/lib/filters/const';
+import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
+import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 
 const GRADE_MIN_RANK = 2;
 const GRADE_MAX_RANK = 18;
@@ -26,24 +19,32 @@ const rankToLabel = (rank: number) => `V${rank - GRADE_MIN_RANK}`;
 
 // Tags "style" (slugs du seed). En dur pour l'instant, comme ANGLES.
 const TAGS = [
-  { slug: "crimp", label: "Crimp" },
-  { slug: "sloper", label: "Sloper" },
-  { slug: "dyno", label: "Dyno" },
-  { slug: "compression", label: "Compression" },
-  { slug: "coordination", label: "Coordination" },
-  { slug: "power", label: "Power" },
-  { slug: "technical", label: "Technical" },
+  { slug: 'crimp', label: 'Crimp' },
+  { slug: 'sloper', label: 'Sloper' },
+  { slug: 'dyno', label: 'Dyno' },
+  { slug: 'compression', label: 'Compression' },
+  { slug: 'coordination', label: 'Coordination' },
+  { slug: 'power', label: 'Power' },
+  { slug: 'technical', label: 'Technical' },
 ];
-
-
 
 export default function SearchScreen() {
   const router = useRouter();
-  const [creatorDraft, setCreatorDraft] = useState(() => useFiltersStore.getState().creator ?? "");
-  const [low, setLow] = useState(() => useFiltersStore.getState().gradeMin ?? GRADE_MIN_RANK);
-  const [high, setHigh] = useState(() => useFiltersStore.getState().gradeMax ?? GRADE_MAX_RANK);
-  const [angleDraft, setAngleDraft] = useState<number | undefined>(() => useFiltersStore.getState().angle );
-  const [tagsDraft, setTagsDraft] = useState<string[]>(() => useFiltersStore.getState().tags);
+  const [creatorDraft, setCreatorDraft] = useState(
+    () => useFiltersStore.getState().creator ?? '',
+  );
+  const [low, setLow] = useState(
+    () => useFiltersStore.getState().gradeMin ?? GRADE_MIN_RANK,
+  );
+  const [high, setHigh] = useState(
+    () => useFiltersStore.getState().gradeMax ?? GRADE_MAX_RANK,
+  );
+  const [angleDraft, setAngleDraft] = useState<number | undefined>(
+    () => useFiltersStore.getState().angle,
+  );
+  const [tagsDraft, setTagsDraft] = useState<string[]>(
+    () => useFiltersStore.getState().tags,
+  );
 
   const handleGradeChange = useCallback((l: number, h: number) => {
     setLow(l);
@@ -60,7 +61,7 @@ export default function SearchScreen() {
     const isFullRange = low === GRADE_MIN_RANK && high === GRADE_MAX_RANK;
 
     useFiltersStore.getState().setFilters({
-      creator: creatorDraft || undefined,   // "" → undefined
+      creator: creatorDraft || undefined, // "" → undefined
       gradeMin: isFullRange ? undefined : low,
       gradeMax: isFullRange ? undefined : high,
       angle: angleDraft,
@@ -128,7 +129,7 @@ export default function SearchScreen() {
             onValueChanged={handleGradeChange}
           />
           <View style={styles.scaleRow}>
-            {["V0", "V3", "V6", "V9", "V12", "V16"].map((l) => (
+            {['V0', 'V3', 'V6', 'V9', 'V12', 'V16'].map((l) => (
               <Text key={l} style={styles.scaleLabel}>
                 {l}
               </Text>
@@ -209,8 +210,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxxl,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
@@ -220,8 +221,8 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radii.full,
     backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     ...shadows.card,
   },
   backPressed: {
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
   },
   slider: {
     height: 40,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   thumb: {
     width: 24,
@@ -293,8 +294,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   scaleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   scaleLabel: {
     fontFamily: typography.family.data,
@@ -302,8 +303,8 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
   },
   chipWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   chip: {
@@ -338,8 +339,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: radii.full,
     backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   applyPressed: {
     backgroundColor: colors.primaryPressed,
