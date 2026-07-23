@@ -1,9 +1,9 @@
-export type GradeSystem = "V_SCALE" | "FONT_SCALE";
+export type GradeSystem = 'V_SCALE' | 'FONT_SCALE';
 export type User = {
   id: number;
   email: string;
   username: string;
-  role: "USER" | "ADMIN";
+  role: 'USER' | 'ADMIN';
   bio: string | null;
   avatarUrl: string | null;
   country: string | null;
@@ -15,7 +15,7 @@ export type User = {
 
 type TokenPayload = {
   token: string;
-  type: "Bearer";
+  type: 'Bearer';
   expiresInMs: number;
 };
 
@@ -24,7 +24,7 @@ export type AuthTokens = {
   refreshToken: TokenPayload;
 };
 
-export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 export type AuthContextValue = {
   status: AuthStatus;

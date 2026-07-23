@@ -7,22 +7,14 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-} from "react-native";
-import { useBouldersInfinite } from "@/lib/boulders/queries";
-import type { BoulderFilters, BoulderSummary } from "@/lib/boulders/types";
-import {
-  colors,
-  spacing,
-  typography,
-  radii,
-  shadows,
-} from "@/constants/theme";
-import { useState } from "react";
-import { useRouter } from "expo-router";
-import { useDebounce } from "@/lib/hooks/useDebounce";
-import { useFiltersStore } from "@/lib/filters/useFiltersStore";
-
-
+} from 'react-native';
+import { useBouldersInfinite } from '@/lib/boulders/queries';
+import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
+import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
   return (
@@ -40,15 +32,14 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
         <Text style={styles.metaData}>{item.angleDegrees}°</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
-        {
-          item.averageRating !== null &&
-            <>
-              <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.ratingText}>★ {item.averageRating.toFixed(1)}</Text>
-
-
-            </>
-        }
+        {item.averageRating !== null && (
+          <>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.ratingText}>
+              ★ {item.averageRating.toFixed(1)}
+            </Text>
+          </>
+        )}
       </View>
 
       <Text style={styles.creator}>by {item.creatorUsername}</Text>
@@ -58,7 +49,7 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
 
 export default function ExploreScreen() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
   const creator = useFiltersStore((s) => s.creator);
@@ -88,7 +79,7 @@ export default function ExploreScreen() {
   } = useBouldersInfinite(filters);
 
   function loadMore() {
-    if(hasNextPage && !isFetchingNextPage) fetchNextPage()
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }
 
   // État 1 — premier chargement (aucune donnée en cache encore).
@@ -138,7 +129,7 @@ export default function ExploreScreen() {
             styles.filtersButton,
             pressed && styles.filtersButtonPressed,
           ]}
-          onPress={() => router.push("/search")}
+          onPress={() => router.push('/search')}
         >
           <Text style={styles.filtersButtonText}>Filters</Text>
         </Pressable>
@@ -186,8 +177,8 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.background,
     padding: spacing.xl,
     gap: spacing.md,
@@ -222,8 +213,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filtersButtonPressed: {
     backgroundColor: colors.surfaceMuted,
@@ -249,9 +240,9 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.md,
   },
   boulderName: {
@@ -272,8 +263,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   metaData: {
@@ -298,7 +289,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
     color: colors.textSubtle,
-    textAlign: "center",
+    textAlign: 'center',
     paddingVertical: spacing.lg,
   },
   emptyText: {

@@ -1,8 +1,8 @@
-import { ReactNode } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BetaLogo } from "./BetaLogo";
-import { colors, spacing, typography } from "@/constants/theme";
+import { ReactNode } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BetaLogo } from './BetaLogo';
+import { colors, spacing, typography } from '@/constants/theme';
 
 // Header applicatif réutilisable.
 // - par défaut : marque (logo + wordmark "beta")
@@ -37,16 +37,16 @@ export function AppHeader({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     backgroundColor: colors.background,
   },
   left: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   wordmark: {

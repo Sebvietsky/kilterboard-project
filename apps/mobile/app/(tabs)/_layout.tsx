@@ -1,6 +1,6 @@
-import { Tabs } from "expo-router";
-import { colors } from "@/constants/theme";
-import { AppHeader } from "@/components/AppHeader";
+import { Tabs } from 'expo-router';
+import { colors } from '@/constants/theme';
+import { AppHeader } from '@/components/AppHeader';
 
 export default function TabsLayout() {
   return (
@@ -12,11 +12,11 @@ export default function TabsLayout() {
         header: () => <AppHeader />,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Accueil" }} />
-      <Tabs.Screen name="explore" options={{ title: "Explore" }} />
-      <Tabs.Screen name="connect" options={{ title: "Connect" }} />
-      <Tabs.Screen name="projects" options={{ title: "Projects" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      <Tabs.Screen name="index" options={{ title: 'Accueil' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
+      <Tabs.Screen name="connect" options={{ title: 'Connect' }} />
+      <Tabs.Screen name="projects" options={{ title: 'Projects' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }

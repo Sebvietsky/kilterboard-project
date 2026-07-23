@@ -9,7 +9,7 @@ export interface BoulderSummary {
   ascentCount: number;
   averageRating: number;
   isPublic: boolean;
-  createdAt: string;       // string JSON, PAS Date
+  createdAt: string; // string JSON, PAS Date
 }
 
 export interface PaginatedResponse<T> {

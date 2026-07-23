@@ -1,6 +1,6 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from 'expo-secure-store';
 
-const REFRESH_TOKEN_KEY = "kilterboard.refreshToken";
+const REFRESH_TOKEN_KEY = 'kilterboard.refreshToken';
 
 export const authStorage = {
   async getRefreshToken(): Promise<string | null> {

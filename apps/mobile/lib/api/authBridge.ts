@@ -12,7 +12,7 @@ export function configureAuthBridge(b: AuthBridge): void {
 
 export function getAuthBridge(): AuthBridge {
   if (!bridge) {
-    throw new Error("AuthBridge not configured. Did you mount AuthProvider?");
+    throw new Error('AuthBridge not configured. Did you mount AuthProvider?');
   }
   return bridge;
 }

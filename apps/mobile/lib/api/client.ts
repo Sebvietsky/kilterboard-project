@@ -1,6 +1,6 @@
-import { getAuthBridge } from "./authBridge";
-import { config } from "./config";
-import { extractApiErrorMessage } from "./errors";
+import { getAuthBridge } from './authBridge';
+import { config } from './config';
+import { extractApiErrorMessage } from './errors';
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -26,11 +26,11 @@ async function apiFetch<T>(
   const accessToken = getAuthBridge().getAccessToken();
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
   if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
+    headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
   const res = await fetch(`${config.API_URL}${path}`, { ...options, headers });
@@ -40,7 +40,7 @@ async function apiFetch<T>(
 
     if (!newAccessToken) {
       getAuthBridge().onAuthFailure();
-      throw new Error("Session expired");
+      throw new Error('Session expired');
     }
 
     return apiFetch<T>(path, options, true);
@@ -48,33 +48,35 @@ async function apiFetch<T>(
 
   if (res.status === 401 && isRetry) {
     getAuthBridge().onAuthFailure();
-    throw new Error("Session expired");
+    throw new Error('Session expired');
   }
 
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new Error(extractApiErrorMessage(error, `Request failed with status ${res.status}`));
+    throw new Error(
+      extractApiErrorMessage(error, `Request failed with status ${res.status}`),
+    );
   }
 
   return res.json() as Promise<T>;
 }
 
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path, { method: "GET" }),
+  get: <T>(path: string) => apiFetch<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, {
-      method: "POST",
+      method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     }),
   put: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, {
-      method: "PUT",
+      method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     }),
   patch: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, {
-      method: "PATCH",
+      method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     }),
-  delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };

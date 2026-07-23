@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import { colors, spacing, typography } from "@/constants/theme";
+import { View, Text, StyleSheet } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { colors, typography } from '@/constants/theme';
 
 export default function BoulderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -15,8 +15,8 @@ export default function BoulderDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.background,
   },
   title: {
