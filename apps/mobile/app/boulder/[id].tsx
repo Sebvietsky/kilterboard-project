@@ -12,6 +12,7 @@ import {
   spacing,
   typography,
   radii,
+  shadows,
   status as statusColors,
 } from '@/constants/theme';
 import { BoardLED } from '@/components/BoardLED';
@@ -87,6 +88,45 @@ export default function BoulderDetailScreen() {
       </View>
 
       <BoardLED holds={detail.holds} />
+
+      <View style={styles.statsCard}>
+        <View style={styles.statCol}>
+          <Text style={styles.statLabel}>Rating</Text>
+          <Text style={styles.statValue}>
+            {detail.averageRating !== null ? (
+              <>
+                <Text style={styles.star}>★</Text>{' '}
+                {detail.averageRating.toFixed(1)}
+              </>
+            ) : (
+              '—'
+            )}
+          </Text>
+        </View>
+
+        <View style={styles.statDivider} />
+
+        <View style={styles.statCol}>
+          <Text style={styles.statLabel}>Ascents</Text>
+          <Text style={styles.statValue}>{detail.ascentCount}</Text>
+        </View>
+
+        {detail.tags.length > 0 && (
+          <>
+            <View style={styles.statDivider} />
+            <View style={styles.statCol}>
+              <Text style={styles.statLabel}>Tags</Text>
+              <View style={styles.tagWrap}>
+                {detail.tags.map((tag) => (
+                  <View key={tag} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -190,6 +230,55 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.md,
     color: colors.textMuted,
+  },
+  // ── Stats card ──────────────────────────────────────────
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    paddingVertical: spacing.lg,
+    ...shadows.card,
+  },
+  statCol: {
+    flex: 1,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  statLabel: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.lg,
+    color: colors.text,
+  },
+  star: {
+    color: colors.gold,
+  },
+  tagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  tag: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  tagText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
   },
   // ── Status badge ────────────────────────────────────────
   badgeBase: {
