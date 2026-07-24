@@ -62,6 +62,7 @@ export function useBoulder(id: number): UseQueryResult<BoulderDetail, Error> {
   const queryClient = useQueryClient();
 
   return useQuery({
+    enabled: Number.isFinite(id),
     queryKey: boulderKeys.detail(id),
     queryFn: () => fetchBoulderId(id),
     placeholderData: () => {

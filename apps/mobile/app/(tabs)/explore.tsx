@@ -139,7 +139,11 @@ export default function ExploreScreen() {
         style={styles.list}
         data={boulders}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <BoulderCard item={item} />}
+        renderItem={({ item }) => (
+          <Pressable onPress={() => router.push(`/boulder/${item.id}`)}>
+            <BoulderCard item={item} />
+          </Pressable>
+        )}
         contentContainerStyle={styles.listContent}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}

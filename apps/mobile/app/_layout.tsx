@@ -83,7 +83,12 @@ function RootNavigation() {
         <Stack.Screen name="search" />
         <Stack.Screen
           name="boulder/[id]"
-          options={{ headerShown: true, title: '' }}
+          options={{
+            headerShown: true,
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerShadowVisible: false,
+          }}
         />
       </Stack.Protected>
 

@@ -19,3 +19,12 @@ export type Ascent = {
   sendDate: string | null;
   wasProject: boolean;
 };
+
+export type MyAscent = {
+  id: number;
+  status: AscentStatus;
+  attemptsCount: number;
+  feltGrade: { vScale: string; fontScale: string } | null;
+  sendDate: string | null;
+  createdAt: string;
+};
