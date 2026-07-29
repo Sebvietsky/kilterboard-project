@@ -9,24 +9,15 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import RangeSlider from '@/lib/vendor/RangeSlider';
-import { ANGLES } from '@/lib/filters/const';
+import {
+  ANGLES,
+  TAGS,
+  GRADE_MIN_RANK,
+  GRADE_MAX_RANK,
+  gradeLabel,
+} from '@/lib/filters/const';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
-
-const GRADE_MIN_RANK = 2;
-const GRADE_MAX_RANK = 18;
-const rankToLabel = (rank: number) => `V${rank - GRADE_MIN_RANK}`;
-
-// Tags "style" (slugs du seed). En dur pour l'instant, comme ANGLES.
-const TAGS = [
-  { slug: 'crimp', label: 'Crimp' },
-  { slug: 'sloper', label: 'Sloper' },
-  { slug: 'dyno', label: 'Dyno' },
-  { slug: 'compression', label: 'Compression' },
-  { slug: 'coordination', label: 'Coordination' },
-  { slug: 'power', label: 'Power' },
-  { slug: 'technical', label: 'Technical' },
-];
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -114,7 +105,7 @@ export default function SearchScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>GRADE RANGE</Text>
           <Text style={styles.rangeValue}>
-            {rankToLabel(low)} — {rankToLabel(high)}
+            {gradeLabel(low)} — {gradeLabel(high)}
           </Text>
           <RangeSlider
             style={styles.slider}

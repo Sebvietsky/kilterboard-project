@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
+import { ActiveFilters } from '@/components/filters/ActiveFilters';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
   return (
@@ -134,6 +135,8 @@ export default function ExploreScreen() {
           <Text style={styles.filtersButtonText}>Filters</Text>
         </Pressable>
       </View>
+
+      <ActiveFilters />
 
       <FlatList
         style={styles.list}
