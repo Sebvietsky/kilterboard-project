@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
+import { AuthLayout } from '@/components/auth/AuthLayout';
+import { AuthField } from '@/components/auth/AuthField';
+import { AuthButton } from '@/components/auth/AuthButton';
+import { AuthError } from '@/components/auth/AuthError';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -28,136 +29,40 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign in</Text>
+    <AuthLayout
+      title="Sign in"
+      footerHref="/register"
+      footerLabel="Don't have an account? Sign up"
+    >
+      <AuthField
+        label="Email or username"
+        value={identifier}
+        onChangeText={setIdentifier}
+        placeholder="you@email.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        autoComplete="username"
+        editable={!isSubmitting}
+      />
 
-      <View style={styles.card}>
-        <View style={styles.field}>
-          <Text style={styles.label}>Email or username</Text>
-          <TextInput
-            style={styles.input}
-            value={identifier}
-            onChangeText={setIdentifier}
-            placeholder="you@email.com"
-            placeholderTextColor={colors.textSubtle}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            autoComplete="username"
-            editable={!isSubmitting}
-          />
-        </View>
+      <AuthField
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••"
+        secureTextEntry
+        autoComplete="current-password"
+        editable={!isSubmitting}
+      />
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            placeholderTextColor={colors.textSubtle}
-            secureTextEntry
-            autoComplete="current-password"
-            editable={!isSubmitting}
-          />
-        </View>
+      {error && <AuthError message={error} />}
 
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        <Pressable
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={({ pressed }) => [
-            styles.button,
-            !canSubmit && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.buttonText}>
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </Text>
-        </Pressable>
-      </View>
-
-      <Link href="/register" asChild>
-        <Pressable>
-          <Text style={styles.link}>Don&apos;t have an account? Sign up</Text>
-        </Pressable>
-      </Link>
-    </View>
+      <AuthButton
+        label={isSubmitting ? 'Signing in...' : 'Sign in'}
+        onPress={handleSubmit}
+        disabled={!canSubmit}
+      />
+    </AuthLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxxl,
-    gap: spacing.lg,
-  },
-  title: {
-    fontFamily: typography.family.display,
-    fontSize: typography.size.display,
-    letterSpacing: typography.size.display * typography.letterSpacing.tight,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.card,
-    padding: spacing.lg,
-    gap: spacing.lg,
-    ...shadows.card,
-  },
-  field: {
-    gap: spacing.xs,
-  },
-  label: {
-    fontFamily: typography.family.bodyMedium,
-    fontSize: typography.size.sm,
-    color: colors.textMuted,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    fontFamily: typography.family.body,
-    fontSize: typography.size.md,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  button: {
-    height: 48,
-    backgroundColor: colors.primary,
-    borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonPressed: {
-    backgroundColor: colors.primaryPressed,
-  },
-  buttonText: {
-    color: colors.surface,
-    fontFamily: typography.family.bodySemibold,
-    fontSize: typography.size.md,
-  },
-  link: {
-    fontFamily: typography.family.body,
-    fontSize: typography.size.sm,
-    color: colors.primary,
-    textAlign: 'center',
-  },
-  error: {
-    fontFamily: typography.family.body,
-    fontSize: typography.size.sm,
-    lineHeight: typography.size.sm * typography.lineHeight.normal,
-    color: colors.danger,
-  },
-});
