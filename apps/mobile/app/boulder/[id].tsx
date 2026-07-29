@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  TextInput,
+  Switch,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
@@ -17,15 +19,31 @@ import {
 } from '@/constants/theme';
 import { BoardLED } from '@/components/BoardLED';
 import { useBoulder } from '@/lib/boulders/queries';
-import { useMyAscentsOnBoulder } from '@/lib/ascents/queries';
+import {
+  deriveAvailableStatuses,
+  useLogAscent,
+  useMyAscentsOnBoulder,
+} from '@/lib/ascents/queries';
 import { AscentStatus } from '@/lib/ascents/types';
+import { useGrades } from '@/lib/grades/queries';
+import { Grade } from '@/lib/grades/types';
 import { ApiError } from '@/lib/api/errors';
+import { useState } from 'react';
 
 export default function BoulderDetailScreen() {
+  const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
+  const [attempts, setAttempts] = useState(1);
+  const [feltGradeRank, setFeltGradeRank] = useState<number>();
+  const [comment, setComment] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
+  const [rating, setRating] = useState<number>();
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const myAscents = useMyAscentsOnBoulder(boulderId);
+  const grades = useGrades();
+  const logAscent = useLogAscent();
   const statuses = myAscents.data?.map((a) => a.status) ?? [];
   const currentStatus = statuses.includes('FLASH')
     ? 'FLASH'
@@ -34,6 +52,44 @@ export default function BoulderDetailScreen() {
       : statuses.includes('PROJECT')
         ? 'PROJECT'
         : null;
+  const availableStatuses = deriveAvailableStatuses(myAscents.data ?? []);
+  const selectedStatus = logStatus ?? availableStatuses[0] ?? null;
+
+  // Note publique = uniquement au premier envoi (SENT/FLASH sans historique).
+  const hasAnyAscent = (myAscents.data ?? []).length > 0;
+  const canBePublic =
+    !hasAnyAscent && (selectedStatus === 'SENT' || selectedStatus === 'FLASH');
+
+  const feltGradeRequired =
+    !hasAnyAscent && (selectedStatus === 'FLASH' || selectedStatus === 'SENT');
+  const canSubmit =
+    !!selectedStatus &&
+    !(feltGradeRequired && feltGradeRank == null) &&
+    !logAscent.isPending;
+
+  function submit() {
+    if (!selectedStatus) return;
+    logAscent.mutate(
+      {
+        boulderId,
+        status: selectedStatus,
+        attemptsCount: selectedStatus === 'FLASH' ? 1 : attempts,
+        feltGradeRank: selectedStatus === 'PROJECT' ? undefined : feltGradeRank,
+        rating: selectedStatus === 'PROJECT' ? undefined : rating,
+        comment: comment.trim() || undefined,
+        visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
+      },
+      {
+        onSuccess: () => {
+          setLogStatus(null);
+          setAttempts(1);
+          setFeltGradeRank(undefined);
+          setRating(undefined);
+          setComment('');
+        },
+      },
+    );
+  }
 
   // id invalide OU 404 -> même écran "not found"
   if (
@@ -127,7 +183,264 @@ export default function BoulderDetailScreen() {
           </>
         )}
       </View>
+
+      <View style={styles.logSection}>
+        <Text style={styles.sectionLabel}>Log session</Text>
+        {availableStatuses.length === 0 ? (
+          <Text style={styles.placeholderText}>
+            You have an active project on this boulder. Finish it from the
+            Projects tab.
+          </Text>
+        ) : (
+          <>
+            {hasAnyAscent && (
+              <Text style={styles.logHint}>
+                You&apos;ve already logged this boulder — log a repeat below.
+              </Text>
+            )}
+            <StatusSegmented
+              available={availableStatuses}
+              selected={selectedStatus}
+              onSelect={setLogStatus}
+            />
+
+            {selectedStatus !== 'FLASH' && (
+              <View style={styles.fieldRow}>
+                <View>
+                  <Text style={styles.fieldLabel}>Attempts</Text>
+                  <Text style={styles.fieldHint}>Number of tries</Text>
+                </View>
+                <Stepper value={attempts} onChange={setAttempts} />
+              </View>
+            )}
+
+            {feltGradeRequired && (
+              <View style={styles.field}>
+                <View style={styles.fieldHeader}>
+                  <View>
+                    <Text style={styles.fieldLabel}>Felt grade</Text>
+                    <Text style={styles.fieldHint}>Your assessment</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.required,
+                      feltGradeRank == null && styles.requiredEmpty,
+                    ]}
+                  >
+                    Required
+                  </Text>
+                </View>
+                <GradePicker
+                  grades={grades.data ?? []}
+                  selected={feltGradeRank}
+                  onSelect={setFeltGradeRank}
+                />
+              </View>
+            )}
+
+            {feltGradeRequired && (
+              <View style={styles.field}>
+                <View style={styles.fieldHeader}>
+                  <View>
+                    <Text style={styles.fieldLabel}>Rate this climb</Text>
+                    <Text style={styles.fieldHint}>Optional</Text>
+                  </View>
+                </View>
+                <StarRating value={rating} onChange={setRating} />
+              </View>
+            )}
+
+            <View style={styles.field}>
+              <View style={styles.fieldHeader}>
+                <Text style={styles.fieldLabel}>Comment</Text>
+                {canBePublic ? (
+                  <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>
+                      {isPublic ? 'Public' : 'Private'}
+                    </Text>
+                    <Switch
+                      value={isPublic}
+                      onValueChange={setIsPublic}
+                      trackColor={{
+                        true: colors.primary,
+                        false: colors.border,
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <Text style={styles.privateLabel}>Private only</Text>
+                )}
+              </View>
+              <TextInput
+                style={styles.commentInput}
+                value={comment}
+                onChangeText={setComment}
+                placeholder="How did it feel? (beta, conditions, energy...)"
+                placeholderTextColor={colors.textSubtle}
+                multiline
+              />
+            </View>
+
+            {logAscent.isError && (
+              <Text style={styles.errorText}>{logAscent.error.message}</Text>
+            )}
+
+            <Pressable
+              onPress={submit}
+              disabled={!canSubmit}
+              style={[
+                styles.submitButton,
+                !canSubmit && styles.submitButtonDisabled,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.submitText,
+                  !canSubmit && styles.submitTextDisabled,
+                ]}
+              >
+                {logAscent.isPending
+                  ? 'Logging…'
+                  : selectedStatus === 'PROJECT'
+                    ? 'Save'
+                    : 'Log ascent'}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </ScrollView>
+  );
+}
+
+const ALL_STATUSES: { value: AscentStatus; label: string }[] = [
+  { value: 'FLASH', label: 'Flash' },
+  { value: 'SENT', label: 'Sent' },
+  { value: 'PROJECT', label: 'Project' },
+];
+
+function StatusSegmented({
+  available,
+  selected,
+  onSelect,
+}: {
+  available: AscentStatus[];
+  selected: AscentStatus | null;
+  onSelect: (status: AscentStatus) => void;
+}) {
+  return (
+    <View style={styles.segmented}>
+      {ALL_STATUSES.map(({ value, label }) => {
+        const disabled = !available.includes(value);
+        const active = selected === value;
+        return (
+          <Pressable
+            key={value}
+            disabled={disabled}
+            onPress={() => onSelect(value)}
+            style={[styles.segment, active && styles.segmentActive]}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                active && styles.segmentTextActive,
+                disabled && styles.segmentTextDisabled,
+              ]}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function StarRating({
+  value,
+  onChange,
+}: {
+  value: number | undefined;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Pressable key={n} onPress={() => onChange(n)} hitSlop={spacing.xs}>
+          <Text
+            style={[
+              styles.starIcon,
+              value != null && n <= value && styles.starIconActive,
+            ]}
+          >
+            ★
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function GradePicker({
+  grades,
+  selected,
+  onSelect,
+}: {
+  grades: Grade[];
+  selected: number | undefined;
+  onSelect: (rank: number) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.gradeRow}
+    >
+      {grades.map((g) => {
+        const active = selected === g.rank;
+        return (
+          <Pressable
+            key={g.rank}
+            onPress={() => onSelect(g.rank)}
+            style={[styles.gradeChip, active && styles.gradeChipActive]}
+          >
+            <Text
+              style={[
+                styles.gradeChipText,
+                active && styles.gradeChipTextActive,
+              ]}
+            >
+              {g.vScale}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+function Stepper({
+  value,
+  onChange,
+  min = 1,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+}) {
+  return (
+    <View style={styles.stepper}>
+      <Pressable
+        style={styles.stepperBtn}
+        onPress={() => onChange(Math.max(min, value - 1))}
+      >
+        <Text style={styles.stepperSign}>−</Text>
+      </Pressable>
+      <Text style={styles.stepperValue}>{value}</Text>
+      <Pressable style={styles.stepperBtn} onPress={() => onChange(value + 1)}>
+        <Text style={styles.stepperSign}>+</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -234,6 +547,7 @@ const styles = StyleSheet.create({
   // ── Stats card ──────────────────────────────────────────
   statsCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.card,
     paddingVertical: spacing.lg,
@@ -241,11 +555,13 @@ const styles = StyleSheet.create({
   },
   statCol: {
     flex: 1,
+    alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
   },
   statDivider: {
     width: 1,
+    alignSelf: 'stretch',
     backgroundColor: colors.border,
   },
   statLabel: {
@@ -266,6 +582,7 @@ const styles = StyleSheet.create({
   tagWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: spacing.xs,
   },
   tag: {
@@ -279,6 +596,205 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.textMuted,
     textTransform: 'uppercase',
+  },
+  // ── Log session ─────────────────────────────────────────
+  logSection: {
+    gap: spacing.md,
+  },
+  sectionLabel: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  placeholderText: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.md,
+    color: colors.textMuted,
+  },
+  logHint: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
+  },
+  segmented: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.card,
+    padding: spacing.xs,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radii.md,
+  },
+  segmentActive: {
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  segmentText: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.textMuted,
+  },
+  segmentTextActive: {
+    color: colors.text,
+  },
+  segmentTextDisabled: {
+    color: colors.textSubtle,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fieldLabel: {
+    fontFamily: typography.family.heading,
+    fontSize: typography.size.lg,
+    color: colors.text,
+  },
+  fieldHint: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.xs,
+  },
+  stepperBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperSign: {
+    fontFamily: typography.family.heading,
+    fontSize: typography.size.xl,
+    color: colors.primary,
+  },
+  stepperValue: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.lg,
+    color: colors.text,
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  field: {
+    gap: spacing.sm,
+  },
+  fieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  required: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textSubtle,
+  },
+  requiredEmpty: {
+    color: colors.coral,
+  },
+  gradeRow: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  gradeChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  gradeChipActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  gradeChipText: {
+    fontFamily: typography.family.heading,
+    fontSize: typography.size.md,
+    color: colors.text,
+  },
+  gradeChipTextActive: {
+    color: colors.surface,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  toggleLabel: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
+  privateLabel: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textSubtle,
+  },
+  commentInput: {
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    fontFamily: typography.family.body,
+    fontSize: typography.size.md,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.sm,
+    color: colors.coral,
+  },
+  submitButton: {
+    height: 52,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitButtonDisabled: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  submitText: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.surface,
+  },
+  submitTextDisabled: {
+    color: colors.textSubtle,
+  },
+  starRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  starIcon: {
+    fontSize: 28,
+    color: colors.border,
+  },
+  starIconActive: {
+    color: colors.gold,
   },
   // ── Status badge ────────────────────────────────────────
   badgeBase: {
