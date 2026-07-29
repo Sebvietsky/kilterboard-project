@@ -12,6 +12,8 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const canSubmit = !!identifier && !!password && !isSubmitting;
+
   async function handleSubmit() {
     setError(null);
     setIsSubmitting(true);
@@ -41,6 +43,7 @@ export default function LoginScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
+            autoComplete="username"
             editable={!isSubmitting}
           />
         </View>
@@ -54,6 +57,7 @@ export default function LoginScreen() {
             placeholder="••••••••"
             placeholderTextColor={colors.textSubtle}
             secureTextEntry
+            autoComplete="current-password"
             editable={!isSubmitting}
           />
         </View>
@@ -62,10 +66,10 @@ export default function LoginScreen() {
 
         <Pressable
           onPress={handleSubmit}
-          disabled={isSubmitting || !identifier || !password}
+          disabled={!canSubmit}
           style={({ pressed }) => [
             styles.button,
-            (isSubmitting || !identifier || !password) && styles.buttonDisabled,
+            !canSubmit && styles.buttonDisabled,
             pressed && styles.buttonPressed,
           ]}
         >
