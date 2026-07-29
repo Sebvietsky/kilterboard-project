@@ -20,9 +20,11 @@ const palette = {
   moss: '#2EBD85', // ascent, board connecté, holds start
   coral: '#FF6B57', // project, likes, destructif, holds feet
   // Déclinaisons (badges, overlays, dots) — uniquement référencées par les tokens
+  goldSoft: '#FFF0CC',
   goldInk: '#553D00',
   mossSoft: '#D9F3E7',
   mossInk: '#177350',
+  coralSoft: '#FFF1EE',
   coralLine: '#FF9A83',
   coralInk: '#C2452F',
   skyDots: 'rgba(157, 184, 255, 0.22)',
@@ -118,23 +120,29 @@ export const shadows = {
   },
 } as const;
 
-// Un statut d'ascension = couleur forte + recette de badge
+// Un statut d'ascension = couleur forte + recette de badge.
+// softBg : aplat pâle de poids homogène entre les trois statuts, pour les
+// surfaces plus larges qu'un badge (segment sélectionné). Contraste vérifié
+// avec badgeText — flash 9,0:1 · ascent 5,0:1 · project 4,6:1 (AA ≥ 4,5:1).
 export const status = {
   flash: {
     color: colors.gold,
     badgeBg: palette.gold,
     badgeText: palette.goldInk,
+    softBg: palette.goldSoft,
   },
   ascent: {
     color: colors.moss,
     badgeBg: palette.mossSoft,
     badgeText: palette.mossInk,
+    softBg: palette.mossSoft,
   },
   project: {
     color: colors.coral,
     badgeBorder: palette.coralLine,
     badgeText: palette.coralInk,
-  }, // fond transparent, bordure dashed
+    softBg: palette.coralSoft,
+  }, // badge : fond transparent, bordure dashed
 } as const;
 
 // Prises sur la carte board LED
