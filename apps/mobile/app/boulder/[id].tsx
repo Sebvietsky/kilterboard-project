@@ -53,7 +53,14 @@ export default function BoulderDetailScreen() {
         ? 'PROJECT'
         : null;
   const availableStatuses = deriveAvailableStatuses(myAscents.data ?? []);
-  const selectedStatus = logStatus ?? availableStatuses[0] ?? null;
+  // La sélection ne survit pas à un changement de disponibilité : myAscents peut
+  // se refetch hors du submit (retour de focus, autre appareil) et rendre le
+  // statut choisi impossible. Sans cette garde, plus aucun segment n'est actif
+  // et le stepper disparaît, sans erreur ni log.
+  const selectedStatus =
+    (logStatus && availableStatuses.includes(logStatus) ? logStatus : null) ??
+    availableStatuses[0] ??
+    null;
 
   // Note publique = uniquement au premier envoi (SENT/FLASH sans historique).
   const hasAnyAscent = (myAscents.data ?? []).length > 0;
@@ -328,25 +335,33 @@ function StatusSegmented({
   selected: AscentStatus | null;
   onSelect: (status: AscentStatus) => void;
 }) {
+  // Recette visuelle du segment sélectionné, par statut (même pattern que
+  // StatusBadge) : le contrôle parle la même langue que la pastille du header.
+  const segmentStyles = {
+    FLASH: { box: styles.segmentFlash, text: styles.segmentTextFlash },
+    SENT: { box: styles.segmentSent, text: styles.segmentTextSent },
+    PROJECT: { box: styles.segmentProject, text: styles.segmentTextProject },
+  };
+
   return (
     <View style={styles.segmented}>
       {ALL_STATUSES.map(({ value, label }) => {
         const disabled = !available.includes(value);
         const active = selected === value;
+        const config = segmentStyles[value];
         return (
           <Pressable
             key={value}
             disabled={disabled}
             onPress={() => onSelect(value)}
-            style={[styles.segment, active && styles.segmentActive]}
+            style={[
+              styles.segment,
+              active && styles.segmentActive,
+              active && config.box,
+              disabled && styles.segmentDisabled,
+            ]}
           >
-            <Text
-              style={[
-                styles.segmentText,
-                active && styles.segmentTextActive,
-                disabled && styles.segmentTextDisabled,
-              ]}
-            >
+            <Text style={[styles.segmentText, active && config.text]}>
               {label}
             </Text>
           </Pressable>
@@ -630,20 +645,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radii.md,
   },
+  // Le fond du segment actif vient de son statut (voir segmentFlash & co.) ;
+  // ici seulement le relief qui le détache du conteneur.
   segmentActive: {
-    backgroundColor: colors.surface,
     ...shadows.card,
+  },
+  // Indisponible : l'opacité porte sur tout le segment, pas sur le seul texte —
+  // un segment translucide se lit « hors service », un texte plus clair se lit
+  // « pas sélectionné ».
+  segmentDisabled: {
+    opacity: 0.4,
+  },
+  segmentFlash: {
+    backgroundColor: statusColors.flash.softBg,
+  },
+  segmentSent: {
+    backgroundColor: statusColors.ascent.softBg,
+  },
+  segmentProject: {
+    backgroundColor: statusColors.project.softBg,
   },
   segmentText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
     color: colors.textMuted,
   },
-  segmentTextActive: {
-    color: colors.text,
+  segmentTextFlash: {
+    color: statusColors.flash.badgeText,
   },
-  segmentTextDisabled: {
-    color: colors.textSubtle,
+  segmentTextSent: {
+    color: statusColors.ascent.badgeText,
+  },
+  segmentTextProject: {
+    color: statusColors.project.badgeText,
   },
   fieldRow: {
     flexDirection: 'row',
