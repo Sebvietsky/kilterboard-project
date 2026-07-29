@@ -6,12 +6,13 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
+  Animated,
   StyleSheet,
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
@@ -48,10 +49,27 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
   );
 }
 
+// Repli du grand titre au scroll (pattern large-title). Seul le titre disparaît :
+// recherche, Filters et chips de filtres actifs sont rendus HORS de la liste,
+// donc fixes — ce sont des actions primaires, les masquer forcerait un
+// scroll-to-top pour re-filtrer une longue liste.
+// Hauteur de repli mesurée au premier layout plutôt que déduite des tokens : la
+// hauteur réelle dépend des métriques de la police, une constante calculée
+// collapserait trop tôt ou laisserait un résidu.
+const TITLE_HEIGHT_FALLBACK =
+  typography.size.display * typography.lineHeight.tight + spacing.md;
+
 export default function ExploreScreen() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+
+  // useState + initialiseur paresseux, pas useRef : la valeur est consommée
+  // pendant le rendu (interpolate), ce qu'un ref n'a pas le droit de faire.
+  // L'initialiseur garantit une seule instance sur toute la vie du composant.
+  const [scrollY] = useState(() => new Animated.Value(0));
+  const [titleHeight, setTitleHeight] = useState(TITLE_HEIGHT_FALLBACK);
+  const titleMeasured = useRef(false);
 
   const creator = useFiltersStore((s) => s.creator);
   const angle = useFiltersStore((s) => s.angle);
@@ -83,6 +101,21 @@ export default function ExploreScreen() {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }
 
+  // L'opacité s'éteint avant la hauteur (0,6) : sans ça le texte reste lisible
+  // jusqu'au dernier pixel et paraît coupé au rasoir.
+  const collapsingTitle = {
+    height: scrollY.interpolate({
+      inputRange: [0, titleHeight],
+      outputRange: [titleHeight, 0],
+      extrapolate: 'clamp',
+    }),
+    opacity: scrollY.interpolate({
+      inputRange: [0, titleHeight * 0.6],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+  };
+
   // État 1 — premier chargement (aucune donnée en cache encore).
   if (isLoading) {
     return (
@@ -112,7 +145,20 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Explore</Text>
+      <Animated.View style={[styles.titleBlock, collapsingTitle]}>
+        <Text
+          style={styles.title}
+          onLayout={(e) => {
+            // Une seule mesure : le bloc parent voit sa hauteur animée, relayer
+            // chaque layout rouvrirait une boucle set state → layout.
+            if (titleMeasured.current) return;
+            titleMeasured.current = true;
+            setTitleHeight(e.nativeEvent.layout.height + spacing.md);
+          }}
+        >
+          Explore
+        </Text>
+      </Animated.View>
 
       <View style={styles.header}>
         <TextInput
@@ -148,6 +194,13 @@ export default function ExploreScreen() {
           </Pressable>
         )}
         contentContainerStyle={styles.listContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          // useNativeDriver: false — on anime une hauteur, propriété de layout
+          // que le driver natif ne sait pas piloter.
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         refreshControl={
@@ -190,13 +243,17 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.md,
   },
+  // overflow: hidden — le texte garde sa hauteur naturelle pendant que le bloc
+  // se referme, c'est le clipping qui produit le repli.
+  titleBlock: {
+    overflow: 'hidden',
+  },
   title: {
     fontFamily: typography.family.display,
     fontSize: typography.size.display,
     letterSpacing: typography.size.display * typography.letterSpacing.tight,
     color: colors.text,
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
   },
   header: {
     paddingHorizontal: spacing.lg,
