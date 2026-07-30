@@ -78,6 +78,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   labelActive: {
-    color: colors.surface,
+    color: colors.textOnPrimary,
   },
 });

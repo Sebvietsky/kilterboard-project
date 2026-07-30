@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    color: colors.surface,
+    color: colors.textOnPrimary,
   },
   // ── Cartes ──────────────────────────────────────────────
   card: {

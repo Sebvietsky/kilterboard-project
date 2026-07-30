@@ -339,6 +339,6 @@ const styles = StyleSheet.create({
   applyText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    color: colors.surface,
+    color: colors.textOnPrimary,
   },
 });

@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    color: colors.surface,
+    color: colors.textOnPrimary,
   },
   // ── Header ──────────────────────────────────────────────
   titleRow: {
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   gradeChipTextActive: {
-    color: colors.surface,
+    color: colors.textOnInk,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -856,7 +856,7 @@ const styles = StyleSheet.create({
   submitText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    color: colors.surface,
+    color: colors.textOnPrimary,
   },
   submitTextDisabled: {
     color: colors.textSubtle,
