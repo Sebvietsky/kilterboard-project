@@ -1,5 +1,5 @@
-import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
-import { colors, typography, spacing } from "@/constants/theme";
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { colors, typography, spacing } from '@/constants/theme';
 
 export default function SplashScreenComponent() {
   return (
@@ -13,14 +13,17 @@ export default function SplashScreenComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.background,
     gap: spacing.lg,
   },
   title: {
+    // Wordmark → display. Ce splash ne s'affiche que quand les fonts sont
+    // chargées (gate dans _layout), donc pas de risque de fallback visible.
+    fontFamily: typography.family.display,
     fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
+    letterSpacing: typography.size.xxl * typography.letterSpacing.tight,
     color: colors.text,
   },
 });

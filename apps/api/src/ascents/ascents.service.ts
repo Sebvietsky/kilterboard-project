@@ -12,6 +12,7 @@ import {
   AscentNote,
   AscentStatus,
   Boulder,
+  Grade,
 } from '../generated/prisma/client';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { CreateAscentDto } from './dto/create-ascent.dto';
@@ -38,48 +39,86 @@ export class AscentsService {
     if (!boulder.isPublic || boulder.isDraft)
       throw new NotFoundException('Boulder not found');
 
-    // Règle métier : si déjà en project, bloquer flash/sent depuis Discover
-    const existingProject: Ascent | null = await this.prisma.ascent.findFirst({
-      where: {
-        userId: user.userId,
-        boulderId: dto.boulderId,
-        status: AscentStatus.PROJECT,
-      },
+    // On récupère l'historique du user sur ce bloc pour sécuriser les règles
+    // métier, en une seule requête.
+    const myAscents = await this.prisma.ascent.findMany({
+      where: { userId: user.userId, boulderId: dto.boulderId },
+      select: { status: true },
     });
+    const hasAnyAscent = myAscents.length > 0;
+    const hasActiveProject = myAscents.some(
+      (a) => a.status === AscentStatus.PROJECT,
+    );
 
+    // Flash n'est possible qu'au tout premier contact avec le bloc.
+    if (dto.status === AscentStatus.FLASH && hasAnyAscent) {
+      throw new BadRequestException(
+        'Flash is only possible on your first ascent.',
+      );
+    }
+    // Un flash est par définition réussi au premier essai. Le statut portant
+    // déjà l'information, on tolère que le client omette le compteur ; en
+    // revanche une valeur explicite qui le contredit est refusée — 0 compris,
+    // un flash sans essai n'existe pas.
+    const isFlash = dto.status === AscentStatus.FLASH;
+    const attemptsCount = dto.attemptsCount ?? (isFlash ? 1 : 0);
+    if (isFlash && attemptsCount !== 1) {
+      throw new BadRequestException(
+        'A flash is a first-attempt send: attempts must be 1.',
+      );
+    }
+    // Un seul projet actif par bloc.
+    if (dto.status === AscentStatus.PROJECT && hasActiveProject) {
+      throw new BadRequestException(
+        'You already have an active project on this boulder.',
+      );
+    }
+    // Tant qu'un projet est actif, on le termine par PATCH sur l'ascension
+    // existante — jamais par la création d'une nouvelle.
+    // Le message décrit la règle, pas le chemin d'interface : l'API sert
+    // plusieurs clients, et c'est à chacun de dire OÙ aller.
     if (
-      existingProject &&
-      (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT)
+      (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
+      hasActiveProject
     ) {
       throw new BadRequestException(
-        'You have an active project on this boulder. Finish it from your Projects tab.',
+        'You already have an active project on this boulder. Complete it instead of logging a new ascent.',
+      );
+    }
+    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH).
+    if (
+      (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
+      !hasAnyAscent &&
+      !dto.feltGradeRank
+    ) {
+      throw new BadRequestException(
+        'Felt grade is required for your first send.',
       );
     }
 
-    // Règle métier : feltGradeId obligatoire pour SENT et FLASH
-    if (
-      (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH) &&
-      !dto.feltGradeId
-    ) {
-      throw new BadRequestException(
-        'Felt grade is required for SENT and FLASH ascents.',
-      );
+    // Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400).
+    let grade: Grade | null = null;
+    if (dto.feltGradeRank) {
+      grade = await this.prisma.grade.findUnique({
+        where: { rank: dto.feltGradeRank },
+      });
+      if (!grade) {
+        throw new BadRequestException('Invalid felt grade.');
+      }
     }
-
-    // Calcul wasProject
-    const wasProject: boolean = !!existingProject;
-
     return await this.prisma.ascent.create({
       data: {
         userId: user.userId,
         boulderId: dto.boulderId,
         status: dto.status,
-        attemptsCount: dto.attemptsCount ?? 0,
-        feltGradeId: dto.feltGradeId ?? null,
+        attemptsCount,
+        feltGradeId: grade?.id ?? null,
         rating: dto.rating ?? null,
         sessionId: dto.sessionId ?? null,
         sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
-        wasProject,
+        // Un projet actif bloque tout create ci-dessus : jamais de conversion
+        // ici. La transition projet -> send se fait via PATCH (complétion).
+        wasProject: false,
       },
     });
   }
@@ -152,26 +191,57 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Règle métier : feltGradeId obligatoire si on passe à SENT ou FLASH
-    if (
-      (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH) &&
-      !dto.feltGradeId &&
-      !ascent.feltGradeId
-    ) {
+    // Le flash atteste d'une réussite au premier contact avec le bloc : c'est
+    // un fait établi à la création, jamais un état qu'on atteint par la suite.
+    // Aucune transition ne mène donc à FLASH — pas même la complétion d'un
+    // projet, qui prouve précisément le contraire.
+    if (dto.status === AscentStatus.FLASH) {
+      throw new BadRequestException("An ascent can't be changed to a flash.");
+    }
+
+    // Résolution rank -> Grade.id, comme dans create (rank est @unique).
+    let grade: Grade | null = null;
+    if (dto.feltGradeRank) {
+      grade = await this.prisma.grade.findUnique({
+        where: { rank: dto.feltGradeRank },
+      });
+      if (!grade) {
+        throw new BadRequestException('Invalid felt grade.');
+      }
+    }
+
+    // Grade ressenti obligatoire pour clore un projet — sauf s'il en porte
+    // déjà un.
+    if (dto.status === AscentStatus.SENT && !grade && !ascent.feltGradeId) {
       throw new BadRequestException(
         'Felt grade is required to finish a project.',
       );
     }
 
-    const wasProject =
+    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
+    const completesProject =
       ascent.status === AscentStatus.PROJECT &&
-      (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH);
+      dto.status === AscentStatus.SENT;
 
+    // Objet construit champ par champ, jamais `...dto`. Un spread déverse dans
+    // Prisma tout ce que le DTO porte : le jour où il gagne un champ qui n'est
+    // pas une colonne — attemptsToAdd et feltGradeRank en sont deux —, l'appel
+    // échoue à l'exécution, et tsc ne peut rien voir puisqu'il type dto par la
+    // classe DTO, pas par le modèle Prisma.
     return await this.prisma.ascent.update({
       where: { id },
       data: {
-        ...dto,
-        wasProject: wasProject || ascent.wasProject,
+        ...(dto.status && { status: dto.status }),
+        ...(grade && { feltGradeId: grade.id }),
+        ...(dto.rating !== undefined && { rating: dto.rating }),
+        // Le client envoie les essais de SA séance ; c'est le serveur qui
+        // additionne. Un total ne peut donc que croître, là où une valeur
+        // absolue venue du client pourrait le faire reculer.
+        ...(dto.attemptsToAdd && {
+          attemptsCount: { increment: dto.attemptsToAdd },
+          sessionsCount: { increment: 1 },
+        }),
+        wasProject: completesProject || ascent.wasProject,
         sendDate:
           dto.status && dto.status !== AscentStatus.PROJECT
             ? new Date()

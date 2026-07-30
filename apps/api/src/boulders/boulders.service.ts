@@ -67,12 +67,22 @@ export class BouldersService {
         },
         skip,
         take,
-        orderBy: {
-          ascents: { _count: 'desc' },
-        },
+        orderBy: [{ ascents: { _count: 'desc' } }, { id: 'asc' }],
       }),
       this.prisma.boulder.count({ where }),
     ]);
+
+    const boulderIds = boulders.map((b) => b.id);
+
+    const ratings = await this.prisma.ascent.groupBy({
+      by: ['boulderId'],
+      where: { boulderId: { in: boulderIds }, rating: { not: null } },
+      _avg: { rating: true },
+    });
+
+    const ratingByBoulder = new Map(
+      ratings.map((r) => [r.boulderId, r._avg.rating]),
+    );
 
     return {
       data: boulders.map((boulder) => ({
@@ -84,7 +94,7 @@ export class BouldersService {
         creatorUsername: boulder.creator.username,
         tags: boulder.boulderTags.map((bt) => bt.tag.slug),
         ascentCount: boulder._count.ascents,
-        averageRating: null,
+        averageRating: ratingByBoulder.get(boulder.id) ?? null,
         isPublic: boulder.isPublic,
         createdAt: boulder.createdAt,
       })),

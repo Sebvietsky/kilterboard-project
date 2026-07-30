@@ -10,7 +10,6 @@ import * as bcrypt from 'bcrypt';
 import { TokenService } from './token.service';
 import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { UserResponseDto } from './dto/user-response.dto';
 import { Throttle } from '@nestjs/throttler';
 import { User } from '../generated/prisma/client';
 
@@ -90,19 +89,6 @@ export class AuthService {
     await this.tokenService.deleteRefreshToken(userId);
   }
 
-  async getAuthenticateUser(userId: number): Promise<UserResponseDto> {
-    const user: Omit<User, 'passwordHash' | 'xpPoints' | 'level'> | null =
-      await this.prisma.user.findUnique({
-        where: { id: userId },
-        omit: { passwordHash: true, xpPoints: true, level: true },
-      });
-
-    if (!user)
-      throw new UnauthorizedException("Token payload doesn't match any user");
-
-    return user;
-  }
-
   async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<AuthTokens> {
     const token = refreshTokenDto.refreshToken;
 
@@ -127,8 +113,6 @@ export class AuthService {
 
     const { accessToken, refreshToken } =
       await this.tokenService.generateTokens(existingToken.user);
-
-    await this.tokenService.deleteRefreshToken(existingToken.userId);
 
     return { accessToken, refreshToken };
   }

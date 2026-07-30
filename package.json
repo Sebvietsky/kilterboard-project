@@ -1,7 +1,7 @@
 {
   "name": "kilterboard-project",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@11.1.1",
+  "packageManager": "pnpm@11.15.1",
   "type": "module"
 }

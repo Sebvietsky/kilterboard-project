@@ -1,31 +1,49 @@
 {
   "name": "mobile",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "eslint . --fix",
+    "lint:ci": "eslint . --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx}\""
   },
   "dependencies": {
-    "@expo/metro-runtime": "~55.0.11",
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/figtree": "^0.4.1",
+    "@expo-google-fonts/space-grotesk": "^0.4.1",
+    "@expo/metro-runtime": "~55.0.12",
     "@tanstack/react-query": "^5.100.10",
-    "expo": "~55.0.23",
-    "expo-constants": "~55.0.16",
-    "expo-linking": "~55.0.15",
-    "expo-router": "~55.0.14",
-    "expo-secure-store": "^55.0.13",
+    "expo": "~55.0.28",
+    "expo-constants": "~55.0.17",
+    "expo-font": "~55.0.8",
+    "expo-linking": "~55.0.16",
+    "expo-router": "~55.0.17",
+    "expo-secure-store": "^55.0.16",
+    "expo-splash-screen": "~55.0.23",
     "expo-status-bar": "~55.0.6",
+    "lucide-react-native": "^1.27.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.23.0",
-    "react-native-web": "^0.21.0"
+    "react-native-svg": "15.15.3",
+    "react-native-web": "^0.21.0",
+    "rn-range-slider": "^2.2.2",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "^57.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.8.3",
     "typescript": "~5.9.2"
   },
   "private": true
