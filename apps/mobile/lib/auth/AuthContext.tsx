@@ -27,18 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const accessTokenRef = useRef<string | null>(null);
 
   async function fetchAndSetUser(accessToken: string) {
-    const resUser = await fetch(`${config.API_URL}/auth/me`, {
+    const resUser = await fetch(`${config.API_URL}/users/me`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
 
     if (!resUser.ok) throw new Error('Fetch user failed');
-    // GET /auth/me renvoie l'utilisateur DIRECTEMENT, pas enveloppé dans
-    // { user }. Le code lisait `dataUser.user`, donc setUser(undefined) — le
-    // contexte n'a jamais porté d'utilisateur, et `status` passait quand même
-    // à 'authenticated'. Invisible tant qu'aucun écran ne consommait `user`,
-    // et invisible pour tsc : res.json() est typé `any`.
+    // GET /users/me renvoie l'utilisateur DIRECTEMENT, pas enveloppé dans
+    // { user }. Attention : res.json() est typé `any`, donc rien ici n'est
+    // vérifié par tsc — l'annotation est la seule garde. La réponse porte
+    // aussi `_count`, ignoré à ce niveau : le contexte est la source
+    // d'IDENTITÉ, les statistiques appartiennent à la query de profil.
     const dataUser = (await resUser.json()) as User;
     setUser(dataUser);
   }
@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function bootstrap() {
       // Tout le bootstrap est sous try/catch : quelle que soit l'erreur
-      // (SecureStore indisponible, réseau, /auth/me KO), on doit TOUJOURS
+      // (SecureStore indisponible, réseau, /users/me KO), on doit TOUJOURS
       // sortir de "loading" — sinon splash screen éternel.
       try {
         const newAccessToken = await refreshTokens();

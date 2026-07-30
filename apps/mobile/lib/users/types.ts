@@ -25,8 +25,8 @@ export interface ProfileCounts {
  * un rôle qu'il n'a pas toujours. La règle de confidentialité est portée par
  * le type, pas par la discipline de celui qui l'utilise.
  *
- * Le rôle du compte COURANT reste disponible via AuthContext (`/auth/me`),
- * qui est la source d'identité — pas d'affichage.
+ * Le rôle du compte COURANT reste disponible via AuthContext, qui est la
+ * source d'identité — pas d'affichage.
  */
 export type UserProfile = Omit<User, 'email' | 'role'> & {
   _count: ProfileCounts;
