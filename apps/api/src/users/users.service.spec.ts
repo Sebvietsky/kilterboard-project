@@ -42,9 +42,26 @@ describe('UsersService', () => {
 
       await service.getMe(me);
 
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: me },
-        omit: hiddenFields,
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: me }, omit: hiddenFields }),
+      );
+    });
+
+    // Sans ces compteurs, un utilisateur verrait des statistiques sur le
+    // profil des autres et aucune sur le sien.
+    it('inclut les mêmes compteurs que le profil public', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: me });
+
+      await service.getMe(me);
+
+      const [arg] = prismaMock.user.findUnique.mock.calls[0] as [
+        { include: { _count: { select: Record<string, boolean> } } },
+      ];
+      expect(arg.include._count.select).toEqual({
+        followedBy: true,
+        follows: true,
+        boulders: true,
+        ascents: true,
       });
     });
 
@@ -73,28 +90,56 @@ describe('UsersService', () => {
     it('renvoie un profil public', async () => {
       prismaMock.user.findUnique.mockResolvedValue(target);
 
-      await expect(service.getPublicProfile('alice')).resolves.toMatchObject({
-        id: 2,
-      });
+      await expect(
+        service.getPublicProfile('alice', me),
+      ).resolves.toMatchObject({ id: 2 });
+    });
+
+    // La route est atteignable par n'importe quel compte authentifié à partir
+    // du seul username. Sans ces omissions, elle sert un annuaire d'adresses
+    // doublé de la liste des comptes ADMIN.
+    it("n'expose ni l'email ni le rôle", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(target);
+
+      await service.getPublicProfile('alice', me);
+
+      const [arg] = prismaMock.user.findUnique.mock.calls[0] as [
+        { omit: Record<string, boolean> },
+      ];
+      expect(arg.omit).toMatchObject({ email: true, role: true });
     });
 
     // Un profil privé existe mais n'est pas consultable. Le 403 le dit — c'est
     // un choix assumé face au 404, qui masquerait jusqu'à son existence.
-    it('refuse un profil privé', async () => {
+    it("refuse le profil privé de quelqu'un d'autre", async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         ...target,
         isPublic: false,
       });
 
-      await expect(service.getPublicProfile('alice')).rejects.toThrow(
+      await expect(service.getPublicProfile('alice', me)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    // Le réglage de confidentialité protège des autres, pas de soi-même :
+    // atteindre son propre profil par son username ne doit pas donner un 403.
+    it('laisse voir son propre profil même privé', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...target,
+        id: me,
+        isPublic: false,
+      });
+
+      await expect(service.getPublicProfile('seb', me)).resolves.toMatchObject({
+        id: me,
+      });
     });
 
     it('rejette un username inconnu', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getPublicProfile('ghost')).rejects.toThrow(
+      await expect(service.getPublicProfile('ghost', me)).rejects.toThrow(
         NotFoundException,
       );
     });

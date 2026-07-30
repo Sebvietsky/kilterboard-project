@@ -6,7 +6,9 @@ import {
   useState,
   ReactNode,
   useRef,
+  useCallback,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authStorage } from './storage';
 import type { AuthContextValue, AuthStatus, AuthTokens, User } from './types';
 import { config } from '@/lib/api/config';
@@ -16,6 +18,9 @@ import { extractApiErrorMessage } from '../api/errors';
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // AuthProvider est monté SOUS QueryClientProvider (cf. app/_layout.tsx),
+  // donc le client est disponible ici.
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -29,8 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!resUser.ok) throw new Error('Fetch user failed');
-    const dataUser = await resUser.json();
-    setUser(dataUser.user);
+    // GET /auth/me renvoie l'utilisateur DIRECTEMENT, pas enveloppé dans
+    // { user }. Le code lisait `dataUser.user`, donc setUser(undefined) — le
+    // contexte n'a jamais porté d'utilisateur, et `status` passait quand même
+    // à 'authenticated'. Invisible tant qu'aucun écran ne consommait `user`,
+    // et invisible pour tsc : res.json() est typé `any`.
+    const dataUser = (await resUser.json()) as User;
+    setUser(dataUser);
   }
 
   async function login(identifier: string, password: string) {
@@ -70,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
   }
 
-  async function logout() {
+  const logout = useCallback(async () => {
     const refreshToken = await authStorage.getRefreshToken();
     if (refreshToken) {
       fetch(`${config.API_URL}/auth/logout`, {
@@ -89,7 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     setUser(null);
     setStatus('unauthenticated');
-  }
+
+    // Le cache TanStack survit à la déconnexion : sans ce clear, se connecter
+    // avec un AUTRE compte affiche brièvement les données du précédent (ses
+    // ascensions, ses projets) avant le refetch. C'est ici et non dans un
+    // écran, parce que la déconnexion arrive aussi par onAuthFailure — un 401
+    // en cours de route ne passe par aucun écran.
+    queryClient.clear();
+  }, [queryClient]);
 
   async function refreshTokens(): Promise<string | null> {
     const refreshToken = await authStorage.getRefreshToken();
@@ -152,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout();
       },
     });
-  }, []);
+  }, [logout]);
 
   return (
     <AuthContext.Provider
