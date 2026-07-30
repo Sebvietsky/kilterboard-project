@@ -95,6 +95,33 @@ describe('UsersService', () => {
       ).resolves.toMatchObject({ id: 2 });
     });
 
+    // La route est atteignable par n'importe quel compte authentifié à partir
+    // du seul username. Sans ces omissions, elle sert un annuaire d'adresses
+    // doublé de la liste des comptes ADMIN.
+    it("n'expose ni l'email ni le rôle", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(target);
+
+      await service.getPublicProfile('alice', me);
+
+      const [arg] = prismaMock.user.findUnique.mock.calls[0] as [
+        { omit: Record<string, boolean> },
+      ];
+      expect(arg.omit).toMatchObject({ email: true, role: true });
+    });
+
+    // Un profil privé existe mais n'est pas consultable. Le 403 le dit — c'est
+    // un choix assumé face au 404, qui masquerait jusqu'à son existence.
+    it("refuse le profil privé de quelqu'un d'autre", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...target,
+        isPublic: false,
+      });
+
+      await expect(service.getPublicProfile('alice', me)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
     // Le réglage de confidentialité protège des autres, pas de soi-même :
     // atteindre son propre profil par son username ne doit pas donner un 403.
     it('laisse voir son propre profil même privé', async () => {

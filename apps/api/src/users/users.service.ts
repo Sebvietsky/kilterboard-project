@@ -47,7 +47,20 @@ export class UsersService {
   async getPublicProfile(username: string, viewerId: number) {
     const user = await this.prisma.user.findUnique({
       where: { username },
-      omit: { passwordHash: true, xpPoints: true, level: true },
+      // email et role en plus : cette route est consultable par n'importe quel
+      // compte authentifié, à partir du seul username. Sans ces omissions,
+      // elle sert un annuaire d'adresses doublé de la liste des comptes ADMIN
+      // — soit une liste de cibles prioritaires pour qui cherche à s'infiltrer.
+      // Les omissions sont INCONDITIONNELLES : un profil public ne rend jamais
+      // ces champs, même le sien. On lit les siens par GET /users/me. Une
+      // règle sans exception ne peut pas être mal appliquée.
+      omit: {
+        passwordHash: true,
+        xpPoints: true,
+        level: true,
+        email: true,
+        role: true,
+      },
       include: this.profileCounts,
     });
 
