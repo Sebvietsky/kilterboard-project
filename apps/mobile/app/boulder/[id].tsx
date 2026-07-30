@@ -196,7 +196,7 @@ export default function BoulderDetailScreen() {
         {availableStatuses.length === 0 ? (
           <Text style={styles.placeholderText}>
             You have an active project on this boulder. Finish it from the
-            Projects tab.
+            Library tab.
           </Text>
         ) : (
           <>
