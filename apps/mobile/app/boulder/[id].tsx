@@ -28,6 +28,7 @@ import { AscentStatus } from '@/lib/ascents/types';
 import { useGrades } from '@/lib/grades/queries';
 import { Grade } from '@/lib/grades/types';
 import { ApiError } from '@/lib/api/errors';
+import { relativeTime } from '@/lib/format/relativeTime';
 import { useState } from 'react';
 
 export default function BoulderDetailScreen() {
@@ -196,7 +197,7 @@ export default function BoulderDetailScreen() {
         {availableStatuses.length === 0 ? (
           <Text style={styles.placeholderText}>
             You have an active project on this boulder. Finish it from the
-            Projects tab.
+            Library tab.
           </Text>
         ) : (
           <>
@@ -314,6 +315,48 @@ export default function BoulderDetailScreen() {
               </Text>
             </Pressable>
           </>
+        )}
+      </View>
+
+      <View style={styles.notesSection}>
+        <Text style={styles.sectionLabel}>Community notes</Text>
+
+        {/* L'état vide n'est affiché qu'une fois la vraie réponse arrivée :
+            le placeholderData de useBoulder pose publicNotes: [] en dur, donc
+            en venant d'Explore on annoncerait « No notes yet » sur un bloc qui
+            en a. Pendant ce temps, on ne montre rien plutôt qu'un mensonge. */}
+        {detail.publicNotes.length === 0 ? (
+          boulder.isPlaceholderData ? null : (
+            <Text style={styles.placeholderText}>No notes yet.</Text>
+          )
+        ) : (
+          detail.publicNotes.map((note) => (
+            // Clé sur username : le backend n'expose pas d'id de note, mais
+            // interdit plus d'une note publique par (utilisateur, bloc) — le
+            // pseudo est donc unique dans cette liste. Si cette règle tombe,
+            // les clés entrent en collision SANS erreur : React réutilisera
+            // simplement le mauvais nœud.
+            <View key={note.username} style={styles.noteCard}>
+              <View style={styles.noteHeader}>
+                <Text style={styles.noteAuthor} numberOfLines={1}>
+                  {note.username}
+                </Text>
+                <View style={styles.noteMeta}>
+                  {note.feltGradeLabel !== null && (
+                    <View style={styles.noteGrade}>
+                      <Text style={styles.noteGradeText}>
+                        {note.feltGradeLabel}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.noteDate}>
+                    {relativeTime(note.createdAt)}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.noteContent}>{note.content}</Text>
+            </View>
+          ))
         )}
       </View>
     </ScrollView>
@@ -861,5 +904,63 @@ const styles = StyleSheet.create({
   },
   badgeTextProject: {
     color: statusColors.project.badgeText,
+  },
+  // ── Community notes ─────────────────────────────────────
+  notesSection: {
+    gap: spacing.md,
+  },
+  // Une carte par note, même recette que statsCard : c'est la surface qui
+  // sépare les commentaires, pas un filet ni un liseré d'accent (interdits DA).
+  noteCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  noteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  // flexShrink et non flex: 1 — l'auteur ne prend que la place qu'il lui faut,
+  // mais cède devant la pastille et la date plutôt que de les pousser hors du
+  // cadre quand le pseudo est long (numberOfLines l'ellipse alors).
+  noteAuthor: {
+    flexShrink: 1,
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.text,
+  },
+  noteMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  // Pastille de cotation proposée : reprend primaryMuted/primary de la
+  // cotation officielle en tête d'écran, en plus petit — même nature
+  // d'information, poids visuel moindre. C'est un avis, pas la référence.
+  noteGrade: {
+    backgroundColor: colors.primaryMuted,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  noteGradeText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.primary,
+  },
+  noteDate: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textSubtle,
+  },
+  noteContent: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.md,
+    lineHeight: typography.size.md * typography.lineHeight.normal,
+    color: colors.text,
   },
 });

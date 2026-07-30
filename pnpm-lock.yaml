@@ -203,6 +203,9 @@ importers:
       expo-status-bar:
         specifier: ~55.0.6
         version: 55.0.6(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0)
+      lucide-react-native:
+        specifier: ^1.27.0
+        version: 1.27.0(react-native-svg@15.15.3(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0)
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -4795,6 +4798,13 @@ packages:
   lru.min@1.1.4:
     resolution: {integrity: sha512-DqC6n3QQ77zdFpCMASA1a3Jlb64Hv2N2DciFGkO/4L9+q/IpIAuRlKOvCXabtRW6cQf8usbmM6BE/TOPysCdIA==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
+
+  lucide-react-native@1.27.0:
+    resolution: {integrity: sha512-oM+KhoXYdHlpYCXvww4Qm8XiJBe3IihC9S9VhgpgXkEDLi3zgDEWpJtdmt3k+wRAJs82NW78c5ncoJYJvcIWrg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-native: '*'
+      react-native-svg: ^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0
 
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
@@ -12122,6 +12132,12 @@ snapshots:
       yallist: 3.1.1
 
   lru.min@1.1.4: {}
+
+  lucide-react-native@1.27.0(react-native-svg@15.15.3(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
+      react-native: 0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1)
+      react-native-svg: 15.15.3(react-native@0.83.6(@babel/core@7.29.0(supports-color@8.1.1))(@types/react@19.2.15)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0)
 
   magic-string@0.30.17:
     dependencies:

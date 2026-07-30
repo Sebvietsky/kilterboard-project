@@ -3,8 +3,8 @@ import { colors, spacing, typography } from '@/constants/theme';
 
 // Échantillon temporaire de contrôle des fonts (tâche 4) : les 3 rendus
 // doivent être visiblement DIFFÉRENTS de la police système — seul moyen de
-// détecter un fallback silencieux. À remplacer par le vrai écran Accueil.
-export default function AccueilScreen() {
+// détecter un fallback silencieux. À remplacer par le vrai écran Home.
+export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.display}>Kilterboard</Text>
