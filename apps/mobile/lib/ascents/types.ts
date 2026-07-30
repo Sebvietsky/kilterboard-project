@@ -33,9 +33,35 @@ export type MyAscent = {
   id: number;
   status: AscentStatus;
   attemptsCount: number;
+  sessionsCount: number;
   feltGrade: { vScale: string; fontScale: string } | null;
   sendDate: string | null;
   createdAt: string;
+};
+
+/**
+ * Entrée de PATCH /ascents/:id — enregistrer une séance sur un projet, ou le
+ * clore.
+ *
+ * `attemptsToAdd` porte les essais de CETTE séance, jamais le cumul : le
+ * serveur additionne. Un client ne peut donc pas faire reculer le total, ce
+ * qu'un `attemptsCount` absolu aurait permis.
+ *
+ * Omettre `status` = la séance est enregistrée et le projet reste ouvert.
+ * `status: 'SENT'` le clôt, et le grade ressenti devient obligatoire.
+ */
+export type UpdateAscentPayload = {
+  status?: Extract<AscentStatus, 'SENT'>;
+  attemptsToAdd?: number;
+  feltGradeRank?: number;
+  rating?: number;
+};
+
+export type UpdateAscentInput = UpdateAscentPayload & {
+  ascentId: number;
+  boulderId: number;
+  comment?: string;
+  visibility?: Visibility;
 };
 
 /**

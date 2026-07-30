@@ -18,11 +18,13 @@ import {
   status as statusColors,
 } from '@/constants/theme';
 import { BoardLED } from '@/components/BoardLED';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { useBoulder } from '@/lib/boulders/queries';
 import {
   deriveAvailableStatuses,
   useLogAscent,
   useMyAscentsOnBoulder,
+  useUpdateAscent,
 } from '@/lib/ascents/queries';
 import { AscentStatus } from '@/lib/ascents/types';
 import { useGrades } from '@/lib/grades/queries';
@@ -31,8 +33,18 @@ import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
 import { useState } from 'react';
 
+// Sous-mode du formulaire quand un projet est en cours : enregistrer une
+// séance de plus, ou clore le projet en envoi.
+type ProjectMode = 'in-project' | 'sent';
+
+const PROJECT_MODES: { value: ProjectMode; label: string }[] = [
+  { value: 'in-project', label: 'In Project' },
+  { value: 'sent', label: 'Sent' },
+];
+
 export default function BoulderDetailScreen() {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
+  const [projectMode, setProjectMode] = useState<ProjectMode>('in-project');
   const [attempts, setAttempts] = useState(1);
   const [feltGradeRank, setFeltGradeRank] = useState<number>();
   const [comment, setComment] = useState('');
@@ -45,6 +57,7 @@ export default function BoulderDetailScreen() {
   const myAscents = useMyAscentsOnBoulder(boulderId);
   const grades = useGrades();
   const logAscent = useLogAscent();
+  const updateAscent = useUpdateAscent();
   const statuses = myAscents.data?.map((a) => a.status) ?? [];
   const currentStatus = statuses.includes('FLASH')
     ? 'FLASH'
@@ -63,20 +76,68 @@ export default function BoulderDetailScreen() {
     availableStatuses[0] ??
     null;
 
-  // Note publique = uniquement au premier envoi (SENT/FLASH sans historique).
   const hasAnyAscent = (myAscents.data ?? []).length > 0;
+
+  // Un projet actif change la nature du formulaire : on ne crée plus une
+  // ascension, on fait vivre celle qui existe (PATCH).
+  const activeProject =
+    myAscents.data?.find((a) => a.status === 'PROJECT') ?? null;
+  const isManagingProject = !!activeProject && selectedStatus === 'PROJECT';
+  const isClosingProject = isManagingProject && projectMode === 'sent';
+
+  // Note publique = au premier envoi seulement. Clore un projet EST ce premier
+  // envoi : l'ascension passe SENT, et c'est la seule du bloc.
   const canBePublic =
-    !hasAnyAscent && (selectedStatus === 'SENT' || selectedStatus === 'FLASH');
+    isClosingProject ||
+    (!hasAnyAscent &&
+      (selectedStatus === 'SENT' || selectedStatus === 'FLASH'));
 
   const feltGradeRequired =
-    !hasAnyAscent && (selectedStatus === 'FLASH' || selectedStatus === 'SENT');
+    isClosingProject ||
+    (!hasAnyAscent &&
+      (selectedStatus === 'FLASH' || selectedStatus === 'SENT'));
+
+  const isPending = logAscent.isPending || updateAscent.isPending;
+  const submitError = logAscent.error ?? updateAscent.error;
   const canSubmit =
     !!selectedStatus &&
     !(feltGradeRequired && feltGradeRank == null) &&
-    !logAscent.isPending;
+    !isPending;
+
+  function resetForm() {
+    setLogStatus(null);
+    setProjectMode('in-project');
+    setAttempts(1);
+    setFeltGradeRank(undefined);
+    setRating(undefined);
+    setComment('');
+  }
 
   function submit() {
     if (!selectedStatus) return;
+
+    // Un projet en cours se modifie (PATCH), il ne se recrée pas : le back
+    // refuse d'ailleurs tout POST tant qu'il est ouvert.
+    if (isManagingProject && activeProject) {
+      updateAscent.mutate(
+        {
+          ascentId: activeProject.id,
+          boulderId,
+          // Les essais de CETTE séance ; le serveur additionne.
+          attemptsToAdd: attempts,
+          ...(isClosingProject && {
+            status: 'SENT' as const,
+            feltGradeRank,
+            rating,
+          }),
+          comment: comment.trim() || undefined,
+          visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
+        },
+        { onSuccess: resetForm },
+      );
+      return;
+    }
+
     logAscent.mutate(
       {
         boulderId,
@@ -87,15 +148,7 @@ export default function BoulderDetailScreen() {
         comment: comment.trim() || undefined,
         visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
       },
-      {
-        onSuccess: () => {
-          setLogStatus(null);
-          setAttempts(1);
-          setFeltGradeRank(undefined);
-          setRating(undefined);
-          setComment('');
-        },
-      },
+      { onSuccess: resetForm },
     );
   }
 
@@ -194,70 +247,90 @@ export default function BoulderDetailScreen() {
 
       <View style={styles.logSection}>
         <Text style={styles.sectionLabel}>Log session</Text>
-        {availableStatuses.length === 0 ? (
-          <Text style={styles.placeholderText}>
-            You have an active project on this boulder. Finish it from the
-            Library tab.
-          </Text>
-        ) : (
-          <>
-            {hasAnyAscent && (
-              <Text style={styles.logHint}>
-                You&apos;ve already logged this boulder — log a repeat below.
+        <>
+          {hasAnyAscent && !isManagingProject && (
+            <Text style={styles.logHint}>
+              You&apos;ve already logged this boulder — log a repeat below.
+            </Text>
+          )}
+          <StatusSegmented
+            available={availableStatuses}
+            selected={selectedStatus}
+            onSelect={setLogStatus}
+          />
+
+          {isManagingProject && activeProject && (
+            <>
+              <SegmentedControl
+                options={PROJECT_MODES}
+                value={projectMode}
+                onChange={setProjectMode}
+              />
+              <Text style={styles.sessionsLine}>
+                Total sessions:{' '}
+                <Text style={styles.sessionsValue}>
+                  {activeProject.sessionsCount}
+                </Text>
               </Text>
-            )}
-            <StatusSegmented
-              available={availableStatuses}
-              selected={selectedStatus}
-              onSelect={setLogStatus}
-            />
+            </>
+          )}
 
-            {selectedStatus !== 'FLASH' && (
-              <View style={styles.fieldRow}>
+          {selectedStatus !== 'FLASH' && (
+            <View style={styles.fieldRow}>
+              <View>
+                <Text style={styles.fieldLabel}>Attempts</Text>
+                {/* Le libellé dit explicitement « cette séance » : le
+                    compteur envoyé est un incrément, pas le cumul. Sans ça
+                    l'utilisateur croit corriger un total. */}
+                <Text style={styles.fieldHint}>
+                  {isManagingProject ? 'Tries this session' : 'Number of tries'}
+                </Text>
+              </View>
+              <Stepper value={attempts} onChange={setAttempts} />
+            </View>
+          )}
+
+          {feltGradeRequired && (
+            <View style={styles.field}>
+              <View style={styles.fieldHeader}>
                 <View>
-                  <Text style={styles.fieldLabel}>Attempts</Text>
-                  <Text style={styles.fieldHint}>Number of tries</Text>
+                  <Text style={styles.fieldLabel}>Felt grade</Text>
+                  <Text style={styles.fieldHint}>Your assessment</Text>
                 </View>
-                <Stepper value={attempts} onChange={setAttempts} />
+                <Text
+                  style={[
+                    styles.required,
+                    feltGradeRank == null && styles.requiredEmpty,
+                  ]}
+                >
+                  Required
+                </Text>
               </View>
-            )}
+              <GradePicker
+                grades={grades.data ?? []}
+                selected={feltGradeRank}
+                onSelect={setFeltGradeRank}
+              />
+            </View>
+          )}
 
-            {feltGradeRequired && (
-              <View style={styles.field}>
-                <View style={styles.fieldHeader}>
-                  <View>
-                    <Text style={styles.fieldLabel}>Felt grade</Text>
-                    <Text style={styles.fieldHint}>Your assessment</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.required,
-                      feltGradeRank == null && styles.requiredEmpty,
-                    ]}
-                  >
-                    Required
-                  </Text>
+          {feltGradeRequired && (
+            <View style={styles.field}>
+              <View style={styles.fieldHeader}>
+                <View>
+                  <Text style={styles.fieldLabel}>Rate this climb</Text>
+                  <Text style={styles.fieldHint}>Optional</Text>
                 </View>
-                <GradePicker
-                  grades={grades.data ?? []}
-                  selected={feltGradeRank}
-                  onSelect={setFeltGradeRank}
-                />
               </View>
-            )}
+              <StarRating value={rating} onChange={setRating} />
+            </View>
+          )}
 
-            {feltGradeRequired && (
-              <View style={styles.field}>
-                <View style={styles.fieldHeader}>
-                  <View>
-                    <Text style={styles.fieldLabel}>Rate this climb</Text>
-                    <Text style={styles.fieldHint}>Optional</Text>
-                  </View>
-                </View>
-                <StarRating value={rating} onChange={setRating} />
-              </View>
-            )}
-
+          {/* Pas de commentaire quand on enregistre une séance sans clore le
+              projet : la note privée n'est relue par aucun écran aujourd'hui.
+              Un champ en écriture seule demande un effort sans contrepartie —
+              il reviendra avec l'écran qui affichera l'historique du projet. */}
+          {!(isManagingProject && !isClosingProject) && (
             <View style={styles.field}>
               <View style={styles.fieldHeader}>
                 <Text style={styles.fieldLabel}>Comment</Text>
@@ -288,34 +361,36 @@ export default function BoulderDetailScreen() {
                 multiline
               />
             </View>
+          )}
 
-            {logAscent.isError && (
-              <Text style={styles.errorText}>{logAscent.error.message}</Text>
-            )}
+          {submitError && (
+            <Text style={styles.errorText}>{submitError.message}</Text>
+          )}
 
-            <Pressable
-              onPress={submit}
-              disabled={!canSubmit}
+          <Pressable
+            onPress={submit}
+            disabled={!canSubmit}
+            style={[
+              styles.submitButton,
+              !canSubmit && styles.submitButtonDisabled,
+            ]}
+          >
+            <Text
               style={[
-                styles.submitButton,
-                !canSubmit && styles.submitButtonDisabled,
+                styles.submitText,
+                !canSubmit && styles.submitTextDisabled,
               ]}
             >
-              <Text
-                style={[
-                  styles.submitText,
-                  !canSubmit && styles.submitTextDisabled,
-                ]}
-              >
-                {logAscent.isPending
-                  ? 'Logging…'
+              {isPending
+                ? 'Saving…'
+                : isClosingProject
+                  ? 'Add to Logbook'
                   : selectedStatus === 'PROJECT'
                     ? 'Save'
                     : 'Log ascent'}
-              </Text>
-            </Pressable>
-          </>
-        )}
+            </Text>
+          </Pressable>
+        </>
       </View>
 
       <View style={styles.notesSection}>
@@ -670,6 +745,18 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.md,
     color: colors.textMuted,
+  },
+  // Compteur de séances : le libellé reste discret, le chiffre passe en
+  // family.data comme partout où l'app affiche une donnée mesurée.
+  sessionsLine: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
+  },
+  sessionsValue: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.md,
+    color: colors.text,
   },
   logHint: {
     fontFamily: typography.family.body,
