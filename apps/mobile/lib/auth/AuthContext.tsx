@@ -26,6 +26,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const accessTokenRef = useRef<string | null>(null);
 
+  // Le ref est écrit de façon SYNCHRONE, le state suit pour le rendu.
+  //
+  // Un effet de synchronisation (ref <- state) était en retard d'un rendu, et
+  // ça coûtait une déconnexion toutes les 15 minutes : sur 401, le client
+  // rafraîchit puis rejoue AUSSITÔT la requête en relisant le ref. Le state
+  // n'étant pas encore committé, il rejouait avec le token expiré, prenait un
+  // second 401, et déclenchait onAuthFailure — donc logout. Le serveur, lui,
+  // avait bien rafraîchi.
+  const applyAccessToken = useCallback((token: string | null) => {
+    accessTokenRef.current = token;
+    setAccessToken(token);
+  }, []);
+
   async function fetchAndSetUser(accessToken: string) {
     const resUser = await fetch(`${config.API_URL}/users/me`, {
       headers: {
@@ -60,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authStorage.setRefreshToken(data.refreshToken.token);
 
     await fetchAndSetUser(data.accessToken.token);
-    setAccessToken(data.accessToken.token);
+    applyAccessToken(data.accessToken.token);
 
     setStatus('authenticated');
   }
@@ -96,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await authStorage.clearRefreshToken();
-    setAccessToken(null);
+    applyAccessToken(null);
     setUser(null);
     setStatus('unauthenticated');
 
@@ -106,9 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // écran, parce que la déconnexion arrive aussi par onAuthFailure — un 401
     // en cours de route ne passe par aucun écran.
     queryClient.clear();
-  }, [queryClient]);
+  }, [queryClient, applyAccessToken]);
 
-  async function refreshTokens(): Promise<string | null> {
+  const refreshTokens = useCallback(async (): Promise<string | null> => {
     const refreshToken = await authStorage.getRefreshToken();
     if (!refreshToken) return null;
 
@@ -123,14 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const data: AuthTokens = await res.json();
       await authStorage.setRefreshToken(data.refreshToken.token);
-      setAccessToken(data.accessToken.token);
+      applyAccessToken(data.accessToken.token);
 
       return data.accessToken.token;
     } catch {
       await authStorage.clearRefreshToken();
       return null;
     }
-  }
+  }, [applyAccessToken]);
 
   useEffect(() => {
     async function bootstrap() {
@@ -149,17 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('authenticated');
       } catch {
         await authStorage.clearRefreshToken().catch(() => {});
-        setAccessToken(null);
+        applyAccessToken(null);
         setStatus('unauthenticated');
       }
     }
 
     bootstrap();
-  }, []);
-
-  useEffect(() => {
-    accessTokenRef.current = accessToken;
-  }, [accessToken]);
+  }, [refreshTokens, applyAccessToken]);
 
   useEffect(() => {
     configureAuthBridge({
@@ -169,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout();
       },
     });
-  }, [logout]);
+  }, [logout, refreshTokens]);
 
   return (
     <AuthContext.Provider
