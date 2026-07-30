@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AscentsService } from './ascents.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AscentStatus, Role } from '../generated/prisma/client';
@@ -17,7 +21,9 @@ const prismaMock = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
+  ascentNote: { findFirst: jest.fn(), create: jest.fn() },
 };
 
 const user = { userId: 1, role: Role.USER, username: 'seb' };
@@ -286,6 +292,152 @@ describe('AscentsService', () => {
       await expect(
         service.update(7, { status: AscentStatus.SENT, feltGradeId: 42 }, user),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('remove', () => {
+    // Un envoi est un fait consigné dans le logbook : on ne l'efface pas.
+    // Un projet, lui, n'est qu'une intention — l'abandonner est légitime.
+    it.each([AscentStatus.SENT, AscentStatus.FLASH])(
+      'refuse de supprimer une ascension au statut %s',
+      async (status) => {
+        prismaMock.ascent.findUnique.mockResolvedValue({
+          id: 7,
+          userId: user.userId,
+          status,
+        });
+
+        await expect(service.remove(7, user)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(prismaMock.ascent.delete).not.toHaveBeenCalled();
+      },
+    );
+
+    it('supprime un projet abandonné', async () => {
+      prismaMock.ascent.findUnique.mockResolvedValue({
+        id: 7,
+        userId: user.userId,
+        status: AscentStatus.PROJECT,
+      });
+
+      await service.remove(7, user);
+
+      expect(prismaMock.ascent.delete).toHaveBeenCalledWith({
+        where: { id: 7 },
+      });
+    });
+
+    it("rejette l'ascension d'un autre utilisateur", async () => {
+      prismaMock.ascent.findUnique.mockResolvedValue({
+        id: 7,
+        userId: 999,
+        status: AscentStatus.PROJECT,
+      });
+
+      await expect(service.remove(7, user)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('createNote', () => {
+    const sentAscent = {
+      id: 7,
+      userId: user.userId,
+      boulderId: 10,
+      status: AscentStatus.SENT,
+    };
+
+    beforeEach(() => {
+      prismaMock.ascent.findUnique.mockResolvedValue(sentAscent);
+      prismaMock.ascentNote.findFirst.mockResolvedValue(null);
+      prismaMock.ascentNote.create.mockResolvedValue({ id: 1 });
+    });
+
+    it('attache la note au bloc de son ascension', async () => {
+      await service.createNote(
+        7,
+        { content: 'Beta: talon droit', visibility: 'PUBLIC' },
+        user,
+      );
+
+      expect(writtenData(prismaMock.ascentNote.create)).toMatchObject({
+        ascentId: 7,
+        userId: user.userId,
+        boulderId: sentAscent.boulderId,
+        visibility: 'PUBLIC',
+      });
+    });
+
+    // Règle du cahier des charges : le commentaire public appartient au premier
+    // envoi. Un REPEAT n'a droit qu'à une note privée — sinon un même grimpeur
+    // occuperait les commentaires d'un bloc à chaque re-grimpe.
+    it.each([AscentStatus.PROJECT, AscentStatus.REPEAT])(
+      'refuse une note publique sur une ascension au statut %s',
+      async (status) => {
+        prismaMock.ascent.findUnique.mockResolvedValue({
+          ...sentAscent,
+          status,
+        });
+
+        await expect(
+          service.createNote(7, { content: 'x', visibility: 'PUBLIC' }, user),
+        ).rejects.toThrow(BadRequestException);
+      },
+    );
+
+    it.each([AscentStatus.PROJECT, AscentStatus.REPEAT])(
+      'autorise une note privée sur une ascension au statut %s',
+      async (status) => {
+        prismaMock.ascent.findUnique.mockResolvedValue({
+          ...sentAscent,
+          status,
+        });
+
+        await expect(
+          service.createNote(7, { content: 'x', visibility: 'PRIVATE' }, user),
+        ).resolves.toBeDefined();
+      },
+    );
+
+    // L'unicité porte sur (user, bloc), pas sur l'ascension : sans ça, deux
+    // ascensions du même grimpeur sur un bloc lui donneraient deux voix.
+    it('refuse une seconde note publique sur le même bloc', async () => {
+      prismaMock.ascentNote.findFirst.mockResolvedValue({ id: 99 });
+
+      await expect(
+        service.createNote(7, { content: 'x', visibility: 'PUBLIC' }, user),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.ascentNote.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: user.userId,
+          boulderId: sentAscent.boulderId,
+          visibility: 'PUBLIC',
+        },
+      });
+    });
+
+    // La note privée n'est pas concernée par l'unicité : on peut en poser une
+    // par ascension.
+    it('ne vérifie pas lunicité pour une note privée', async () => {
+      await service.createNote(
+        7,
+        { content: 'x', visibility: 'PRIVATE' },
+        user,
+      );
+
+      expect(prismaMock.ascentNote.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("rejette une note sur l'ascension d'un autre utilisateur", async () => {
+      prismaMock.ascent.findUnique.mockResolvedValue({
+        ...sentAscent,
+        userId: 999,
+      });
+
+      await expect(
+        service.createNote(7, { content: 'x', visibility: 'PRIVATE' }, user),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

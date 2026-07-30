@@ -128,8 +128,6 @@ export class AuthService {
     const { accessToken, refreshToken } =
       await this.tokenService.generateTokens(existingToken.user);
 
-    await this.tokenService.deleteRefreshToken(existingToken.userId);
-
     return { accessToken, refreshToken };
   }
 }
