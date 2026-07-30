@@ -303,6 +303,14 @@ model Ascent {
   attemptsCount Int          @default(0) @map("attempts_count")
   sendDate      DateTime?    @map("send_date") @db.Timestamptz
 
+  // Nombre de séances passées sur le bloc. Toute ascension en vaut au moins
+  // une — celle qui la crée — d'où le défaut à 1. Seul un projet le voit
+  // grandir : chaque « Save » depuis l'onglet In Project l'incrémente.
+  // Un simple compteur plutôt qu'une table ProjectSession : les maquettes
+  // n'affichent qu'un total, et une table ne se justifierait que pour garder
+  // l'historique par séance (date, essais et note de chacune).
+  sessionsCount Int @default(1) @map("sessions_count")
+
   feltGrade   Grade? @relation("AscentFeltGrade", fields: [feltGradeId], references: [id], onDelete: Restrict)
   feltGradeId Int?   @map("felt_grade_id")
 
