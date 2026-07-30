@@ -18,7 +18,7 @@ export default function ProfileScreen() {
           pressed && styles.logoutButtonPressed,
         ]}
       >
-        <Text style={styles.logoutText}>Se déconnecter</Text>
+        <Text style={styles.logoutText}>Log out</Text>
       </Pressable>
     </View>
   );
@@ -38,8 +38,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
+    // fontFamily et non fontWeight : la graisse d'une police custom se choisit
+    // par la variante. Un fontWeight seul laisse le texte en police système,
+    // sans erreur ni avertissement (cf. commentaire de typography).
+    fontFamily: typography.family.heading,
     fontSize: typography.size.xl,
-    fontWeight: typography.weight.semibold,
     color: colors.text,
   },
   logoutButton: {
@@ -55,8 +58,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   logoutText: {
-    color: colors.danger,
+    fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
+    color: colors.danger,
   },
 });
