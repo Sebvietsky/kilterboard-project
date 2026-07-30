@@ -73,13 +73,16 @@ export class AscentsService {
         'You already have an active project on this boulder.',
       );
     }
-    // Tant qu'un projet est actif, on le termine via PATCH (Projects tab).
+    // Tant qu'un projet est actif, on le termine par PATCH sur l'ascension
+    // existante — jamais par la création d'une nouvelle.
+    // Le message décrit la règle, pas le chemin d'interface : l'API sert
+    // plusieurs clients, et c'est à chacun de dire OÙ aller.
     if (
       (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
       hasActiveProject
     ) {
       throw new BadRequestException(
-        'Finish your project from the Projects tab.',
+        'You already have an active project on this boulder. Complete it instead of logging a new ascent.',
       );
     }
     // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH).
