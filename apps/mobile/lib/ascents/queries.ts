@@ -4,7 +4,13 @@ import {
   useQueryClient,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { Ascent, AscentStatus, LogAscentInput, MyAscent } from './types';
+import {
+  Ascent,
+  AscentStatus,
+  LogAscentInput,
+  MyAscent,
+  MyProject,
+} from './types';
 import { api } from '../api/client';
 import { boulderKeys } from '../boulders/keys';
 import { ascentKeys } from './keys';
@@ -32,6 +38,11 @@ export function useLogAscent() {
       queryClient.invalidateQueries({
         queryKey: ascentKeys.byBoulder(variables.boulderId),
       });
+      // Logger une ascension ouvre un projet ou en referme un : la liste de
+      // Library est périmée dans les deux cas.
+      queryClient.invalidateQueries({
+        queryKey: ascentKeys.myProjects(),
+      });
     },
   });
 }
@@ -49,6 +60,21 @@ export function useMyAscentsOnBoulder(
     enabled: Number.isFinite(boulderId),
     queryKey: ascentKeys.byBoulder(boulderId),
     queryFn: () => fetchMyAscentsOnBoulder(boulderId),
+  });
+}
+
+export function fetchMyProjects(): Promise<MyProject[]> {
+  return api.get<MyProject[]>('/users/me/projects');
+}
+
+// Route dans le module Users côté backend, mais query rangée ici : la donnée
+// EST une ascension, et sa clé descend de ascentKeys — c'est l'invalidation
+// qui doit rester cohérente, pas le préfixe d'URL.
+// Non paginé côté serveur, d'où un useQuery simple.
+export function useMyProjects(): UseQueryResult<MyProject[], Error> {
+  return useQuery({
+    queryKey: ascentKeys.myProjects(),
+    queryFn: fetchMyProjects,
   });
 }
 

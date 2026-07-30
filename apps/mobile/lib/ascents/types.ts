@@ -37,3 +37,26 @@ export type MyAscent = {
   sendDate: string | null;
   createdAt: string;
 };
+
+/**
+ * Entrée de GET /users/me/projects.
+ *
+ * C'est une ASCENSION au statut PROJECT, pas un bloc : le bloc y est
+ * imbriqué, et amputé. Il n'a notamment PAS d'`id` — la navigation vers le
+ * détail passe par `boulderId`, porté par l'ascension elle-même. Ne pas
+ * chercher `boulder.id`, il n'existe pas dans cette réponse.
+ *
+ * Ni `ascentCount`, ni `averageRating`, ni `creatorUsername` non plus : c'est
+ * pourquoi la carte de projet n'est pas celle d'Explore.
+ */
+export type MyProject = {
+  id: number;
+  boulderId: number;
+  attemptsCount: number;
+  createdAt: string;
+  boulder: {
+    name: string;
+    grade: { vScale: string; fontScale: string; rank: number };
+    angle: { valueDegrees: number };
+  };
+};
