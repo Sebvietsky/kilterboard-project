@@ -12,10 +12,25 @@ import { assertFound } from '../common/utils/ownership.utils';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Les compteurs sont ceux exposés par getPublicProfile : sans eux, un
+  // utilisateur verrait des statistiques sur le profil des autres mais pas sur
+  // le sien. Une seule forme de profil, quel que soit celui qu'on regarde.
+  private readonly profileCounts = {
+    _count: {
+      select: {
+        followedBy: true,
+        follows: true,
+        boulders: true,
+        ascents: true,
+      },
+    },
+  } as const;
+
   async getMe(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       omit: { passwordHash: true, xpPoints: true, level: true },
+      include: this.profileCounts,
     });
     assertFound(user, 'User');
     return user;
@@ -29,24 +44,20 @@ export class UsersService {
     });
   }
 
-  async getPublicProfile(username: string) {
+  async getPublicProfile(username: string, viewerId: number) {
     const user = await this.prisma.user.findUnique({
       where: { username },
       omit: { passwordHash: true, xpPoints: true, level: true },
-      include: {
-        _count: {
-          select: {
-            followedBy: true,
-            follows: true,
-            boulders: true,
-            ascents: true,
-          },
-        },
-      },
+      include: this.profileCounts,
     });
 
     assertFound(user, 'User');
-    if (!user.isPublic) throw new ForbiddenException('This profile is private');
+    // Le réglage de confidentialité protège des autres, pas de soi-même :
+    // atteindre son propre profil par son username (lien profond, retour de
+    // recherche) ne doit pas se solder par un 403.
+    if (!user.isPublic && user.id !== viewerId) {
+      throw new ForbiddenException('This profile is private');
+    }
 
     return user;
   }

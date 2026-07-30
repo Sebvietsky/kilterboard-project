@@ -36,8 +36,11 @@ export class UsersController {
   }
 
   @Get(':username')
-  async getPublicProfile(@Param('username') username: string) {
-    return this.usersService.getPublicProfile(username);
+  async getPublicProfile(
+    @Param('username') username: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.usersService.getPublicProfile(username, user.userId);
   }
 
   @Post(':username/follow')
