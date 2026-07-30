@@ -56,6 +56,17 @@ export class AscentsService {
         'Flash is only possible on your first ascent.',
       );
     }
+    // Un flash est par définition réussi au premier essai. Le statut portant
+    // déjà l'information, on tolère que le client omette le compteur ; en
+    // revanche une valeur explicite qui le contredit est refusée — 0 compris,
+    // un flash sans essai n'existe pas.
+    const isFlash = dto.status === AscentStatus.FLASH;
+    const attemptsCount = dto.attemptsCount ?? (isFlash ? 1 : 0);
+    if (isFlash && attemptsCount !== 1) {
+      throw new BadRequestException(
+        'A flash is a first-attempt send: attempts must be 1.',
+      );
+    }
     // Un seul projet actif par bloc.
     if (dto.status === AscentStatus.PROJECT && hasActiveProject) {
       throw new BadRequestException(
@@ -92,13 +103,12 @@ export class AscentsService {
         throw new BadRequestException('Invalid felt grade.');
       }
     }
-
     return await this.prisma.ascent.create({
       data: {
         userId: user.userId,
         boulderId: dto.boulderId,
         status: dto.status,
-        attemptsCount: dto.attemptsCount ?? 0,
+        attemptsCount,
         feltGradeId: grade?.id ?? null,
         rating: dto.rating ?? null,
         sessionId: dto.sessionId ?? null,
@@ -178,9 +188,16 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Règle métier : feltGradeId obligatoire si on passe à SENT ou FLASH
+    // Le flash atteste d'une réussite au premier contact avec le bloc : c'est
+    // un fait établi à la création, jamais un état qu'on atteint par la suite.
+    // Aucune transition ne mène donc à FLASH — pas même la complétion d'un
+    // projet, qui prouve précisément le contraire.
+    if (dto.status === AscentStatus.FLASH) {
+      throw new BadRequestException("An ascent can't be changed to a flash.");
+    }
+    // Règle métier : feltGradeId obligatoire pour passer à SENT.
     if (
-      (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH) &&
+      dto.status === AscentStatus.SENT &&
       !dto.feltGradeId &&
       !ascent.feltGradeId
     ) {
@@ -189,9 +206,10 @@ export class AscentsService {
       );
     }
 
+    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
     const wasProject =
       ascent.status === AscentStatus.PROJECT &&
-      (dto.status === AscentStatus.SENT || dto.status === AscentStatus.FLASH);
+      dto.status === AscentStatus.SENT;
 
     return await this.prisma.ascent.update({
       where: { id },
