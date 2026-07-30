@@ -198,27 +198,50 @@ export class AscentsService {
     if (dto.status === AscentStatus.FLASH) {
       throw new BadRequestException("An ascent can't be changed to a flash.");
     }
-    // Règle métier : feltGradeId obligatoire pour passer à SENT.
-    if (
-      dto.status === AscentStatus.SENT &&
-      !dto.feltGradeId &&
-      !ascent.feltGradeId
-    ) {
+
+    // Résolution rank -> Grade.id, comme dans create (rank est @unique).
+    let grade: Grade | null = null;
+    if (dto.feltGradeRank) {
+      grade = await this.prisma.grade.findUnique({
+        where: { rank: dto.feltGradeRank },
+      });
+      if (!grade) {
+        throw new BadRequestException('Invalid felt grade.');
+      }
+    }
+
+    // Grade ressenti obligatoire pour clore un projet — sauf s'il en porte
+    // déjà un.
+    if (dto.status === AscentStatus.SENT && !grade && !ascent.feltGradeId) {
       throw new BadRequestException(
         'Felt grade is required to finish a project.',
       );
     }
 
     // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const wasProject =
+    const completesProject =
       ascent.status === AscentStatus.PROJECT &&
       dto.status === AscentStatus.SENT;
 
+    // Objet construit champ par champ, jamais `...dto`. Un spread déverse dans
+    // Prisma tout ce que le DTO porte : le jour où il gagne un champ qui n'est
+    // pas une colonne — attemptsToAdd et feltGradeRank en sont deux —, l'appel
+    // échoue à l'exécution, et tsc ne peut rien voir puisqu'il type dto par la
+    // classe DTO, pas par le modèle Prisma.
     return await this.prisma.ascent.update({
       where: { id },
       data: {
-        ...dto,
-        wasProject: wasProject || ascent.wasProject,
+        ...(dto.status && { status: dto.status }),
+        ...(grade && { feltGradeId: grade.id }),
+        ...(dto.rating !== undefined && { rating: dto.rating }),
+        // Le client envoie les essais de SA séance ; c'est le serveur qui
+        // additionne. Un total ne peut donc que croître, là où une valeur
+        // absolue venue du client pourrait le faire reculer.
+        ...(dto.attemptsToAdd && {
+          attemptsCount: { increment: dto.attemptsToAdd },
+          sessionsCount: { increment: 1 },
+        }),
+        wasProject: completesProject || ascent.wasProject,
         sendDate:
           dto.status && dto.status !== AscentStatus.PROJECT
             ? new Date()

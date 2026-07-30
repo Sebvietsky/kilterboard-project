@@ -43,9 +43,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryPressed,
   },
   buttonText: {
-    // TODO: token textOnPrimary — colors.surface donne le bon rendu mais exprime
-    // mal l'intention (c'est un texte sur fond primaire, pas une surface).
-    color: colors.surface,
+    color: colors.textOnPrimary,
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
   },

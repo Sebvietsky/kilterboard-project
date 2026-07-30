@@ -273,7 +273,7 @@ describe('AscentsService', () => {
     it('marque wasProject et pose sendDate à la complétion', async () => {
       await service.update(
         7,
-        { status: AscentStatus.SENT, feltGradeId: 42 },
+        { status: AscentStatus.SENT, feltGradeRank: 5 },
         user,
       );
 
@@ -283,6 +283,73 @@ describe('AscentsService', () => {
       });
     });
 
+    // Le client raisonne en rangs, comme sur POST /ascents ; la base stocke
+    // un id. Les deux routes divergeaient avant ce contrat commun.
+    it('résout feltGradeRank en Grade.id', async () => {
+      await service.update(
+        7,
+        { status: AscentStatus.SENT, feltGradeRank: 5 },
+        user,
+      );
+
+      expect(prismaMock.grade.findUnique).toHaveBeenCalledWith({
+        where: { rank: 5 },
+      });
+      expect(writtenData(prismaMock.ascent.update)).toMatchObject({
+        feltGradeId: 42,
+      });
+    });
+
+    it('rejette un rank inconnu', async () => {
+      prismaMock.grade.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.update(
+          7,
+          { status: AscentStatus.SENT, feltGradeRank: 999 },
+          user,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    // Le client envoie les essais de SA séance ; le serveur additionne. Un
+    // increment Prisma et non une valeur calculée côté service : deux séances
+    // enregistrées en même temps depuis deux appareils s'additionnent au lieu
+    // de s'écraser.
+    it('additionne les essais de la séance au lieu de les remplacer', async () => {
+      await service.update(7, { attemptsToAdd: 3 }, user);
+
+      expect(writtenData(prismaMock.ascent.update)).toMatchObject({
+        attemptsCount: { increment: 3 },
+        sessionsCount: { increment: 1 },
+      });
+    });
+
+    // Enregistrer une séance sans clore le projet : le statut n'est pas touché
+    // et la date d'envoi reste nulle.
+    it('garde le projet ouvert quand aucun statut nest fourni', async () => {
+      await service.update(7, { attemptsToAdd: 2 }, user);
+
+      const data = writtenData(prismaMock.ascent.update);
+      expect(data.status).toBeUndefined();
+      expect(data.sendDate).toBeNull();
+    });
+
+    // Régression : le service déversait `...dto` dans Prisma. attemptsToAdd et
+    // feltGradeRank ne sont pas des colonnes — les laisser passer ferait
+    // échouer l'appel à l'exécution, sans que tsc puisse le voir.
+    it("n'envoie à Prisma aucun champ du DTO qui ne soit pas une colonne", async () => {
+      await service.update(
+        7,
+        { status: AscentStatus.SENT, feltGradeRank: 5, attemptsToAdd: 2 },
+        user,
+      );
+
+      const data = writtenData(prismaMock.ascent.update);
+      expect(data).not.toHaveProperty('feltGradeRank');
+      expect(data).not.toHaveProperty('attemptsToAdd');
+    });
+
     it("rejette la modification de l'ascension d'un autre utilisateur", async () => {
       prismaMock.ascent.findUnique.mockResolvedValue({
         ...project,
@@ -290,7 +357,11 @@ describe('AscentsService', () => {
       });
 
       await expect(
-        service.update(7, { status: AscentStatus.SENT, feltGradeId: 42 }, user),
+        service.update(
+          7,
+          { status: AscentStatus.SENT, feltGradeRank: 5 },
+          user,
+        ),
       ).rejects.toThrow();
     });
   });

@@ -43,6 +43,13 @@ export const colors = {
   text: palette.ink,
   textMuted: palette.slate,
   textSubtle: palette.fog,
+  // Texte posé SUR une surface saturée ou sombre. Deux tokens et non un seul :
+  // ils valent le même blanc aujourd'hui, mais dépendent de deux fonds
+  // indépendants. Le jour où `primary` s'éclaircit, textOnPrimary doit
+  // basculer au sombre — pas textOnInk. Les confondre imposerait de les
+  // démêler à ce moment-là, sur des dizaines d'usages.
+  textOnPrimary: palette.white,
+  textOnInk: palette.white,
   // Primaire
   primary: palette.blue,
   primaryPressed: palette.blueDark,
