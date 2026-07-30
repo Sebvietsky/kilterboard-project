@@ -19,9 +19,9 @@ export function fetchUserProfile(username: string): Promise<UserProfile> {
  * besoin de connaître son propre username — et parce que la version publique
  * n'expose pas l'email.
  *
- * On passe par /users/me et non /auth/me : les deux renvoient la même chose,
- * mais seul le premier porte les compteurs `_count`. Cette query est donc la
- * seule source de profil « riche » ; AuthContext reste la source d'identité.
+ * /users/me est l'unique route du compte courant : GET /auth/me faisait la
+ * même requête et a été supprimé. AuthContext l'appelle aussi, mais pour
+ * l'IDENTITÉ (bootstrap, login) ; cette query est la source du PROFIL.
  */
 export function useUser(username?: string): UseQueryResult<UserProfile, Error> {
   return useQuery({

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -32,7 +33,17 @@ export class UsersService {
       omit: { passwordHash: true, xpPoints: true, level: true },
       include: this.profileCounts,
     });
-    assertFound(user, 'User');
+
+    // 401 et non 404 : l'identifiant vient du token, pas du client. Un jeton
+    // valide qui ne désigne aucun compte (supprimé, base restaurée) est un
+    // problème d'authentification — le client doit se déconnecter, pas
+    // afficher « introuvable ». C'est ce que faisait GET /auth/me, dont cette
+    // route reprend le rôle ; le perdre ferait boucler le mobile, qui ne
+    // réagit qu'au 401.
+    if (!user) {
+      throw new UnauthorizedException("Token payload doesn't match any user");
+    }
+
     return user;
   }
 

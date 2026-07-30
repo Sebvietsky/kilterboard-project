@@ -212,32 +212,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('getAuthenticateUser', () => {
-    // Le token est valide mais le compte a disparu (suppression, base restaurée).
-    it('rejette un payload qui ne correspond à aucun utilisateur', async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.getAuthenticateUser(1)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('ne renvoie jamais le hash du mot de passe', async () => {
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: 1,
-        username: 'seb',
-        email: 'seb@example.com',
-      });
-
-      await service.getAuthenticateUser(1);
-
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
-        omit: { passwordHash: true, xpPoints: true, level: true },
-      });
-    });
-  });
-
   describe('logoutUser', () => {
     it('supprime le refresh token stocké', async () => {
       await service.logoutUser(1);

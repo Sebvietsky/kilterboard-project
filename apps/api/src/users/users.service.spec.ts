@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -65,10 +66,13 @@ describe('UsersService', () => {
       });
     });
 
-    it('rejette un utilisateur introuvable', async () => {
+    // 401 et non 404 : l'identifiant vient du token, pas du client. Un jeton
+    // valide qui ne désigne aucun compte est un problème d'authentification —
+    // le mobile ne se déconnecte que sur un 401, un 404 le ferait boucler.
+    it('rend 401 quand le token ne désigne aucun compte', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getMe(me)).rejects.toThrow(NotFoundException);
+      await expect(service.getMe(me)).rejects.toThrow(UnauthorizedException);
     });
   });
 
