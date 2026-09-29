@@ -1,0 +1,15 @@
+meta {
+  name: My projects
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/users/me/projects
+  body: none
+  auth: inherit
+}
+
+docs {
+  Ascensions au statut PROJECT du compte courant. Non paginé.
+}
