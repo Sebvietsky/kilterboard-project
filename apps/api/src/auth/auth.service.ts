@@ -10,7 +10,6 @@ import * as bcrypt from 'bcrypt';
 import { TokenService } from './token.service';
 import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { Throttle } from '@nestjs/throttler';
 import { User } from '../generated/prisma/client';
 
 @Injectable()
@@ -20,7 +19,6 @@ export class AuthService {
     private tokenService: TokenService,
   ) {}
 
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async register(
     dto: RegisterDto,
   ): Promise<{ success: true; message: string }> {
@@ -48,7 +46,6 @@ export class AuthService {
     return { success: true, message: 'Account created successfully' };
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async login(dto: LoginDto): Promise<AuthTokens> {
     const identifier: boolean = dto.identifier.includes('@');
 
