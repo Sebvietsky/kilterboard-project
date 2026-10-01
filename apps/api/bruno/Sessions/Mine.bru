@@ -1,0 +1,15 @@
+meta {
+  name: Mine
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/sessions/me
+  body: none
+  auth: inherit
+}
+
+docs {
+  Historique, du plus récent au plus ancien, avec le nombre d'ascensions.
+}

@@ -4,6 +4,16 @@ Toutes les modifications notables de ce projet sont consignées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
 versions selon [SemVer](https://semver.org/lang/fr/).
 
+## [Unreleased]
+
+### Corrections
+
+- **Rate limiting de l'authentification inopérant** : annoncé en 0.1.0, il ne
+  protégeait rien — `@Throttle` était posé sur le service, que le throttler ne
+  lit pas, et aucun `ThrottlerGuard` n'était enregistré. `register` est
+  désormais limité à 3 requêtes/min et `login` à 5/min par IP ; `refresh` et
+  `logout` en sont exclus.
+
 ## [0.1.0] — 2026-07-30
 
 Première release depuis `main`, qui accusait 45 commits de retard. Elle couvre

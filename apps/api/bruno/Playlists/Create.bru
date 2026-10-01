@@ -1,0 +1,25 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/playlists
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Projets 40°",
+    "description": "Blocs à travailler cet hiver",
+    "isPublic": false
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("playlistId", res.body.id);
+  }
+}
