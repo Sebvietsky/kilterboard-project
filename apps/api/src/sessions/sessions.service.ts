@@ -64,9 +64,28 @@ export class SessionsService {
       where: { userId, endedAt: null },
       include: {
         board: { select: { name: true, gymName: true } },
+        // `select` seul, jamais mélangé à un `include` : les deux sont
+        // mutuellement exclusifs à un même niveau, et la contrainte n'est
+        // vérifiée qu'à l'exécution — les args de relation imbriquée exposent
+        // `select` et `include` comme deux optionnels indépendants, donc tsc
+        // laisse passer le mélange. Une relation se demande donc DANS le
+        // select, comme n'importe quel autre champ.
         ascents: {
-          include: {
-            boulder: { select: { name: true } },
+          select: {
+            id: true,
+            status: true,
+            boulderId: true,
+            createdAt: true,
+            boulder: {
+              select: {
+                name: true,
+                grade: {
+                  select: { vScale: true, fontScale: true, rank: true },
+                },
+                angle: { select: { valueDegrees: true } },
+              },
+            },
+            attemptsCount: true,
           },
           orderBy: { createdAt: 'desc' },
         },

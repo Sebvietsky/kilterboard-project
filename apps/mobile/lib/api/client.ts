@@ -22,7 +22,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   isRetry = false,
-): Promise<T> {
+): Promise<T | null> {
   const accessToken = getAuthBridge().getAccessToken();
 
   const headers: Record<string, string> = {
@@ -59,25 +59,48 @@ async function apiFetch<T>(
     );
   }
 
-  return res.json() as Promise<T>;
+  const rawBody = await res.text();
+  // Une réponse OK peut n'avoir aucun corps => 204 ou GET /sessions/active (sans session active)
+  // on traduit en null ces réponses
+  // Les méthodes décident si c'est normal de renvoyer null
+  if (!rawBody) return null;
+
+  return JSON.parse(rawBody) as T;
+}
+
+async function apiFetchNonNullable<T>(
+  path: string,
+  options: RequestInit,
+): Promise<T> {
+  const data = await apiFetch<T>(path, options);
+  if (data === null)
+    throw new Error(`Empty response body for ${options.method} ${path}`);
+  return data;
 }
 
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, {
+  get: <T>(path: string): Promise<T> =>
+    apiFetchNonNullable<T>(path, { method: 'GET' }),
+  post: <T>(path: string, body?: unknown): Promise<T> =>
+    apiFetchNonNullable<T>(path, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     }),
-  put: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, {
+  put: <T>(path: string, body?: unknown): Promise<T> =>
+    apiFetchNonNullable<T>(path, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     }),
-  patch: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, {
+  patch: <T>(path: string, body?: unknown): Promise<T> =>
+    apiFetchNonNullable<T>(path, {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     }),
-  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+  delete: async (path: string): Promise<void> => {
+    await apiFetch(path, { method: 'DELETE' });
+  },
+  getOrNull: <T>(path: string): Promise<T | null> =>
+    apiFetch<T>(path, {
+      method: 'GET',
+    }),
 };
