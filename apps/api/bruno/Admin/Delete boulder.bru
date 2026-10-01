@@ -1,0 +1,15 @@
+meta {
+  name: Delete boulder
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/admin/boulders/{{boulderId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Compte ADMIN requis (sinon 403). Suppression définitive : 204.
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Add boulder
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/playlists/{{playlistId}}/boulders
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "boulderId": {{boulderId}}
+  }
+}
+
+docs {
+  `position` : optionnel.
+}
