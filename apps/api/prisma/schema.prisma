@@ -14,6 +14,7 @@ generator client {
   output       = "../src/generated/prisma"
   runtime      = "nodejs"
   moduleFormat = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -261,8 +262,7 @@ model BoulderTag {
 // Session de grimpe d'un utilisateur sur une planche.
 // Règle métier : endedAt IS NULL = session active.
 // Un utilisateur ne peut avoir qu'une seule session active à la fois —
-// cette contrainte est enforced dans SessionsService (pas via un index DB
-// car Prisma ne supporte pas encore les index partiels natifs).
+// cette contrainte est enforced dans SessionsService + par @@unique avec condition
 // boardId est nullable : on peut logger une session sans board référencé.
 model BoardSession {
   id      Int    @id @default(autoincrement())
@@ -282,6 +282,7 @@ model BoardSession {
 
   ascents Ascent[]
 
+  @@unique([userId], where: { endedAt: null }, map: "board_sessions_one_active_per_user")
   @@map("board_sessions")
 }
 
