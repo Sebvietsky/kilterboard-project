@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '../generated/prisma/client';
+import { Prisma, Role } from '../generated/prisma/client';
 
 const prismaMock = {
   boardSession: {
@@ -54,6 +54,25 @@ describe('SessionsService', () => {
         ConflictException,
       );
       expect(prismaMock.boardSession.create).not.toHaveBeenCalled();
+    });
+
+    // Course entre deux Start simultanés (double tap, retry réseau) : les deux
+    // findFirst ne voient rien, et c'est l'index partiel unique qui rejette le
+    // second create. Le service ne doit pas avaler cette erreur : remontée
+    // telle quelle, PrismaExceptionFilter la traduit en 409. Prisma étant
+    // mocké, ce test ne prouve pas l'index lui-même — seulement ce chemin.
+    it("laisse remonter la violation d'unicité quand l'index rejette la création", async () => {
+      prismaMock.boardSession.findFirst.mockResolvedValue(null);
+      prismaMock.boardSession.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: Prisma.prismaVersion.client,
+        }),
+      );
+
+      await expect(service.startSession({}, user)).rejects.toMatchObject({
+        code: 'P2002',
+      });
     });
 
     it("cherche l'existence d'une session ouverte sur endedAt: null", async () => {
