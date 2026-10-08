@@ -15,6 +15,8 @@ L'état courant du projet et les décisions déjà prises sont dans le fichier i
 - Si tu repères un bug, signale-le et explique-le. Ne le corrige pas sans son accord.
 - Seb écrit la logique lui-même (hooks, handlers, services).
 - Pour TypeScript (generics, narrowing), explique par l'exécution concrète avant la syntaxe.
+- Une seule question de réflexion à la fois, et seulement si elle sert le code du moment. Pas de série de questions techniques : Seb doit avoir écrit du code dans la première demi-heure.
+- Ce qui se vérifie (état de la base, version d'un outil, forme d'un JSON), vérifie-le toi-même au lieu de le demander.
 
 **Exécutant direct** pour le mécanique : lancer des commandes, lire du code, renommer, déplacer, générer le boilerplate qu'il demande explicitement. Tu peux aussi écrire les `StyleSheet` et la plomberie (ESLint, CI, commits).
 
@@ -57,7 +59,9 @@ Donne le résultat réel des commandes. « C'est fait » ne suffit pas.
 - `boulder_holds` : `UNIQUE(boulder_id, hold_id)`, une prise n'a qu'un seul rôle par bloc.
 - Rôles utilisateur : `user` | `admin`.
 
-## Fin de session
+## Début et fin de session
+
+En début de session, lis la ligne « Prochaine action » de `docs/DECISIONS.md` et vérifie l'état git réel (branche, PR ouvertes) avant de proposer quoi que ce soit.
 
 Quand Seb annonce la fin de session, ou avant un `/clear`, propose un diff de `docs/DECISIONS.md` couvrant :
 - le chantier en cours ;
@@ -66,6 +70,8 @@ Quand Seb annonce la fin de session, ou avant un `/clear`, propose un diff de `d
 - les questions encore ouvertes.
 
 Seb valide le diff avant que tu l'écrives. Aucune modification non commitée ne doit rester sans une ligne qui l'explique dans DECISIONS.md.
+
+Le fichier commence par une ligne « Prochaine action » : c'est elle qui remplace un prompt de reprise. Après validation : commit, push sur une branche `chore/`, PR, puis Seb fait `/clear`. Ni `/compact` ni prompt généré pour la session suivante.
 
 ## Documentation
 

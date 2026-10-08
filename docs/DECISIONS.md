@@ -9,24 +9,25 @@ Dernière mise à jour : 2026-10-08
 
 ## Chantier en cours
 
-- Branche `feature/session-screen`, créée depuis `develop` (`3b555a0`) le 2026-10-01.
+**Prochaine action :** Seb écrit `apps/mobile/lib/sessions/types.ts` (`Session` et `ActiveSession`) sur `feature/session-screen`, à partir des JSON de `docs/notes/session-screen.md`. L'agent relit.
+
 - Objectif : écran Session mobile, cycle de vie seul (start / end, chrono, blocs faits). Sans BLE.
-- Déjà dans `develop` (#52) : `GET /sessions/active` enrichi et `api.getOrNull` dans le client mobile.
-- Côté mobile, rien n'est commencé : `apps/mobile/lib/sessions/` n'existe pas et `app/(tabs)/session.tsx` est un placeholder.
-- Plan proposé (non figé) — prochaine étape : `lib/sessions/types.ts`, écrit par Seb à partir des JSON réels. Deux types : `Session` (réponse de start / end) et `ActiveSession extends Session` (+ `board`, `ascents`). Dates en `string`.
-- Plan proposé (non figé) — ensuite : `sessionKeys`, `useActiveSession` (via `api.getOrNull`), `useStartSession`, `useEndSession`, invalidations croisées avec `ascentKeys`.
+- Branche `feature/session-screen` : alignée sur `develop` (`3b555a0`), aucun commit propre. Côté mobile rien n'est commencé : `apps/mobile/lib/sessions/` n'existe pas et `app/(tabs)/session.tsx` est un placeholder.
+- PR ouvertes le 2026-10-08, à fusionner dans `develop` : #54 (`fix/session-active-unique-index`, index partiel unique) et #55 (`chore/docs-decisions`, ce fichier). Rebaser `feature/session-screen` ensuite.
+- Plan proposé (non figé) — après les types : `sessionKeys`, `useActiveSession` (via `api.getOrNull`), `useStartSession`, `useEndSession`, invalidations croisées avec `ascentKeys`.
 - Plan proposé (non figé) — puis l'écran : loading / erreur / `null` → Start / session en cours (chrono dérivé de `startedAt`, liste des blocs, End).
-- Après l'écran, sur une branche séparée : rattachement implicite de `sessionId`, puis index partiel unique. Voir `docs/notes/sessions-backend.md`.
+- Avant l'étape « liste des blocs » de l'écran, sur une branche séparée : rattachement implicite de `sessionId`, sinon la liste reste vide. Voir `docs/notes/sessions-backend.md`.
 
 ## Travail non commité
 
-- (vide = rien en suspens. Format : `fichier` : intention, raison de ne pas commiter tout de suite)
+- `apps/api/bruno/environments/Local.bru` : variables de test que Seb change au fil de l'eau. Ne jamais commiter.
+- `apps/mobile/.env` (ignoré par git) : pointe sur `172.20.10.10`, l'IP du Mac en partage de connexion. À recorriger au retour sur la box, puis relancer Metro avec `--clear`.
 
 ## Décisions tranchées (ne pas rouvrir sans raison nouvelle)
 
 Sessions
 - **2026-07-31 · Rattachement des ascensions à la session : implicite.** Si `sessionId` est absent, le serveur résout la session active. `sessionId: null` explicite = hors session. Pas encore implémenté.
-- **2026-07-31 · Index partiel unique** par migration SQL manuelle. Le `findFirst` de `startSession` reste : il donne le 409 lisible, l'index garantit.
+- **2026-10-08 · Index partiel unique fait** (#54), avant l'écran et non après. Déclaré dans `schema.prisma` par `@@unique(..., where:)` avec la preview feature `partialIndexes` (Prisma 7.8), pas en SQL manuel. Le `findFirst` de `startSession` reste : il donne le 409 lisible, l'index garantit.
 - **2026-09-29 · Sessions zombies** : fermeture automatique côté serveur au-delà d'environ 6 h. Mécanisme à concevoir.
 - **2026-09-29 · `GET /sessions/active`** renvoie la board et les ascensions avec cote, angle et `attemptsCount`. Pas de rating ni de grade ressenti : le critère est ce que l'écran affiche.
 - **2026-07-31 · BLE gelé**, hors périmètre de l'écran Session. Lib, architecture et source des données déjà choisies : `docs/notes/ble-reprise.md`.
@@ -46,17 +47,20 @@ Mobile
 - **2026-07-29 · Explore** : seul le grand titre se replie au scroll. Recherche, Filters et chips restent fixes.
 - **2026-07-30 · Pastille de statut sur les cartes Explore : hors MVP.** Conception conservée : `docs/notes/explore.md`.
 - **2026-07-30 · Profil** : taux de flash, ascensions récentes, Follow et Edit profile différés. Détail : `docs/notes/profil-backlog.md`.
+- **2026-10-08 · Toast de confirmation après un log d'ascension** : aujourd'hui l'écran se met à jour sans aucun retour visuel. À faire sur une branche à part, après l'écran Session.
 - **2026-07-30 · Boulder detail** : la note privée est masquée en mode In Project tant qu'aucun écran ne la relit. Design cible et backlog : `docs/notes/boulder-detail.md`.
 - **Library sans segment « Liked »** (date inconnue). Le backend n'a aucune notion de favori.
 
 Général
+- **2026-10-08 · Fin de session** : mise à jour de ce fichier, commit, push, puis `/clear`. Ni `/compact` ni prompt de reprise : ce fichier est importé à chaque session.
+- **2026-10-08 · Pas de SQL écrit à la main** quand Prisma sait l'exprimer : vérifier d'abord ce que la version installée supporte.
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
 
 | Invariant | État réel |
 | --- | --- |
-| Une seule session active par utilisateur | Tenu **uniquement par le service** (`findFirst` avant `create`). Index partiel unique **absent** des migrations : fenêtre TOCTOU (double tap, retry réseau). |
+| Une seule session active par utilisateur | **Tenu** par le service (`findFirst`, 409 lisible) et par l'index partiel unique `board_sessions_one_active_per_user` (#54, à fusionner). Rejet vérifié par insertion SQL directe ; deux requêtes HTTP simultanées non testées, faute d'e2e. |
 | Ascension rattachée à la session active | **Non implémenté.** `AscentsService.create` fait `dto.sessionId ?? null` et le mobile n'envoie jamais `sessionId`. |
 | Fermeture automatique des sessions zombies | **Non implémenté.** Une session jamais terminée bloque tout nouveau Start. |
 | Déconnexion seulement sur un 401 | **Non.** Tout échec du refresh (réseau, 5xx, 429) efface le refresh token et déconnecte. Pistes : `docs/notes/mobile-reseau.md`. |
@@ -76,6 +80,6 @@ Général
 ## Questions ouvertes
 
 - Sessions zombies : cron ou fermeture paresseuse (à la lecture, au Start) ? Quelle valeur de `endedAt` ?
-- `title` est `String?` dans `BoardSession` alors que `startSession` le remplit toujours : nullable ou non dans le type mobile ?
-- `login` renvoie 200 et `refresh` 201 : à aligner ?
-- Vérifications manuelles demandées et non rapportées : logger une ascension depuis l'app (preuve que `post` envoie le corps depuis le refactor du client), et deux refresh d'affilée dans Bruno.
+- Types mobiles de session : `title` nullable (comme la base) et dates en `string` (comme `lib/ascents/types.ts`). Proposé par l'agent le 2026-10-08, pas encore confirmé par Seb.
+- `login` renvoie 200 et `refresh` 201 : l'agent recommande d'aligner `refresh` sur 200 dans une branche `fix/`. À décider.
+- Vérification manuelle demandée et non rapportée : deux refresh d'affilée dans Bruno. (Le log d'une ascension depuis l'app est validé le 2026-10-08 : `api.post` envoie bien le corps.)

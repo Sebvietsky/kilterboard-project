@@ -2,7 +2,7 @@
 
 Reco du module `apps/api/src/sessions/` faite le 2026-07-31. Les décisions elles-mêmes sont dans `docs/DECISIONS.md` ; ce fichier garde le détail.
 
-À traiter après l'écran Session mobile, dans cet ordre : rattachement implicite (change un contrat), puis index partiel (migration SQL manuelle), puis zombies.
+Ordre : index partiel (fait le 2026-10-08, PR #54), puis rattachement implicite (change un contrat, à faire avant la liste des blocs de l'écran), puis zombies.
 
 ## 1. Rattachement implicite de `sessionId`
 
@@ -10,19 +10,12 @@ Reco du module `apps/api/src/sessions/` faite le 2026-07-31. Les décisions elle
 - Cible : si `sessionId` est absent, le service résout la session active de l'utilisateur. `sessionId: null` explicite reste l'échappatoire pour logger hors session.
 - Change le contrat de `POST /ascents` en place : à discuter avant de coder. Impacte le flow « log ascent » de l'écran boulder detail.
 
-## 2. Index partiel unique
+## 2. Index partiel unique — fait le 2026-10-08 (PR #54)
 
-- Seul le `findFirst({ endedAt: null })` de `startSession` tient l'invariant : fenêtre TOCTOU (double tap sur Start, retry réseau).
-- Prisma ne sait pas exprimer un index partiel : migration SQL manuelle.
-
-```sql
-CREATE UNIQUE INDEX board_sessions_one_active_per_user
-  ON board_sessions (user_id)
-  WHERE ended_at IS NULL;
-```
-
-- Les deux gardes se complètent : le check donne le 409 lisible, l'index garantit.
-- Un test e2e (deux `POST /sessions` d'affilée) est le seul moyen de le prouver : voir `docs/notes/api-tests.md`.
+- Le `findFirst({ endedAt: null })` de `startSession` laissait une fenêtre TOCTOU (double tap sur Start, retry réseau).
+- Prisma 7.8 sait l'exprimer avec la preview feature `partialIndexes` : `@@unique([userId], where: { endedAt: null }, map: "board_sessions_one_active_per_user")`. La migration est générée par Prisma, pas écrite à la main.
+- Les deux gardes se complètent : le check donne le 409 lisible, l'index garantit. Si l'index rejette, `PrismaExceptionFilter` traduit la `P2002` en 409 générique.
+- Prouvé par insertions SQL directes (seconde session active refusée). Un test unitaire couvre la remontée de la `P2002`. Deux `POST /sessions` réellement simultanés restent à couvrir en e2e : voir `docs/notes/api-tests.md`.
 
 ## 3. Sessions zombies
 
