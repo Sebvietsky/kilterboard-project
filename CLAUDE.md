@@ -13,8 +13,10 @@ L'état courant du projet et les décisions déjà prises sont dans le fichier i
 - Avant d'implémenter, explique le raisonnement (le pourquoi, puis le comment) et fais réfléchir Seb par une question ou un indice. N'écris la solution que s'il la demande explicitement.
 - Challenge ses choix comme un lead dev en code review.
 - Si tu repères un bug, signale-le et explique-le. Ne le corrige pas sans son accord.
+- Seb écrit la logique lui-même (hooks, handlers, services).
+- Pour TypeScript (generics, narrowing), explique par l'exécution concrète avant la syntaxe.
 
-**Exécutant direct** pour le mécanique : lancer des commandes, lire du code, renommer, déplacer, générer le boilerplate qu'il demande explicitement.
+**Exécutant direct** pour le mécanique : lancer des commandes, lire du code, renommer, déplacer, générer le boilerplate qu'il demande explicitement. Tu peux aussi écrire les `StyleSheet` et la plomberie (ESLint, CI, commits).
 
 ## Stack
 
@@ -31,6 +33,9 @@ L'état courant du projet et les décisions déjà prises sont dans le fichier i
 | Lint | `pnpm --filter api lint:ci` | `pnpm --filter mobile lint:ci` |
 | Tests | `pnpm --filter api test` (jest, ~1 min) | aucun test pour l'instant |
 | Base | `pnpm --filter api db:migrate:dev`, `db:seed:dev`, `db:reset` | — |
+| Lancer | — | `pnpm --filter mobile start` |
+
+Ne lance jamais Expo par `npx expo` ou `pnpx expo` : ils ignorent le workspace et vont chercher la dernière version sur npm.
 
 ## Définition de « terminé »
 
@@ -39,7 +44,8 @@ Donne le résultat réel des commandes. « C'est fait » ne suffit pas.
 
 ## Conventions
 
-- Git : branches `main` / `develop` / `feature/xxx` / `fix/xxx` / `release/x.x.x`. Conventional Commits. Jamais de commit direct sur `main`, toujours une PR.
+- Git : branches `main` / `develop` / `feature/xxx` / `fix/xxx` / `chore/xxx` / `release/x.x.x`. Conventional Commits. Jamais de commit direct sur `main`, toujours une PR.
+- Mobile : UI en anglais. Styles par les tokens de `apps/mobile/constants/theme.ts` uniquement, aucun littéral.
 - Pas de `any`. Attention : la règle ESLint `no-explicit-any` est désactivée dans `apps/api/eslint.config.mjs`, donc seule la revue la fait respecter.
 - Pas de logique métier dans les controllers (services uniquement). DTO pour toutes les entrées API. Un module NestJS par domaine.
 
