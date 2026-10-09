@@ -12,21 +12,31 @@ export type Session = {
   boardId: number | null;
 };
 
-export type SessionAscent = {
-  createdAt: string;
+/**
+ * Un passage sur un bloc pendant une session : une ligne par log.
+ *
+ * Ce n'est PAS une ascension. Le même bloc revient autant de fois qu'il a été
+ * travaillé — un projet essayé deux fois dans la séance donne deux passages
+ * qui pointent vers la même `ascent.id`. La clé de liste est donc `id` (celui
+ * du passage), jamais `ascent.id`.
+ *
+ * `status` et `attempts` sont ceux du passage : PROJECT tant que le bloc
+ * résiste, SENT le jour où il tombe, avec les essais de cette fois-là et non
+ * le cumul.
+ */
+export type SessionEntry = {
   id: number;
-  boulderId: number;
   status: AscentStatus;
-  attemptsCount: number;
-  boulder: {
-    name: string;
-    grade: {
-      vScale: string;
-      fontScale: string;
-      rank: number;
-    };
-    angle: {
-      valueDegrees: number;
+  attempts: number;
+  createdAt: string;
+  ascent: {
+    id: number;
+    boulderId: number;
+    wasProject: boolean;
+    boulder: {
+      name: string;
+      grade: { vScale: string; fontScale: string; rank: number };
+      angle: { valueDegrees: number };
     };
   };
 };
@@ -36,7 +46,7 @@ export type ActiveSession = Session & {
     name: string;
     gymName: string | null;
   } | null;
-  ascents: SessionAscent[];
+  entries: SessionEntry[];
 };
 
 export type SessionSummary = Session & {
@@ -45,6 +55,6 @@ export type SessionSummary = Session & {
     gymName: string | null;
   } | null;
   _count: {
-    ascents: number;
+    entries: number;
   };
 };
