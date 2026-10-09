@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { SessionsService } from '../sessions/sessions.service';
 import { UpdateAscentDto } from './dto/update-ascent.dto';
 import { JwtPayload } from '../common/interfaces/auth-payload.interface';
 import {
@@ -29,7 +30,10 @@ import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @Injectable()
 export class AscentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   async create(dto: CreateAscentDto, user: JwtPayload): Promise<AscentCreated> {
     const boulder: Boulder | null = await this.prisma.boulder.findUnique({
@@ -106,6 +110,11 @@ export class AscentsService {
         throw new BadRequestException('Invalid felt grade.');
       }
     }
+    const sessionId = await this.sessions.resolveSessionId(
+      dto.sessionId,
+      user.userId,
+    );
+
     return await this.prisma.ascent.create({
       data: {
         userId: user.userId,
@@ -114,7 +123,13 @@ export class AscentsService {
         attemptsCount,
         feltGradeId: grade?.id ?? null,
         rating: dto.rating ?? null,
-        sessionId: dto.sessionId ?? null,
+        // Écriture imbriquée : l'ascension et son passage dans la session
+        // sont créés dans la même transaction, jamais l'un sans l'autre.
+        ...(sessionId && {
+          sessionEntries: {
+            create: { sessionId, status: dto.status, attempts: attemptsCount },
+          },
+        }),
         sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
         // Un projet actif bloque tout create ci-dessus : jamais de conversion
         // ici. La transition projet -> send se fait via PATCH (complétion).
@@ -223,6 +238,14 @@ export class AscentsService {
       ascent.status === AscentStatus.PROJECT &&
       dto.status === AscentStatus.SENT;
 
+    // Une séance enregistrée ou une complétion est un passage sur le bloc :
+    // il figure dans le compte rendu de la session en cours. Modifier une
+    // note n'en est pas un.
+    const sessionId =
+      dto.attemptsToAdd || dto.status
+        ? await this.sessions.resolveSessionId(undefined, user.userId)
+        : null;
+
     // Objet construit champ par champ, jamais `...dto`. Un spread déverse dans
     // Prisma tout ce que le DTO porte : le jour où il gagne un champ qui n'est
     // pas une colonne — attemptsToAdd et feltGradeRank en sont deux —, l'appel
@@ -240,6 +263,15 @@ export class AscentsService {
         ...(dto.attemptsToAdd && {
           attemptsCount: { increment: dto.attemptsToAdd },
           sessionsCount: { increment: 1 },
+        }),
+        ...(sessionId && {
+          sessionEntries: {
+            create: {
+              sessionId,
+              status: dto.status ?? ascent.status,
+              attempts: dto.attemptsToAdd ?? 0,
+            },
+          },
         }),
         wasProject: completesProject || ascent.wasProject,
         sendDate:

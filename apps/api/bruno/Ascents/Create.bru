@@ -32,6 +32,6 @@ docs {
     au premier contact avec le bloc.
   - `feltGradeRank` obligatoire au premier SENT/FLASH.
   - `rating` : 1 à 5, optionnel.
-  - `sessionId` : optionnel, rattachement EXPLICITE uniquement pour l'instant.
+  - `sessionId` : absent, l'ascension est consignée dans la session en cours ; `null` la laisse hors session ; un id vise une session précise (à soi et ouverte).
   - Un projet ouvert sur le bloc bloque tout POST : passer par Update.
 }

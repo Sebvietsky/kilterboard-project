@@ -28,8 +28,10 @@ export class CreateAscentDto {
   @Type(() => Number)
   rating?: number;
 
+  // Absent : le serveur rattache à la session active. `null` explicite : hors
+  // session. `@IsOptional()` laisse passer les deux, d'où le type.
   @IsOptional()
   @IsInt()
   @Type(() => Number)
-  sessionId?: number;
+  sessionId?: number | null;
 }
