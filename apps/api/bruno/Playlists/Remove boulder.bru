@@ -1,0 +1,11 @@
+meta {
+  name: Remove boulder
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/playlists/{{playlistId}}/boulders/{{boulderId}}
+  body: none
+  auth: inherit
+}

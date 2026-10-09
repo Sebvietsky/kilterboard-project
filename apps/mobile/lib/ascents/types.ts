@@ -79,6 +79,7 @@ export type MyProject = {
   id: number;
   boulderId: number;
   attemptsCount: number;
+  sessionsCount: number;
   createdAt: string;
   boulder: {
     name: string;

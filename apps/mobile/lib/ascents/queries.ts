@@ -14,6 +14,7 @@ import {
 } from './types';
 import { api } from '../api/client';
 import { boulderKeys } from '../boulders/keys';
+import { sessionKeys } from '../sessions/keys';
 import { ascentKeys } from './keys';
 
 export function useLogAscent() {
@@ -44,6 +45,9 @@ export function useLogAscent() {
       queryClient.invalidateQueries({
         queryKey: ascentKeys.myProjects(),
       });
+      // Le serveur rattache l'ascension à la session active : la liste des
+      // blocs de l'écran Session est périmée.
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });
 }
@@ -87,6 +91,8 @@ export function useUpdateAscent() {
         queryKey: ascentKeys.byBoulder(variables.boulderId),
       });
       queryClient.invalidateQueries({ queryKey: ascentKeys.myProjects() });
+      // Une séance ou une complétion rattache le projet à la session active.
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });
 }

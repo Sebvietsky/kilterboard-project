@@ -1,0 +1,11 @@
+meta {
+  name: Comments
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/boulders/{{boulderId}}/comments
+  body: none
+  auth: inherit
+}

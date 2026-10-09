@@ -1,0 +1,25 @@
+meta {
+  name: Update me
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/users/me
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "bio": "Grimpeur du dimanche",
+    "country": "France",
+    "isPublic": true,
+    "gradeSystem": "V_SCALE"
+  }
+}
+
+docs {
+  Tous les champs sont optionnels : `bio`, `avatarUrl`, `country`,
+  `isPublic`, `gradeSystem` (`V_SCALE` | `FONT_SCALE`).
+}

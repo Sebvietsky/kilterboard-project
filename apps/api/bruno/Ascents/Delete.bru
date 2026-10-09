@@ -1,0 +1,15 @@
+meta {
+  name: Delete
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/ascents/{{ascentId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Seules les ascensions au statut PROJECT peuvent être supprimées. 204.
+}

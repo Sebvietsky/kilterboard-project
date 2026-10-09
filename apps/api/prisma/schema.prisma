@@ -10,10 +10,11 @@
 // ============================================================
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  runtime      = "nodejs"
-  moduleFormat = "cjs"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  runtime         = "nodejs"
+  moduleFormat    = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -261,8 +262,7 @@ model BoulderTag {
 // Session de grimpe d'un utilisateur sur une planche.
 // Règle métier : endedAt IS NULL = session active.
 // Un utilisateur ne peut avoir qu'une seule session active à la fois —
-// cette contrainte est enforced dans SessionsService (pas via un index DB
-// car Prisma ne supporte pas encore les index partiels natifs).
+// cette contrainte est enforced dans SessionsService + par @@unique avec condition
 // boardId est nullable : on peut logger une session sans board référencé.
 model BoardSession {
   id      Int    @id @default(autoincrement())
@@ -280,9 +280,40 @@ model BoardSession {
   isShared  Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  ascents Ascent[]
+  entries SessionEntry[]
 
+  @@unique([userId], where: { endedAt: null }, map: "board_sessions_one_active_per_user")
   @@map("board_sessions")
+}
+
+// Un passage sur un bloc pendant une session. Une ligne par log, jamais
+// modifiée : c'est le journal dont on tire le compte rendu de la session.
+//
+// Table distincte et non une colonne `session_id` sur Ascent : une ascension
+// est UNE ligne par bloc (un projet se met à jour par PATCH), alors qu'un même
+// bloc peut être travaillé dans plusieurs sessions, et plusieurs fois dans la
+// même. Avec une colonne, le projet quittait la session précédente à chaque
+// nouvelle séance.
+//
+// Un log hors session n'écrit rien ici : `sessionId` est obligatoire.
+model SessionEntry {
+  id        Int          @id @default(autoincrement())
+  sessionId Int          @map("session_id")
+  session   BoardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ascentId  Int          @map("ascent_id")
+  ascent    Ascent       @relation(fields: [ascentId], references: [id], onDelete: Cascade)
+
+  // Statut de l'ascension À L'ISSUE de ce passage : PROJECT tant que le bloc
+  // résiste, SENT le jour où il tombe. Figé ici, car Ascent.status évolue.
+  status   AscentStatus
+  // Essais de CE passage, pas le cumul (qui reste sur Ascent.attemptsCount).
+  attempts Int          @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([sessionId, createdAt])
+  @@index([ascentId])
+  @@map("session_entries")
 }
 
 // Enregistrement d'une tentative ou d'une réussite sur un bloc.
@@ -291,13 +322,11 @@ model BoardSession {
 // `sendDate` : date d'envoi, null si status = PROJECT.
 // sessionId nullable : une ascension peut être enregistrée hors session.
 model Ascent {
-  id        Int           @id @default(autoincrement())
-  userId    Int           @map("user_id")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boulderId Int           @map("boulder_id")
-  boulder   Boulder       @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  sessionId Int?          @map("session_id")
-  session   BoardSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  id        Int     @id @default(autoincrement())
+  userId    Int     @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int     @map("boulder_id")
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
 
   status        AscentStatus
   attemptsCount Int          @default(0) @map("attempts_count")
@@ -320,7 +349,8 @@ model Ascent {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  ascentNotes AscentNote[]
+  ascentNotes    AscentNote[]
+  sessionEntries SessionEntry[]
 
   @@map("ascents")
 }

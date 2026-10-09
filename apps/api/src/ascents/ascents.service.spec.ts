@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { AscentsService } from './ascents.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SessionsService } from '../sessions/sessions.service';
 import { AscentStatus, Role } from '../generated/prisma/client';
 import { CreateAscentDto } from './dto/create-ascent.dto';
 
@@ -25,6 +27,11 @@ const prismaMock = {
   },
   ascentNote: { findFirst: jest.fn(), create: jest.fn() },
 };
+
+// La résolution de la session (implicite, explicite, zombie) appartient à
+// SessionsService et y est testée. Ici on vérifie seulement ce que l'ascension
+// en fait : ce qu'elle lui demande, et ce qu'elle écrit selon la réponse.
+const sessionsMock = { resolveSessionId: jest.fn() };
 
 const user = { userId: 1, role: Role.USER, username: 'seb' };
 
@@ -56,6 +63,7 @@ describe('AscentsService', () => {
       providers: [
         AscentsService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: SessionsService, useValue: sessionsMock },
       ],
     }).compile();
 
@@ -67,6 +75,7 @@ describe('AscentsService', () => {
     prismaMock.ascent.findMany.mockResolvedValue([]); // aucun historique
     prismaMock.grade.findUnique.mockResolvedValue({ id: 42, rank: 5 });
     prismaMock.ascent.create.mockResolvedValue({ id: 99 });
+    sessionsMock.resolveSessionId.mockResolvedValue(null); // hors session
   });
 
   describe('create — accès au bloc', () => {
@@ -229,6 +238,57 @@ describe('AscentsService', () => {
     });
   });
 
+  describe('create — passage dans la session', () => {
+    // Les trois valeurs ont un sens différent : le service ne doit en
+    // normaliser aucune avant de les transmettre (un `?? null` suffirait à
+    // transformer « rattache-moi » en « hors session »).
+    it.each([
+      ['absent', undefined],
+      ['null explicite', null],
+      ['un id', 7],
+    ])('transmet sessionId tel quel : %s', async (_label, sessionId) => {
+      await service.create({ ...baseDto, sessionId }, user);
+
+      expect(sessionsMock.resolveSessionId).toHaveBeenCalledWith(
+        sessionId,
+        user.userId,
+      );
+    });
+
+    it('consigne un passage quand une session est résolue', async () => {
+      sessionsMock.resolveSessionId.mockResolvedValue(7);
+
+      await service.create({ ...baseDto, attemptsCount: 3 }, user);
+
+      expect(writtenData(prismaMock.ascent.create)).toMatchObject({
+        sessionEntries: {
+          create: { sessionId: 7, status: AscentStatus.SENT, attempts: 3 },
+        },
+      });
+    });
+
+    it("n'écrit aucun passage hors session", async () => {
+      await service.create(baseDto, user);
+
+      expect(writtenData(prismaMock.ascent.create)).not.toHaveProperty(
+        'sessionEntries',
+      );
+    });
+
+    // Session d'un autre, terminée ou inexistante : l'erreur vient de
+    // SessionsService et doit empêcher toute écriture.
+    it("ne crée pas l'ascension quand la session est refusée", async () => {
+      sessionsMock.resolveSessionId.mockRejectedValue(
+        new ConflictException('Session is already ended.'),
+      );
+
+      await expect(
+        service.create({ ...baseDto, sessionId: 7 }, user),
+      ).rejects.toThrow(ConflictException);
+      expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('update', () => {
     const project = {
       id: 7,
@@ -281,6 +341,57 @@ describe('AscentsService', () => {
         wasProject: true,
         sendDate: expect.any(Date) as Date,
       });
+    });
+
+    // Les essais consignés sont ceux de la séance, pas le cumul du projet : le
+    // compte rendu d'une session dit ce qui s'y est passé.
+    it('consigne une séance de projet dans la session en cours', async () => {
+      sessionsMock.resolveSessionId.mockResolvedValue(3);
+
+      await service.update(7, { attemptsToAdd: 4 }, user);
+
+      expect(writtenData(prismaMock.ascent.update)).toMatchObject({
+        sessionEntries: {
+          create: { sessionId: 3, status: AscentStatus.PROJECT, attempts: 4 },
+        },
+      });
+    });
+
+    it('consigne la complétion avec le statut SENT', async () => {
+      sessionsMock.resolveSessionId.mockResolvedValue(3);
+
+      await service.update(
+        7,
+        { status: AscentStatus.SENT, feltGradeRank: 5 },
+        user,
+      );
+
+      expect(writtenData(prismaMock.ascent.update)).toMatchObject({
+        sessionEntries: {
+          create: { sessionId: 3, status: AscentStatus.SENT, attempts: 0 },
+        },
+      });
+    });
+
+    it("n'écrit aucun passage hors session", async () => {
+      await service.update(7, { attemptsToAdd: 4 }, user);
+
+      expect(writtenData(prismaMock.ascent.update)).not.toHaveProperty(
+        'sessionEntries',
+      );
+    });
+
+    // Changer une note n'est pas grimper : rien à consigner, et la session
+    // n'est même pas consultée.
+    it('ne consigne rien sur une simple modification de note', async () => {
+      sessionsMock.resolveSessionId.mockResolvedValue(3);
+
+      await service.update(7, { rating: 4 }, user);
+
+      expect(sessionsMock.resolveSessionId).not.toHaveBeenCalled();
+      expect(writtenData(prismaMock.ascent.update)).not.toHaveProperty(
+        'sessionEntries',
+      );
     });
 
     // Le client raisonne en rangs, comme sur POST /ascents ; la base stocke
