@@ -26,11 +26,17 @@ export function useActiveSession(): UseQueryResult<
 
 // Aucun corps : board, titre et note sont optionnels côté serveur, qui génère
 // le titre par défaut. Une session déjà active donne un 409.
+//
+// Invalidation dans `onSettled` et non `onSuccess` : un échec est justement le
+// signe que l'écran et le serveur ne sont plus d'accord (409 parce qu'une
+// session tourne déjà, démarrée ailleurs). Relire l'état après une erreur
+// sort l'utilisateur de l'impasse, au lieu de lui laisser un bouton Start qui
+// échouera à chaque tap.
 export function useStartSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<Session>('/sessions'),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });
@@ -44,7 +50,10 @@ export function useEndSession() {
   return useMutation({
     mutationFn: (sessionId: number) =>
       api.patch<Session>(`/sessions/${sessionId}/end`),
-    onSuccess: () => {
+    // `onSettled` pour la même raison que Start : un 409 « already ended »
+    // (session fermée par le serveur après 2 h d'inactivité) doit faire
+    // disparaître la session de l'écran, pas la laisser affichée.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });

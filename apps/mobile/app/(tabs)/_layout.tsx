@@ -10,6 +10,7 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, radii, typography } from '@/constants/theme';
 import { AppHeader } from '@/components/AppHeader';
+import { SessionHeaderPill } from '@/components/SessionIndicator';
 
 const ICON_SIZE = 22;
 
@@ -53,7 +54,8 @@ export default function TabsLayout() {
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarItemStyle: styles.tabBarItem,
         headerShown: true,
-        header: () => <AppHeader />,
+        // L'état de la session accompagne le header sur tous les onglets.
+        header: () => <AppHeader right={<SessionHeaderPill />} />,
       }}
     >
       {TABS.map(({ name, title, icon }) => (
