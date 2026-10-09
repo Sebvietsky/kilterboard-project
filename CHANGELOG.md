@@ -6,7 +6,32 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Changements
+
+- **Journal de session** : nouvelle table `session_entries`, une ligne par
+  passage sur un bloc pendant une session. Un même bloc peut ainsi figurer
+  dans plusieurs sessions, et plusieurs fois dans la même. La colonne
+  `ascents.session_id` est supprimée, ses données reprises par la migration.
+- **`POST /ascents` consigne l'ascension dans la session en cours** quand
+  `sessionId` est absent. Un `sessionId: null` explicite la laisse hors
+  session. C'est un changement de contrat : auparavant, un champ absent
+  signifiait « hors session ». La réponse ne contient plus `sessionId`.
+- **`PATCH /ascents/:id` consigne un passage** quand il enregistre une séance
+  ou clôt un projet.
+- **`GET /sessions/active` renvoie `entries`** (les passages, avec les essais
+  et le statut de chacun) à la place de `ascents`. `GET /sessions/me` compte
+  `_count.entries`.
+- **Fermeture automatique des sessions oubliées** : une session sans aucun
+  bloc loggé depuis 2 h est fermée par le serveur, à la date de sa dernière
+  activité. Elle ne bloque plus le démarrage d'une nouvelle session.
+- **Mobile — écran Session** : démarrage et fin de session, chrono, stats de
+  la séance, projets à reprendre et liste des blocs loggés.
+
 ### Corrections
+
+- **`POST /ascents` acceptait n'importe quel `sessionId`** : la session doit
+  désormais exister (404), appartenir à l'utilisateur (403) et être encore
+  ouverte (409).
 
 - **Rate limiting de l'authentification inopérant** : annoncé en 0.1.0, il ne
   protégeait rien — `@Throttle` était posé sur le service, que le throttler ne
