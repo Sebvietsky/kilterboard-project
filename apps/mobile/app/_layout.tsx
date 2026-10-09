@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import SplashScreenComponent from '@/components/SplashScreen';
+import { ToastHost } from '@/components/Toast';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   BricolageGrotesque_700Bold,
@@ -40,6 +41,9 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StatusBar style="dark" />
           <RootNavigation />
+          {/* Après la navigation : rendu en dernier, donc au-dessus de tous
+              les écrans, quel que soit celui qui déclenche le toast. */}
+          <ToastHost />
         </SafeAreaProvider>
       </AuthProvider>
     </QueryClientProvider>
