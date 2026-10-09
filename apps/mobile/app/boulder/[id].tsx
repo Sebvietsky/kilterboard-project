@@ -31,7 +31,8 @@ import { useGrades } from '@/lib/grades/queries';
 import { Grade } from '@/lib/grades/types';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
-import { useState } from 'react';
+import { showToast, TOAST_VISIBLE_MS } from '@/lib/toast/useToastStore';
+import { useEffect, useState } from 'react';
 
 // Sous-mode du formulaire quand un projet est en cours : enregistrer une
 // séance de plus, ou clore le projet en envoi.
@@ -41,6 +42,14 @@ const PROJECT_MODES: { value: ProjectMode; label: string }[] = [
   { value: 'in-project', label: 'In Project' },
   { value: 'sent', label: 'Sent' },
 ];
+
+// Confirmation affichée après un log. Indispensable sur un bloc déjà envoyé :
+// rien d'autre ne change à l'écran, le formulaire se vide et c'est tout.
+const LOGGED_MESSAGE: Record<AscentStatus, string> = {
+  FLASH: 'Flash logged',
+  SENT: 'Send logged',
+  PROJECT: 'Project started',
+};
 
 export default function BoulderDetailScreen() {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
@@ -97,12 +106,24 @@ export default function BoulderDetailScreen() {
     (!hasAnyAscent &&
       (selectedStatus === 'FLASH' || selectedStatus === 'SENT'));
 
+  // Vrai juste après un log réussi. Le bouton affiche alors « Logged » et
+  // reste inerte. Sur un bloc déjà envoyé, le formulaire revient à l'identique
+  // après le log : sans cet état, rien sur le bouton ne dit que le tap a
+  // compté, et rien n'empêche d'en enchaîner dix.
+  const [justLogged, setJustLogged] = useState(false);
+  useEffect(() => {
+    if (!justLogged) return;
+    const timeout = setTimeout(() => setJustLogged(false), TOAST_VISIBLE_MS);
+    return () => clearTimeout(timeout);
+  }, [justLogged]);
+
   const isPending = logAscent.isPending || updateAscent.isPending;
   const submitError = logAscent.error ?? updateAscent.error;
   const canSubmit =
     !!selectedStatus &&
     !(feltGradeRequired && feltGradeRank == null) &&
-    !isPending;
+    !isPending &&
+    !justLogged;
 
   function resetForm() {
     setLogStatus(null);
@@ -133,7 +154,13 @@ export default function BoulderDetailScreen() {
           comment: comment.trim() || undefined,
           visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
         },
-        { onSuccess: resetForm },
+        {
+          onSuccess: () => {
+            resetForm();
+            setJustLogged(true);
+            showToast(isClosingProject ? 'Project sent' : 'Attempts saved');
+          },
+        },
       );
       return;
     }
@@ -148,7 +175,13 @@ export default function BoulderDetailScreen() {
         comment: comment.trim() || undefined,
         visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
       },
-      { onSuccess: resetForm },
+      {
+        onSuccess: () => {
+          resetForm();
+          setJustLogged(true);
+          showToast(LOGGED_MESSAGE[selectedStatus]);
+        },
+      },
     );
   }
 
@@ -370,24 +403,31 @@ export default function BoulderDetailScreen() {
           <Pressable
             onPress={submit}
             disabled={!canSubmit}
+            // L'ordre compte : « confirmé » passe après « désactivé », sinon
+            // le bouton serait gris et se lirait comme indisponible, pas
+            // comme réussi.
             style={[
               styles.submitButton,
               !canSubmit && styles.submitButtonDisabled,
+              justLogged && styles.submitButtonConfirmed,
             ]}
           >
             <Text
               style={[
                 styles.submitText,
                 !canSubmit && styles.submitTextDisabled,
+                justLogged && styles.submitTextConfirmed,
               ]}
             >
-              {isPending
-                ? 'Saving…'
-                : isClosingProject
-                  ? 'Add to Logbook'
-                  : selectedStatus === 'PROJECT'
-                    ? 'Save'
-                    : 'Log ascent'}
+              {justLogged
+                ? 'Logged ✓'
+                : isPending
+                  ? 'Saving…'
+                  : isClosingProject
+                    ? 'Add to Logbook'
+                    : selectedStatus === 'PROJECT'
+                      ? 'Save'
+                      : 'Log ascent'}
             </Text>
           </Pressable>
         </>
@@ -947,6 +987,14 @@ const styles = StyleSheet.create({
   },
   submitTextDisabled: {
     color: colors.textSubtle,
+  },
+  // Recette du badge « ascent » du thème : vert pâle et texte vert foncé,
+  // contraste déjà vérifié (5,0:1).
+  submitButtonConfirmed: {
+    backgroundColor: statusColors.ascent.badgeBg,
+  },
+  submitTextConfirmed: {
+    color: statusColors.ascent.badgeText,
   },
   starRow: {
     flexDirection: 'row',

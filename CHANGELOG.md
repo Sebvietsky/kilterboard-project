@@ -26,6 +26,9 @@ versions selon [SemVer](https://semver.org/lang/fr/).
   activité. Elle ne bloque plus le démarrage d'une nouvelle session.
 - **Mobile — écran Session** : démarrage et fin de session, chrono, stats de
   la séance, projets à reprendre et liste des blocs loggés.
+- **Mobile — confirmation après un log** : un toast s'affiche et le bouton
+  passe sur « Logged » le temps de la confirmation, sans pouvoir être
+  retapé. Auparavant, logger un bloc déjà envoyé ne donnait aucun retour.
 
 ### Corrections
 
