@@ -29,13 +29,18 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 - **Mobile — confirmation après un log** : un toast s'affiche et le bouton
   passe sur « Logged » le temps de la confirmation, sans pouvoir être
   retapé. Auparavant, logger un bloc déjà envoyé ne donnait aucun retour.
+- **Mobile — état de la session dans le header** : une pastille indique sur
+  tous les onglets si une session tourne, avec son chrono, et mène à l'écran
+  Session.
 
 ### Corrections
 
+- **Mobile — Start ou End en échec laissait l'écran bloqué** : l'état de la
+  session est désormais relu après une erreur (409), et non seulement après
+  un succès.
 - **`POST /ascents` acceptait n'importe quel `sessionId`** : la session doit
   désormais exister (404), appartenir à l'utilisateur (403) et être encore
   ouverte (409).
-
 - **Rate limiting de l'authentification inopérant** : annoncé en 0.1.0, il ne
   protégeait rien — `@Throttle` était posé sur le service, que le throttler ne
   lit pas, et aucun `ThrottlerGuard` n'était enregistré. `register` est
