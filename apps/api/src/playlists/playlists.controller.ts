@@ -9,6 +9,7 @@ import {
   Patch,
   Delete,
   HttpCode,
+  Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlaylistsService } from './playlists.service';
@@ -21,6 +22,7 @@ import {
   PlaylistSummaryDto,
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
+import { FilterMyPlaylistsDto } from './dto/filter-my-playlists.dto';
 import {
   AddBoulderDto,
   AddOrRemoveBoulderResponseDto,
@@ -41,9 +43,10 @@ export class PlaylistsController {
 
   @Get('me')
   async findMine(
+    @Query() filters: FilterMyPlaylistsDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<PlaylistSummaryDto[]> {
-    return this.playlistService.findMine(user);
+    return this.playlistService.findMine(user, filters.boulderId);
   }
 
   @Get(':id')

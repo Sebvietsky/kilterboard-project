@@ -35,6 +35,10 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 - **Historique des sessions** : nouvelle route `GET /sessions/:id` (détail
   d'une session avec ses passages). Côté mobile, l'onglet Session liste les
   séances passées quand aucune ne tourne, et chacune ouvre son compte rendu.
+- **Add to playlist** : depuis le détail d'un bloc, une feuille liste ses
+  playlists, ajoute ou retire le bloc d'un tap et permet d'en créer une.
+  `GET /playlists/me` accepte `boulderId` et indique alors, pour chaque
+  playlist, si elle contient déjà le bloc (`containsBoulder`).
 
 ### Corrections
 

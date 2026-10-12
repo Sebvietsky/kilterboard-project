@@ -18,6 +18,7 @@ import {
   status as statusColors,
 } from '@/constants/theme';
 import { BoardLED } from '@/components/BoardLED';
+import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useBoulder } from '@/lib/boulders/queries';
 import {
@@ -111,6 +112,7 @@ export default function BoulderDetailScreen() {
   // après le log : sans cet état, rien sur le bouton ne dit que le tap a
   // compté, et rien n'empêche d'en enchaîner dix.
   const [justLogged, setJustLogged] = useState(false);
+  const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   useEffect(() => {
     if (!justLogged) return;
     const timeout = setTimeout(() => setJustLogged(false), TOAST_VISIBLE_MS);
@@ -430,6 +432,19 @@ export default function BoulderDetailScreen() {
                       : 'Log ascent'}
             </Text>
           </Pressable>
+
+          {/* Sous le bouton de log et en retrait visuel (contour, pas
+              d'aplat) : ranger le bloc est une action secondaire de cet
+              écran, logger reste la principale. */}
+          <Pressable
+            onPress={() => setPlaylistSheetOpen(true)}
+            style={({ pressed }) => [
+              styles.playlistButton,
+              pressed && styles.playlistButtonPressed,
+            ]}
+          >
+            <Text style={styles.playlistButtonText}>Add to playlist</Text>
+          </Pressable>
         </>
       </View>
 
@@ -474,6 +489,14 @@ export default function BoulderDetailScreen() {
           ))
         )}
       </View>
+
+      {/* Un Modal se rend hors du flux : sa place dans l'arbre ne compte pas.
+          Monté ici pour partager `boulderId` et l'état d'ouverture. */}
+      <AddToPlaylistSheet
+        boulderId={boulderId}
+        visible={playlistSheetOpen}
+        onClose={() => setPlaylistSheetOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -979,6 +1002,22 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     backgroundColor: colors.surfaceMuted,
+  },
+  playlistButton: {
+    height: 52,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistButtonPressed: {
+    backgroundColor: colors.primaryMuted,
+  },
+  playlistButtonText: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.primary,
   },
   submitText: {
     fontFamily: typography.family.bodySemibold,

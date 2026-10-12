@@ -96,7 +96,18 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async findMine(user: JwtPayload): Promise<PlaylistSummaryDto[]> {
+  /**
+   * Playlists de l'utilisateur. Avec `boulderId`, chacune indique en plus si
+   * elle contient déjà ce bloc (`containsBoulder`).
+   *
+   * Sans cette information, l'écran « Add to playlist » ne pourrait que tenter
+   * l'ajout et découvrir le doublon par un 409 : l'utilisateur doit voir
+   * d'avance où le bloc se trouve, et pouvoir l'en retirer.
+   */
+  async findMine(
+    user: JwtPayload,
+    boulderId?: number,
+  ): Promise<PlaylistSummaryDto[]> {
     const playlists = await this.prisma.playlist.findMany({
       where: {
         userId: user.userId,
@@ -104,6 +115,13 @@ export class PlaylistsService {
       include: {
         user: { select: { username: true } },
         _count: { select: { playlistBoulders: true } },
+        // Relation filtrée sur le seul bloc demandé : zéro ou une ligne par
+        // playlist, la clé (bloc, playlist) étant unique. `false` quand aucun
+        // bloc n'est demandé — la relation n'est alors pas chargée du tout.
+        playlistBoulders:
+          boulderId === undefined
+            ? false
+            : { where: { boulderId }, select: { boulderId: true } },
       },
     });
 
@@ -116,6 +134,9 @@ export class PlaylistsService {
       creatorUsername: p.user.username,
       boulderCount: p._count.playlistBoulders,
       createdAt: p.createdAt,
+      ...(boulderId !== undefined && {
+        containsBoulder: (p.playlistBoulders ?? []).length > 0,
+      }),
     }));
   }
 
