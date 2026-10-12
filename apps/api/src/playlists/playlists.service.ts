@@ -36,6 +36,13 @@ export class PlaylistsService {
         },
         _count: { select: { playlistBoulders: true } },
         playlistBoulders: {
+          // Ordre explicite : sans `orderBy`, PostgreSQL ne garantit rien et
+          // la liste pouvait se réordonner d'un appel à l'autre. Les blocs
+          // positionnés d'abord, puis les plus récemment ajoutés.
+          orderBy: [
+            { position: { sort: 'asc', nulls: 'last' } },
+            { addedAt: 'desc' },
+          ],
           include: {
             boulder: {
               select: {

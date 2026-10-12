@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import { playlistKeys } from './keys';
 import type {
   CreatedPlaylist,
+  PlaylistDetail,
   PlaylistForBoulder,
   PlaylistSummary,
 } from './types';
@@ -88,6 +89,51 @@ export function useCreatePlaylistWithBoulder() {
       return playlist;
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: playlistKeys.all });
+    },
+  });
+}
+
+export function fetchPlaylist(id: number): Promise<PlaylistDetail> {
+  return api.get<PlaylistDetail>(`/playlists/${id}`);
+}
+
+export function usePlaylist(id: number): UseQueryResult<PlaylistDetail, Error> {
+  return useQuery({
+    enabled: Number.isFinite(id),
+    queryKey: playlistKeys.detail(id),
+    queryFn: () => fetchPlaylist(id),
+  });
+}
+
+export function useDeletePlaylist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (playlistId: number) => api.delete(`/playlists/${playlistId}`),
+    onSuccess: (_data, playlistId) => {
+      // `removeQueries` avant l'invalidation : le détail de la playlist
+      // supprimée ne doit pas être relu (il répondrait 404), seulement oublié.
+      queryClient.removeQueries({ queryKey: playlistKeys.detail(playlistId) });
+      queryClient.invalidateQueries({ queryKey: playlistKeys.mine() });
+    },
+  });
+}
+
+export type UpdatePlaylistInput = {
+  playlistId: number;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+};
+
+export function useUpdatePlaylist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ playlistId, ...changes }: UpdatePlaylistInput) =>
+      api.patch(`/playlists/${playlistId}`, changes),
+    // `all` : le nom et la visibilité s'affichent dans le détail, dans
+    // Library et dans la feuille « Add to playlist ».
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: playlistKeys.all });
     },
   });

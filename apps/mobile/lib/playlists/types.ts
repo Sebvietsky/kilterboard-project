@@ -28,3 +28,20 @@ export type CreatedPlaylist = {
   isPublic: boolean;
   createdAt: string;
 };
+
+// Aligné sur PlaylistDetailDto (GET /playlists/:id). Le bloc y est aplati :
+// `vScale` et `angleDegrees` sont au premier niveau, pas sous `grade`/`angle`
+// comme dans les réponses d'ascension.
+export type PlaylistDetail = PlaylistSummary & {
+  boulders: {
+    position: number | null;
+    addedAt: string;
+    boulder: {
+      id: number;
+      name: string;
+      vScale: string;
+      fontScale: string;
+      angleDegrees: number;
+    };
+  }[];
+};

@@ -27,7 +27,7 @@ import { useEffect, useState } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
-// En-tête des écrans de détail (un bloc, une session) : la barre native, pour
+// En-tête des écrans de détail (un bloc, une session, une playlist) : la barre native, pour
 // garder la flèche et le geste de retour d'iOS, avec l'état de la session.
 // Pas d'annotation de type : celui des options vit dans un paquet qui n'est
 // pas une dépendance directe de l'app. L'objet est vérifié là où il est passé
@@ -130,6 +130,7 @@ function RootNavigation() {
             depuis un bloc qu'on logge, donc là qu'il faut le voir. */}
         <Stack.Screen name="boulder/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="session/[id]" options={DETAIL_HEADER} />
+        <Stack.Screen name="playlist/[id]" options={DETAIL_HEADER} />
       </Stack.Protected>
 
       <Stack.Protected guard={status === 'unauthenticated'}>
