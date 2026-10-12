@@ -59,3 +59,7 @@ La table est un résultat précalculé, pas une information nouvelle : la média
 
 - Explore : un bloc apparaît-il à toutes les inclinaisons, sans cotation là où personne n'a voté, ou seulement là où il est coté ? L'inclinaison de création reste dans tous les cas la référence du bloc.
 - Session : le compte rendu d'une séance doit-il afficher l'inclinaison de chaque passage ?
+- Naissance de la ligne `boulder_angle_grades` aux inclinaisons autres que celle du créateur. Deux options à comparer avant l'étape 2 :
+  - au premier vote (proposition de l'agent) : la cotation n'est jamais vide, mais un projet ouvert à cette inclinaison n'a pas de ligne ;
+  - au premier essai (proposition de Seb) : la ligne existe dès qu'on y touche, avec 0 vote et une cotation vide, et l'ascension pourrait s'y rattacher directement au lieu de porter `boulder_id` et l'inclinaison. Coût : une cotation nullable, et une jointure de plus pour « mes ascensions sur ce bloc ».
+- Playlists : une playlist reste une liste de blocs sans inclinaison (décidé le 2026-10-12). Une fois l'inclinaison en place, un sélecteur unique pour toute la playlist est une piste, puisqu'on ne change pas l'inclinaison de la board en cours de playlist.
