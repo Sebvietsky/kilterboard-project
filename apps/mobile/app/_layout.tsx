@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import SplashScreenComponent from '@/components/SplashScreen';
 import { ToastHost } from '@/components/Toast';
+import { SessionHeaderPill } from '@/components/SessionIndicator';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   BricolageGrotesque_700Bold,
@@ -95,6 +96,9 @@ function RootNavigation() {
       <Stack.Protected guard={status === 'authenticated'}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="search" />
+        {/* Écrans de détail : la barre native (flèche et geste de retour) est
+            conservée, on y ajoute seulement l'état de la session — c'est
+            depuis un bloc qu'on logge, donc là qu'il faut le voir. */}
         <Stack.Screen
           name="boulder/[id]"
           options={{
@@ -102,6 +106,7 @@ function RootNavigation() {
             title: '',
             headerBackButtonDisplayMode: 'minimal',
             headerShadowVisible: false,
+            headerRight: () => <SessionHeaderPill />,
           }}
         />
         <Stack.Screen
@@ -111,6 +116,7 @@ function RootNavigation() {
             title: '',
             headerBackButtonDisplayMode: 'minimal',
             headerShadowVisible: false,
+            headerRight: () => <SessionHeaderPill />,
           }}
         />
       </Stack.Protected>
