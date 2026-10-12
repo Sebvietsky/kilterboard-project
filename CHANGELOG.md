@@ -39,6 +39,11 @@ versions selon [SemVer](https://semver.org/lang/fr/).
   playlists, ajoute ou retire le bloc d'un tap et permet d'en créer une.
   `GET /playlists/me` accepte `boulderId` et indique alors, pour chaque
   playlist, si elle contient déjà le bloc (`containsBoulder`).
+- **Mobile — détail d'une playlist** : ses blocs, le retrait d'un bloc, la
+  suppression de la playlist et son édition (nom, description, publique ou
+  privée), réservés au propriétaire. Les lignes de Library
+  y mènent. `GET /playlists/:id` renvoie désormais les blocs dans un ordre
+  stable (position, puis ajout le plus récent).
 
 ### Corrections
 

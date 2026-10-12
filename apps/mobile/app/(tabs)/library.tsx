@@ -84,6 +84,7 @@ function ProjectsList() {
 }
 
 function PlaylistsList() {
+  const router = useRouter();
   const playlists = useMyPlaylists();
 
   return (
@@ -95,10 +96,11 @@ function PlaylistsList() {
       <FlatList
         data={playlists.data}
         keyExtractor={(item) => String(item.id)}
-        // Pas de Pressable : l'écran de détail n'existe pas encore. Une ligne
-        // qui s'enfonce sous le doigt sans rien ouvrir se lit comme un bug ;
-        // inerte, elle se lit comme une information.
-        renderItem={({ item }) => <PlaylistRow playlist={item} />}
+        renderItem={({ item }) => (
+          <Pressable onPress={() => router.push(`/playlist/${item.id}`)}>
+            <PlaylistRow playlist={item} />
+          </Pressable>
+        )}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
