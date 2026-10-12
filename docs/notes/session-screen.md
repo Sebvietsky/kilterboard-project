@@ -1,10 +1,10 @@
 # Écran Session — notes de travail
 
-Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le détail utile pour coder l'écran.
+Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le détail utile pour retoucher l'écran. Mis à jour le 2026-10-12.
 
-## JSON réels de l'API (capturés le 2026-10-08, `test_user_0`)
+## Réponses de l'API
 
-`POST /sessions` (start, 201) et `PATCH /sessions/:id/end` (200) renvoient la même forme :
+`POST /sessions` (start, 201) et `PATCH /sessions/:id/end` (200) renvoient la même forme (capturée le 2026-10-08) :
 
 ```json
 {
@@ -20,49 +20,50 @@ Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le détail utile
 }
 ```
 
-Après End, `endedAt` vaut une date ISO (`"2026-10-08T16:03:13.474Z"`).
-
-`GET /sessions/active` (200) renvoie les mêmes champs, plus `board` et `ascents` :
+Les deux acceptent une requête sans corps. `GET /sessions/active` et `GET /sessions/:id` renvoient ces champs, plus `board` et `entries` (capturé le 2026-10-09) :
 
 ```json
 {
   "board": null,
-  "ascents": []
-}
-```
-
-Sans session active : 200 avec un corps vide, que `api.getOrNull` traduit en `null`.
-
-## Forme de `board` et `ascents` quand ils sont remplis
-
-Non capturée en réel (aucune ascension n'est rattachée à une session tant que le rattachement implicite n'est pas fait). Déduite du `select` de `getActiveSession` dans `apps/api/src/sessions/sessions.service.ts` ; les valeurs sont illustratives.
-
-```json
-{
-  "board": { "name": "…", "gymName": null },
-  "ascents": [
+  "entries": [
     {
-      "id": 138,
-      "status": "SENT",
-      "boulderId": 3,
-      "createdAt": "2026-10-08T15:20:59.353Z",
-      "attemptsCount": 3,
-      "boulder": {
-        "name": "…",
-        "grade": { "vScale": "V3", "fontScale": "6a/+", "rank": 5 },
-        "angle": { "valueDegrees": 40 }
+      "id": 12,
+      "status": "PROJECT",
+      "attempts": 3,
+      "createdAt": "2026-10-09T15:28:23.612Z",
+      "ascent": {
+        "id": 143,
+        "boulderId": 1,
+        "wasProject": false,
+        "boulder": {
+          "name": "Midnight Sun",
+          "grade": { "vScale": "V7", "fontScale": "7a+", "rank": 9 },
+          "angle": { "valueDegrees": 40 }
+        }
       }
     }
   ]
 }
 ```
 
-- Les ascensions sont triées par `createdAt` décroissant.
-- La forme de `boulder` est la même que dans `MyProject` (`apps/mobile/lib/ascents/types.ts`).
-- `board.name` est obligatoire, `board.gymName` est nullable (`String?` dans le model `Board`).
+- Sans session active : 200 avec un corps vide, que `api.getOrNull` traduit en `null`.
+- `entries` est trié par `createdAt` décroissant. Le même bloc revient autant de fois qu'il a été travaillé : la clé de liste est l'id du passage, pas `ascent.id`.
+- `board` est nullable ; `board.name` est obligatoire, `board.gymName` nullable.
+- `GET /sessions/me` renvoie les sessions sans leurs passages, avec `_count.entries`.
 
-## Types à écrire (`apps/mobile/lib/sessions/types.ts`)
+## Côté mobile
 
-- `Session` : les neuf champs de la première réponse.
-- `ActiveSession` : `Session` + `board` + `ascents` (combinaison par `&`, comme `LogAscentInput`).
-- `status` réutilise `AscentStatus`.
+- `lib/sessions/` : `types.ts`, `keys.ts` (tout descend de `sessionKeys.all`), `queries.ts`, `stats.ts` (stats dérivées des passages), `elapsed.ts` (chrono et durée).
+- `components/session/` : `EntryRow` (ligne d'un passage) et `SessionHero` (carte sombre), partagés par l'onglet Session et `app/session/[id].tsx`.
+- `components/SessionIndicator.tsx` : la pastille du header.
+- Le chrono est dérivé de `startedAt`, jamais compté : un compteur se décalerait quand l'app passe en arrière-plan.
+- Les logs d'ascension (`useLogAscent`, `useUpdateAscent`) invalident `sessionKeys.all`.
+
+## Stats de la carte
+
+Calculées dans `deriveSessionStats`, à partir des passages : nombre de passages, cotation la plus dure envoyée (un projet non envoyé ne compte pas), flashs, projets réussis (passage `SENT` sur une ascension `wasProject`).
+
+## Reste à faire
+
+- Encart de connexion à une board quand aucune session ne tourne (BLE gelé).
+- Afficher l'inclinaison des passages, une fois l'inclinaison par ascension en place : `docs/notes/boulder-angle.md`.

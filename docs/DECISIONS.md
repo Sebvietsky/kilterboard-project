@@ -5,18 +5,17 @@ En fin de session, l'agent propose un diff de ce fichier et Seb le valide avant 
 Garder le fichier court : une ligne par fait, avec une date pour chaque décision.
 Le détail de conception vit dans `docs/notes/` (non importé) : lire la note du sujet avant d'y travailler.
 
-Dernière mise à jour : 2026-10-08
+Dernière mise à jour : 2026-10-12
 
 ## Chantier en cours
 
-**Prochaine action :** Seb écrit `apps/mobile/lib/sessions/types.ts` (`Session` et `ActiveSession`) sur `feature/session-screen`, à partir des JSON de `docs/notes/session-screen.md`. L'agent relit.
+**Prochaine action :** fusionner #59 (`feature/session-history`), puis ouvrir `feature/add-to-playlist` depuis `develop`.
 
-- Objectif : écran Session mobile, cycle de vie seul (start / end, chrono, blocs faits). Sans BLE.
-- Branche `feature/session-screen` : alignée sur `develop` (`3b555a0`), aucun commit propre. Côté mobile rien n'est commencé : `apps/mobile/lib/sessions/` n'existe pas et `app/(tabs)/session.tsx` est un placeholder.
-- PR ouvertes le 2026-10-08, à fusionner dans `develop` : #54 (`fix/session-active-unique-index`, index partiel unique) et #55 (`chore/docs-decisions`, ce fichier). Rebaser `feature/session-screen` ensuite.
-- Plan proposé (non figé) — après les types : `sessionKeys`, `useActiveSession` (via `api.getOrNull`), `useStartSession`, `useEndSession`, invalidations croisées avec `ascentKeys`.
-- Plan proposé (non figé) — puis l'écran : loading / erreur / `null` → Start / session en cours (chrono dérivé de `startedAt`, liste des blocs, End).
-- Avant l'étape « liste des blocs » de l'écran, sur une branche séparée : rattachement implicite de `sessionId`, sinon la liste reste vide. Voir `docs/notes/sessions-backend.md`.
+- Fusionnés : écran Session et journal de session (#56), toast de confirmation après un log (#57), pastille de session dans le header (#58).
+- PR ouverte le 2026-10-12 : #59 (`feature/session-history`) — historique des sessions, détail d'une séance, pastille sur les écrans de détail.
+- Ensuite, dans l'ordre : `feature/add-to-playlist`, `feature/boulder-likes` (favoris), `feature/boulder-angle` en trois étapes. Conception de l'inclinaison : `docs/notes/boulder-angle.md`, à lire avant d'y toucher.
+- Restent à faire sans branche prévue : historique des ascensions dans le profil (`GET /ascents/me` existe) ; encart de connexion à une board sur l'onglet Session, quand le BLE sera dégelé.
+- Après un changement de branche pendant que l'app tourne : recharger l'app complètement (`r` dans Metro) avant de tester.
 
 ## Travail non commité
 
@@ -26,10 +25,14 @@ Dernière mise à jour : 2026-10-08
 ## Décisions tranchées (ne pas rouvrir sans raison nouvelle)
 
 Sessions
-- **2026-07-31 · Rattachement des ascensions à la session : implicite.** Si `sessionId` est absent, le serveur résout la session active. `sessionId: null` explicite = hors session. Pas encore implémenté.
+- **2026-07-31 · Rattachement des ascensions à la session : implicite.** Si `sessionId` est absent, le serveur résout la session active. `sessionId: null` explicite = hors session. Fait le 2026-10-09 (#56) ; la résolution vit dans `SessionsService.resolveSessionId`.
+- **2026-10-09 · Journal de session : table `session_entries`**, une ligne par passage sur un bloc (statut et essais du passage). Remplace `ascents.session_id` : un bloc peut figurer dans plusieurs sessions, et plusieurs fois dans la même. Complète la décision du 2026-07-30 sans l'annuler : le compteur `sessionsCount` reste, la table s'ajoute parce que le compte rendu d'une session demande l'historique par séance.
+- **2026-10-09 · Une séance sur un projet ou sa complétion (`PATCH /ascents/:id`) écrit un passage.** Une simple modification de note n'en écrit pas.
 - **2026-10-08 · Index partiel unique fait** (#54), avant l'écran et non après. Déclaré dans `schema.prisma` par `@@unique(..., where:)` avec la preview feature `partialIndexes` (Prisma 7.8), pas en SQL manuel. Le `findFirst` de `startSession` reste : il donne le 409 lisible, l'index garantit.
-- **2026-09-29 · Sessions zombies** : fermeture automatique côté serveur au-delà d'environ 6 h. Mécanisme à concevoir.
-- **2026-09-29 · `GET /sessions/active`** renvoie la board et les ascensions avec cote, angle et `attemptsCount`. Pas de rating ni de grade ressenti : le critère est ce que l'écran affiche.
+- **2026-10-09 · Sessions oubliées : fermeture paresseuse après 2 h sans bloc loggé** (au Start, à la lecture, au log), pas de cron. `endedAt` reçoit la date de la dernière activité. Remplace « environ 6 h » du 2026-09-29. Un End tardif est daté de la même façon.
+- **2026-10-09 · `GET /sessions/active`** renvoie la board et `entries` (les passages, avec le bloc, sa cote et son angle). Pas de rating ni de grade ressenti : le critère est ce que l'écran affiche.
+- **2026-10-12 · `GET /sessions/:id`** : même forme que la session active. 403 sur la session d'un autre, comme `endSession`.
+- **2026-10-09 · L'historique mobile masque les sessions vides ou en cours.** Filtre côté mobile (`select` de `useMySessions`), la route renvoie tout.
 - **2026-07-31 · BLE gelé**, hors périmètre de l'écran Session. Lib, architecture et source des données déjà choisies : `docs/notes/ble-reprise.md`.
 
 API
@@ -47,9 +50,21 @@ Mobile
 - **2026-07-29 · Explore** : seul le grand titre se replie au scroll. Recherche, Filters et chips restent fixes.
 - **2026-07-30 · Pastille de statut sur les cartes Explore : hors MVP.** Conception conservée : `docs/notes/explore.md`.
 - **2026-07-30 · Profil** : taux de flash, ascensions récentes, Follow et Edit profile différés. Détail : `docs/notes/profil-backlog.md`.
-- **2026-10-08 · Toast de confirmation après un log d'ascension** : aujourd'hui l'écran se met à jour sans aucun retour visuel. À faire sur une branche à part, après l'écran Session.
+- **2026-10-08 · Toast de confirmation après un log d'ascension.** Fait le 2026-10-09 (#57) : store zustand, `ToastHost` à la racine, et bouton de log figé sur « Logged » le temps du toast.
+- **2026-10-09 · Pastille de session dans le header** : contour neutre au repos (ne pas avoir de session n'est pas une alerte), point gold et chrono quand elle tourne. Absente de l'onglet Session.
+- **2026-10-12 · Écrans de détail (bloc, session) : barre native conservée**, avec la pastille de session. Utilise `unstable_headerRightItems` (API instable de React Navigation) : à revoir à chaque montée de version.
+- **2026-10-09 · `QueryClient` dans un state de `RootLayout`**, pas en constante de module : il survit au rechargement à chaud.
+- **2026-10-09 · Start et End invalident dans `onSettled`** : après un 409, l'écran relit l'état au lieu de rester sur un bouton qui échoue.
 - **2026-07-30 · Boulder detail** : la note privée est masquée en mode In Project tant qu'aucun écran ne la relit. Design cible et backlog : `docs/notes/boulder-detail.md`.
-- **Library sans segment « Liked »** (date inconnue). Le backend n'a aucune notion de favori.
+- **2026-10-12 · Favoris : table dédiée, pas une playlist spéciale.** Cœur à côté du nom du bloc, segment « Liked » dans Library, visible dans le profil. Pas encore implémenté : aujourd'hui le backend n'a aucune notion de favori et Library n'a pas ce segment.
+- **2026-10-12 · « Add to playlist »** : bouton sous le bouton de log du détail d'un bloc. Pas encore implémenté.
+
+Inclinaison (décidé le 2026-10-12, rien n'est implémenté — détail : `docs/notes/boulder-angle.md`)
+- **Deux envois à deux inclinaisons sont deux réussites distinctes.** Flash, projet ouvert et grade ressenti au premier envoi passent « par bloc et par inclinaison ». L'ascension enregistre son inclinaison.
+- **Sélecteur d'inclinaison dans l'en-tête du détail d'un bloc** (l'inclinaison seule, pas la cotation). Choix local à l'écran : il ne modifie jamais le filtre d'Explore. Pas de réglage global ni d'avertissement.
+- **Cotation par inclinaison : la communauté remplace le créateur à partir de 5 votes**, par la médiane des grades ressentis. Sans cotation de départ à cette inclinaison : « estimée » sous le seuil. Un vote par personne, par bloc et par inclinaison.
+- **Cotation effective stockée dans une table `boulder_angle_grades`** (bloc, inclinaison, cotation, votes) : une ligne à la création pour l'inclinaison du créateur, les autres au premier vote. Elle sert le filtre et le tri d'Explore ; `boulders.grade_id` et `angle_id` restent la référence du créateur.
+- **Affichage** : la cotation effective seule ; celle du créateur en petit, seulement si elle diffère. Message neutre indiquant que le grade ressenti compte dans la cotation.
 
 Général
 - **2026-10-08 · Fin de session** : mise à jour de ce fichier, commit, push, puis `/clear`. Ni `/compact` ni prompt de reprise : ce fichier est importé à chaque session.
@@ -60,9 +75,10 @@ Général
 
 | Invariant | État réel |
 | --- | --- |
-| Une seule session active par utilisateur | **Tenu** par le service (`findFirst`, 409 lisible) et par l'index partiel unique `board_sessions_one_active_per_user` (#54, à fusionner). Rejet vérifié par insertion SQL directe ; deux requêtes HTTP simultanées non testées, faute d'e2e. |
-| Ascension rattachée à la session active | **Non implémenté.** `AscentsService.create` fait `dto.sessionId ?? null` et le mobile n'envoie jamais `sessionId`. |
-| Fermeture automatique des sessions zombies | **Non implémenté.** Une session jamais terminée bloque tout nouveau Start. |
+| Une seule session active par utilisateur | **Tenu** par le service (`findFirst`, 409 lisible) et par l'index partiel unique `board_sessions_one_active_per_user` (#54). Rejet vérifié par insertion SQL directe ; deux requêtes HTTP simultanées non testées, faute d'e2e. |
+| Ascension consignée dans la session active | **Tenu** (#56) : `POST` et `PATCH /ascents` écrivent un passage dans `session_entries`. Vérifié en HTTP réel sur l'API locale ; pas d'e2e. |
+| `sessionId` explicite : session à soi et ouverte | **Tenu** (#56) : 404, 403 ou 409 sinon. Il n'est en revanche pas soumis à la règle des 2 h. |
+| Fermeture automatique des sessions oubliées | **Tenu** (#56), paresseuse : la session reste ouverte en base tant que l'utilisateur ne revient pas. |
 | Déconnexion seulement sur un 401 | **Non.** Tout échec du refresh (réseau, 5xx, 429) efface le refresh token et déconnecte. Pistes : `docs/notes/mobile-reseau.md`. |
 | Timeout sur les `fetch` mobiles | **Absent.** Un hôte injoignable donne un spinner infini. |
 | Docker / docker-compose | **Absent.** Prévu pour les tests e2e de l'API. |
@@ -72,14 +88,15 @@ Général
 
 - Modules API existants : `auth`, `users`, `boulders`, `ascents`, `sessions`, `playlists`, `grades`, `admin`.
 - Modules API prévus : `boards`, `feed`, `challenges`.
-- Écrans mobiles placeholder : Home (échantillon de polices avec de fausses données) et Session.
-- Tests : unitaires sur `apps/api` seulement (Prisma mocké), aucun e2e, aucun test mobile. `getActiveSession` n'a pas de test.
+- Écrans mobiles placeholder : Home (échantillon de polices avec de fausses données).
+- Tests : unitaires sur `apps/api` seulement (Prisma mocké), aucun e2e, aucun test mobile.
 - Outillage : collection Bruno dans `apps/api/bruno/`. Comptes de test dans `prisma/seed.ts` (`kilter_admin`) et `prisma/seed-dev.ts` (`test_user_N`).
 - Pièges Jest du monorepo et conventions de spec : `docs/notes/api-tests.md`.
 
 ## Questions ouvertes
 
-- Sessions zombies : cron ou fermeture paresseuse (à la lecture, au Start) ? Quelle valeur de `endedAt` ?
-- Types mobiles de session : `title` nullable (comme la base) et dates en `string` (comme `lib/ascents/types.ts`). Proposé par l'agent le 2026-10-08, pas encore confirmé par Seb.
+- Dates en base : celles écrites par Prisma sont décalées de 2 h par rapport à `now()` en SQL (PostgreSQL en `Europe/Paris`). L'API est cohérente avec elle-même ; toute requête SQL à la main qui compare avec `now()` est fausse. Cause et impact à vérifier.
+- Explore et inclinaisons : un bloc apparaît-il à toutes les inclinaisons (sans cotation là où personne n'a voté) ou seulement là où il est coté ?
+- `GET /sessions/me` n'est pas paginé.
 - `login` renvoie 200 et `refresh` 201 : l'agent recommande d'aligner `refresh` sur 200 dans une branche `fix/`. À décider.
-- Vérification manuelle demandée et non rapportée : deux refresh d'affilée dans Bruno. (Le log d'une ascension depuis l'app est validé le 2026-10-08 : `api.post` envoie bien le corps.)
+- Vérification manuelle demandée et non rapportée : deux refresh d'affilée dans Bruno.
