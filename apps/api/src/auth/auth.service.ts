@@ -82,8 +82,8 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async logoutUser(userId: number): Promise<void> {
-    await this.tokenService.deleteRefreshToken(userId);
+  async logoutUser(userId: number, refreshToken?: string): Promise<void> {
+    await this.tokenService.deleteRefreshToken(userId, refreshToken);
   }
 
   async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<AuthTokens> {
@@ -109,7 +109,7 @@ export class AuthService {
     }
 
     const { accessToken, refreshToken } =
-      await this.tokenService.generateTokens(existingToken.user);
+      await this.tokenService.generateTokens(existingToken.user, existingToken);
 
     return { accessToken, refreshToken };
   }

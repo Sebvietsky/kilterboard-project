@@ -47,6 +47,15 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 
 ### Corrections
 
+- **Déconnexions intempestives** : le serveur gardait un seul refresh token
+  par compte et supprimait les autres à chaque connexion, si bien qu'une
+  connexion ailleurs déconnectait le téléphone. Il en garde désormais un par
+  appareil, et accepte encore 60 s un token déjà utilisé (réponse perdue,
+  app rechargée). `POST /auth/logout` ne déconnecte que l'appareil qui
+  envoie son refresh token.
+- **Mobile — déconnexion sur une simple panne réseau** : un refresh qui
+  échouait pour cause de réseau, de 5xx ou de 429 effaçait la session. Le
+  mobile ne se déconnecte plus que si le serveur refuse le refresh token.
 - **Mobile — Start ou End en échec laissait l'écran bloqué** : l'état de la
   session est désormais relu après une erreur (409), et non seulement après
   un succès.

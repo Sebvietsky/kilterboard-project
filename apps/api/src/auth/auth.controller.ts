@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @UseGuards(ThrottlerGuard)
@@ -33,8 +34,8 @@ export class AuthController {
   @SkipThrottle()
   @Post('logout')
   @HttpCode(204)
-  async logout(@CurrentUser() user: JwtPayload) {
-    return this.authService.logoutUser(user.userId);
+  async logout(@Body() dto: LogoutDto, @CurrentUser() user: JwtPayload) {
+    return this.authService.logoutUser(user.userId, dto.refreshToken);
   }
 
   @SkipThrottle()

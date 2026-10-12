@@ -5,6 +5,9 @@ import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
 import { type User } from '../generated/prisma/client';
 import { randomBytes } from 'node:crypto';
 
+// Durée pendant laquelle un refresh token déjà utilisé reste accepté.
+export const REFRESH_REUSE_GRACE_MS = 60 * 1000;
+
 @Injectable()
 export class TokenService {
   constructor(
@@ -12,18 +15,53 @@ export class TokenService {
     private jwtService: JwtService,
   ) {}
 
-  async generateTokens(user: User): Promise<AuthTokens> {
+  /**
+   * Émet une paire de tokens pour l'utilisateur.
+   *
+   * Un refresh token par APPAREIL, pas par compte : les autres tokens de
+   * l'utilisateur ne sont pas touchés. Les supprimer tous, comme avant,
+   * déconnectait le téléphone dès qu'on se connectait ailleurs avec le même
+   * compte (un second appareil, Bruno, un script).
+   *
+   * `replaced` est le token présenté lors d'un refresh. Il n'est pas supprimé
+   * sur-le-champ mais laissé valide `REFRESH_REUSE_GRACE_MS` : si la réponse
+   * se perd (app rechargée, réseau coupé), le client n'a jamais reçu le
+   * nouveau token et rejouera l'ancien. Le supprimer tout de suite le
+   * déconnecterait alors sans qu'il ait rien fait de mal.
+   */
+  async generateTokens(
+    user: User,
+    replaced?: { id: number; expiresAt: Date },
+  ): Promise<AuthTokens> {
     const refreshTokenValue = randomBytes(64).toString('hex');
     const expiresInMs = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const graceEnd = new Date(now + REFRESH_REUSE_GRACE_MS);
 
     await this.prisma.$transaction([
-      this.prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+      // Ménage : seuls les tokens déjà expirés de cet utilisateur partent.
+      this.prisma.refreshToken.deleteMany({
+        where: { userId: user.id, expiresAt: { lt: new Date(now) } },
+      }),
+      ...(replaced
+        ? [
+            this.prisma.refreshToken.update({
+              where: { id: replaced.id },
+              // min() : le délai de grâce ne doit jamais RALLONGER un token.
+              // Rejoué pendant la grâce, il garde sa première échéance.
+              data: {
+                expiresAt:
+                  replaced.expiresAt < graceEnd ? replaced.expiresAt : graceEnd,
+              },
+            }),
+          ]
+        : []),
       this.prisma.refreshToken.create({
         data: {
           token: refreshTokenValue,
           userId: user.id,
-          issuedAt: new Date(),
-          expiresAt: new Date(Date.now() + expiresInMs),
+          issuedAt: new Date(now),
+          expiresAt: new Date(now + expiresInMs),
         },
       }),
     ]);
@@ -49,9 +87,16 @@ export class TokenService {
     return { accessToken, refreshToken };
   }
 
-  async deleteRefreshToken(userId: number): Promise<void> {
+  /**
+   * Déconnexion. Avec `token`, seul l'appareil qui le détient est déconnecté ;
+   * sans lui, tous les appareils du compte le sont.
+   *
+   * `userId` reste dans le filtre même quand le token est fourni : on ne peut
+   * révoquer que ses propres tokens.
+   */
+  async deleteRefreshToken(userId: number, token?: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({
-      where: { userId: userId },
+      where: { userId, ...(token && { token }) },
     });
   }
 }

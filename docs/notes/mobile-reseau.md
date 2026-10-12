@@ -1,13 +1,25 @@
 # Mobile — refresh et robustesse réseau
 
-Relevé le 2026-09-29, pas encore traité. À reprendre comme un `fix/` mobile séparé.
+Relevé le 2026-09-29. Le refresh est corrigé ; le timeout et l'IP de dev restent à traiter.
 
-## Le refresh déconnecte sur n'importe quel échec
+## Le refresh déconnectait sur n'importe quel échec — corrigé le 2026-10-12 (`fix/auth-refresh`)
 
-- `refreshTokens` dans `apps/mobile/lib/auth/AuthContext.tsx` : tout `!res.ok` et toute exception (dont une erreur réseau de `fetch`) tombent dans le même `catch`, qui fait `clearRefreshToken()` puis `return null` → `onAuthFailure` → logout.
-- Conséquence : un grimpeur sans réseau au moment où son access token (15 min) expire perd sa session. Un 5xx passager ou un 429 du throttler aussi.
-- Piste : ne détruire le refresh token que sur un 401 du serveur. Sur erreur réseau, 5xx ou 429, conserver le token et faire échouer la requête sans déconnecter.
-- Principe : une déconnexion ne doit arriver que quand le serveur dit explicitement que la session est morte.
+Deux défauts se cumulaient.
+
+Côté mobile, `refreshTokens` traitait tout échec comme une session morte : erreur réseau, 5xx et 429 effaçaient le refresh token. Un serveur qui redémarre pendant le refresh suffisait.
+
+- `refresh` renvoie maintenant un `RefreshResult` à trois états (`lib/api/authBridge.ts`) : `refreshed`, `rejected` (401 ou 400 du serveur, seul cas qui déconnecte), `unavailable` (tout le reste, le token est conservé).
+- `lib/api/client.ts` : sur `unavailable`, la requête échoue avec un message réseau, sans logout.
+- Au lancement, `unavailable` est réessayé trois fois à 1,5 s d'intervalle, puis l'écran de connexion s'affiche sans effacer le token.
+- **Non vérifié sur téléphone** : le cas « serveur injoignable ». Pour le reproduire : arrêter l'API, attendre 15 min que le token d'accès expire, utiliser l'app (une erreur doit s'afficher, sans retour à l'écran de connexion), relancer l'API, réessayer.
+- Limite : dans ce dernier cas l'utilisateur voit l'écran de connexion alors que sa session est peut-être bonne. Un état « hors ligne » dédié serait plus juste.
+
+Côté API, `generateTokens` supprimait tous les refresh tokens du compte à chaque connexion et à chaque refresh : un seul appareil pouvait rester connecté, et une connexion depuis Bruno ou un script déconnectait le téléphone.
+
+- Un refresh token par appareil : seuls les tokens expirés de l'utilisateur sont supprimés.
+- Au refresh, le token présenté reste valide `REFRESH_REUSE_GRACE_MS` (60 s) au lieu d'être supprimé. Si la réponse se perd (app rechargée, réseau coupé), le client rejoue l'ancien token sans être déconnecté. Contrepartie assumée : un token volé reste utilisable pendant ce délai.
+- `POST /auth/logout` accepte `refreshToken` dans le corps et ne révoque que celui-là ; sans lui, tous les appareils du compte.
+- Non fait : détection de réutilisation d'un token hors délai de grâce (signe de vol), qui révoquerait toute la famille de tokens.
 
 ## Aucun timeout sur `fetch`
 

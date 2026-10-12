@@ -12,10 +12,33 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authStorage } from './storage';
 import type { AuthContextValue, AuthStatus, AuthTokens, User } from './types';
 import { config } from '@/lib/api/config';
-import { configureAuthBridge } from '../api/authBridge';
+import { configureAuthBridge, type RefreshResult } from '../api/authBridge';
 import { extractApiErrorMessage } from '../api/errors';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const BOOTSTRAP_ATTEMPTS = 3;
+const BOOTSTRAP_RETRY_DELAY_MS = 1500;
+
+// Au lancement, un serveur injoignable est souvent un serveur qui redémarre :
+// on réessaie brièvement avant de renoncer. Seul `unavailable` se réessaie —
+// `rejected` est une réponse définitive du serveur.
+async function refreshWithRetry(
+  refresh: () => Promise<RefreshResult>,
+): Promise<RefreshResult> {
+  let result = await refresh();
+  for (
+    let attempt = 1;
+    attempt < BOOTSTRAP_ATTEMPTS && result.status === 'unavailable';
+    attempt++
+  ) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, BOOTSTRAP_RETRY_DELAY_MS),
+    );
+    result = await refresh();
+  }
+  return result;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // AuthProvider est monté SOUS QueryClientProvider (cf. app/_layout.tsx),
@@ -121,28 +144,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
   }, [queryClient, applyAccessToken]);
 
-  const refreshTokens = useCallback(async (): Promise<string | null> => {
+  const refreshTokens = useCallback(async (): Promise<RefreshResult> => {
     const refreshToken = await authStorage.getRefreshToken();
-    if (!refreshToken) return null;
+    if (!refreshToken) return { status: 'rejected' };
 
+    let res: Response;
     try {
-      const res = await fetch(`${config.API_URL}/auth/refresh`, {
+      res = await fetch(`${config.API_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
-      if (!res.ok) {
-        throw new Error('Refresh tokens failed');
-      }
-      const data: AuthTokens = await res.json();
-      await authStorage.setRefreshToken(data.refreshToken.token);
-      applyAccessToken(data.accessToken.token);
-
-      return data.accessToken.token;
     } catch {
-      await authStorage.clearRefreshToken();
-      return null;
+      // `fetch` ne lève que si la requête n'a pas abouti (pas de réseau,
+      // serveur éteint). Le serveur n'a rien refusé : le token reste.
+      return { status: 'unavailable' };
     }
+
+    // Le serveur répond 401 à un refresh token inconnu ou expiré, 400 à un
+    // corps invalide : dans les deux cas ce token ne servira plus jamais.
+    if (res.status === 401 || res.status === 400) {
+      await authStorage.clearRefreshToken();
+      return { status: 'rejected' };
+    }
+
+    // 5xx, 429… : panne passagère, le token est peut-être encore bon.
+    if (!res.ok) return { status: 'unavailable' };
+
+    const data = (await res.json()) as AuthTokens;
+    await authStorage.setRefreshToken(data.refreshToken.token);
+    applyAccessToken(data.accessToken.token);
+
+    return { status: 'refreshed', accessToken: data.accessToken.token };
   }, [applyAccessToken]);
 
   useEffect(() => {
@@ -151,17 +184,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // (SecureStore indisponible, réseau, /users/me KO), on doit TOUJOURS
       // sortir de "loading" — sinon splash screen éternel.
       try {
-        const newAccessToken = await refreshTokens();
+        const refresh = await refreshWithRetry(refreshTokens);
 
-        if (!newAccessToken) {
+        // `rejected` : pas de session. `unavailable` : serveur injoignable
+        // malgré les nouvelles tentatives — on affiche l'écran de connexion
+        // SANS effacer le refresh token, que le prochain lancement réessaiera.
+        if (refresh.status !== 'refreshed') {
           setStatus('unauthenticated');
           return;
         }
 
-        await fetchAndSetUser(newAccessToken);
+        await fetchAndSetUser(refresh.accessToken);
         setStatus('authenticated');
       } catch {
-        await authStorage.clearRefreshToken().catch(() => {});
+        // Pas de clearRefreshToken ici : une erreur de ce bloc est une panne
+        // (réseau, stockage), pas un refus du serveur. Effacer le token
+        // transformerait une coupure passagère en déconnexion.
         applyAccessToken(null);
         setStatus('unauthenticated');
       }

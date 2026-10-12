@@ -167,8 +167,11 @@ describe('AuthService', () => {
       await expect(
         service.refreshToken({ refreshToken: 'refresh' }),
       ).resolves.toEqual(issuedTokens);
+      // Le token présenté est transmis : c'est lui, et lui seul, que
+      // generateTokens fait tourner. Les autres appareils gardent le leur.
       expect(tokenServiceMock.generateTokens).toHaveBeenCalledWith(
         existingUser,
+        storedToken,
       );
     });
 
@@ -213,10 +216,22 @@ describe('AuthService', () => {
   });
 
   describe('logoutUser', () => {
-    it('supprime le refresh token stocké', async () => {
+    it("ne déconnecte que l'appareil qui présente son token", async () => {
+      await service.logoutUser(1, 'refresh');
+
+      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(
+        1,
+        'refresh',
+      );
+    });
+
+    it('déconnecte tous les appareils quand aucun token est fourni', async () => {
       await service.logoutUser(1);
 
-      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(1);
+      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(
+        1,
+        undefined,
+      );
     });
   });
 });
