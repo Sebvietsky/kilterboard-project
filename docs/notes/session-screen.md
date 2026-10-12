@@ -20,7 +20,7 @@ Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le détail utile
 }
 ```
 
-Les deux acceptent une requête sans corps. `GET /sessions/active` et `GET /sessions/:id` renvoient ces champs, plus `board` et `entries` (capturé le 2026-10-09) :
+Les deux acceptent une requête sans corps. `GET /sessions/active` et `GET /sessions/:id` renvoient ces champs, plus `board` et `entries`. Forme vérifiée en HTTP réel le 2026-10-09 ; les identifiants et les dates ci-dessous sont illustratifs :
 
 ```json
 {
