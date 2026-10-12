@@ -1,10 +1,10 @@
-import { getAuthBridge } from './authBridge';
+import { getAuthBridge, type RefreshResult } from './authBridge';
 import { config } from './config';
 import { ApiError, extractApiErrorMessage } from './errors';
 
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<RefreshResult> | null = null;
 
-async function deduplicatedRefresh(): Promise<string | null> {
+async function deduplicatedRefresh(): Promise<RefreshResult> {
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -36,11 +36,19 @@ async function apiFetch<T>(
   const res = await fetch(`${config.API_URL}${path}`, { ...options, headers });
 
   if (res.status === 401 && !isRetry) {
-    const newAccessToken = await deduplicatedRefresh();
+    const refresh = await deduplicatedRefresh();
 
-    if (!newAccessToken) {
+    // Déconnexion uniquement quand le serveur a refusé le refresh token.
+    if (refresh.status === 'rejected') {
       getAuthBridge().onAuthFailure();
       throw new Error('Session expired');
+    }
+
+    // Serveur injoignable : la requête échoue, la session est conservée.
+    // L'écran affiche son état d'erreur et son Retry, comme pour toute panne
+    // réseau — au lieu de renvoyer l'utilisateur à l'écran de connexion.
+    if (refresh.status === 'unavailable') {
+      throw new Error('Couldn’t reach the server. Please try again.');
     }
 
     return apiFetch<T>(path, options, true);
