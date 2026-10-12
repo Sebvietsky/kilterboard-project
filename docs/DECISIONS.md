@@ -9,11 +9,11 @@ Dernière mise à jour : 2026-10-12
 
 ## Chantier en cours
 
-**Prochaine action :** fusionner #59 (`feature/session-history`), puis ouvrir `feature/add-to-playlist` depuis `develop`.
+**Prochaine action :** fusionner #63 (`fix/auth-refresh`), puis ouvrir `feature/boulder-likes` depuis `develop`.
 
-- Fusionnés : écran Session et journal de session (#56), toast de confirmation après un log (#57), pastille de session dans le header (#58).
-- PR ouverte le 2026-10-12 : #59 (`feature/session-history`) — historique des sessions, détail d'une séance, pastille sur les écrans de détail.
-- Ensuite, dans l'ordre : `feature/add-to-playlist`, `feature/boulder-likes` (favoris), `feature/boulder-angle` en trois étapes. Conception de l'inclinaison : `docs/notes/boulder-angle.md`, à lire avant d'y toucher.
+- Fusionnés le 2026-10-12 : historique des sessions (#59), « Add to playlist » (#61), détail et édition d'une playlist (#62). Avant : écran Session et journal (#56), toast (#57), pastille de session (#58).
+- PR ouverte le 2026-10-12 : #63 (`fix/auth-refresh`) — un refresh token par appareil, déconnexion seulement sur refus du serveur.
+- Ensuite, dans l'ordre : `feature/boulder-likes` (favoris), `feature/boulder-angle` en trois étapes. Conception de l'inclinaison : `docs/notes/boulder-angle.md`, à lire avant d'y toucher.
 - Restent à faire sans branche prévue : historique des ascensions dans le profil (`GET /ascents/me` existe) ; encart de connexion à une board sur l'onglet Session, quand le BLE sera dégelé.
 - Après un changement de branche pendant que l'app tourne : recharger l'app complètement (`r` dans Metro) avant de tester.
 
@@ -41,6 +41,9 @@ API
 - **2026-07-30 · `GET /users/:username` ne renvoie jamais `email` ni `role`.** Le type mobile `UserProfile` les exclut : la règle est portée par le type.
 - **2026-07-30 · Projet en cours** : compteur `sessionsCount` sur `Ascent`, pas de table par séance. `attemptsToAdd` s'additionne côté serveur (`increment`).
 - **2026-07-30 · `REPEAT` hors MVP.**
+- **2026-10-12 · Un refresh token par appareil** (#63) : `generateTokens` ne supprime que les tokens expirés de l'utilisateur. Le token présenté au refresh reste valide 60 s (`REFRESH_REUSE_GRACE_MS`) pour couvrir une réponse perdue. `POST /auth/logout` ne révoque que le token envoyé.
+- **2026-10-12 · Playlists** : `GET /playlists/me?boulderId=` renvoie `containsBoulder` par playlist (#61). `GET /playlists/:id` trie ses blocs par position, puis ajout le plus récent (#62).
+- **2026-10-12 · Limite de 3 tags par bloc** : à poser dans la validation le jour où la création d'un bloc existe. Aujourd'hui aucune route ne crée de bloc ni n'attribue de tag.
 - **2026-07-30 · Tests e2e de l'API reportés.** Conception déjà faite : `docs/notes/api-tests.md`.
 
 Mobile
@@ -57,7 +60,12 @@ Mobile
 - **2026-10-09 · Start et End invalident dans `onSettled`** : après un 409, l'écran relit l'état au lieu de rester sur un bouton qui échoue.
 - **2026-07-30 · Boulder detail** : la note privée est masquée en mode In Project tant qu'aucun écran ne la relit. Design cible et backlog : `docs/notes/boulder-detail.md`.
 - **2026-10-12 · Favoris : table dédiée, pas une playlist spéciale.** Cœur à côté du nom du bloc, segment « Liked » dans Library, visible dans le profil. Pas encore implémenté : aujourd'hui le backend n'a aucune notion de favori et Library n'a pas ce segment.
-- **2026-10-12 · « Add to playlist »** : bouton sous le bouton de log du détail d'un bloc. Pas encore implémenté.
+- **2026-10-12 · « Add to playlist »** (#61) : bouton sous le bouton de log, feuille native où un tap bascule l'appartenance du bloc. Pas de toast dans une feuille : il serait rendu dessous.
+- **2026-10-12 · Détail d'une playlist** (#62) : retrait d'un bloc, suppression et édition (nom, description, visibilité) réservés au propriétaire.
+- **2026-10-12 · Réordonner les blocs d'une playlist : reporté.** Glisser-déposer et non flèches ; demande des bibliothèques natives et un development build.
+- **2026-10-12 · Une playlist reste une liste de blocs sans inclinaison attachée.** L'inclinaison affichée est celle de création du bloc ; l'utilisateur est libre de mélanger.
+- **2026-10-12 · Bouton « ampoule » pour allumer un bloc sur la Kilter** : bouton rond flottant sur l'image de la board. À faire avec le BLE, pas avant : un bouton sans effet se lit comme une panne.
+- **2026-10-12 · Le refresh a trois issues** (`refreshed`, `rejected`, `unavailable`) ; seul `rejected` déconnecte (#63).
 
 Inclinaison (décidé le 2026-10-12, rien n'est implémenté — détail : `docs/notes/boulder-angle.md`)
 - **Deux envois à deux inclinaisons sont deux réussites distinctes.** Flash, projet ouvert et grade ressenti au premier envoi passent « par bloc et par inclinaison ». L'ascension enregistre son inclinaison.
@@ -69,6 +77,7 @@ Inclinaison (décidé le 2026-10-12, rien n'est implémenté — détail : `docs
 Général
 - **2026-10-08 · Fin de session** : mise à jour de ce fichier, commit, push, puis `/clear`. Ni `/compact` ni prompt de reprise : ce fichier est importé à chaque session.
 - **2026-10-08 · Pas de SQL écrit à la main** quand Prisma sait l'exprimer : vérifier d'abord ce que la version installée supporte.
+- **2026-10-12 · L'agent ne se connecte jamais avec un compte que Seb utilise sur son téléphone.** Vérifications HTTP avec `test_user_15` uniquement. (Le 2026-10-09, une connexion de l'agent en `test_user_1` avait déconnecté le téléphone.)
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
@@ -79,7 +88,8 @@ Général
 | Ascension consignée dans la session active | **Tenu** (#56) : `POST` et `PATCH /ascents` écrivent un passage dans `session_entries`. Vérifié en HTTP réel sur l'API locale ; pas d'e2e. |
 | `sessionId` explicite : session à soi et ouverte | **Tenu** (#56) : 404, 403 ou 409 sinon. Il n'est en revanche pas soumis à la règle des 2 h. |
 | Fermeture automatique des sessions oubliées | **Tenu** (#56), paresseuse : la session reste ouverte en base tant que l'utilisateur ne revient pas. |
-| Déconnexion seulement sur un 401 | **Non.** Tout échec du refresh (réseau, 5xx, 429) efface le refresh token et déconnecte. Pistes : `docs/notes/mobile-reseau.md`. |
+| Déconnexion seulement sur un refus du serveur | **Tenu dans le code** (#63, à fusionner) : réseau, 5xx et 429 conservent la session. Le cas « serveur injoignable » n'a pas été vérifié sur téléphone. Détail : `docs/notes/mobile-reseau.md`. |
+| Plusieurs appareils connectés sur un même compte | **Tenu** (#63, à fusionner) : un refresh token par appareil. Vérifié en HTTP réel à deux connexions ; pas d'e2e. |
 | Timeout sur les `fetch` mobiles | **Absent.** Un hôte injoignable donne un spinner infini. |
 | Docker / docker-compose | **Absent.** Prévu pour les tests e2e de l'API. |
 | `REPEAT` | Valeur dans l'enum, aucune règle dans `create` : un `POST` avec `REPEAT` sur un bloc jamais envoyé passe. |
@@ -99,4 +109,6 @@ Général
 - Explore et inclinaisons : un bloc apparaît-il à toutes les inclinaisons (sans cotation là où personne n'a voté) ou seulement là où il est coté ?
 - `GET /sessions/me` n'est pas paginé.
 - `login` renvoie 200 et `refresh` 201 : l'agent recommande d'aligner `refresh` sur 200 dans une branche `fix/`. À décider.
-- Vérification manuelle demandée et non rapportée : deux refresh d'affilée dans Bruno.
+- Test manuel à faire sur téléphone : arrêter l'API, attendre 15 min que le token d'accès expire, utiliser l'app (une erreur doit s'afficher, sans retour à l'écran de connexion), relancer l'API. Marche à suivre dans `docs/notes/mobile-reseau.md`.
+- Inclinaison, étape 2 : la ligne de `boulder_angle_grades` naît-elle au premier essai (cotation vide) ou au premier vote ? Avantages et inconvénients à comparer avant de coder.
+- L'authentification n'a de test automatique que côté service. Le scénario à deux appareils et tout le côté mobile ne sont vérifiés qu'à la main : meilleur candidat pour démarrer les tests e2e.
