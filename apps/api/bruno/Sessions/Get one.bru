@@ -1,0 +1,18 @@
+meta {
+  name: Get one
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/sessions/{{sessionId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Détail d'une session, avec sa board et ses passages (`entries`) : même forme
+  que **Get active**. `sessionId` est posé par **Start**.
+
+  Session inexistante : 404. Session d'un autre utilisateur : 403.
+}

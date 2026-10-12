@@ -30,3 +30,17 @@ export function formatElapsed(totalSeconds: number): string {
     ? `${hours}:${pad(minutes)}:${pad(seconds)}`
     : `${pad(minutes)}:${pad(seconds)}`;
 }
+
+// Durée d'une session terminée, en clair : « 47m », « 1h 12m ». Pas de
+// secondes, contrairement au chrono : une séance passée se lit en minutes.
+export function formatDuration(startedAt: string, endedAt: string): string {
+  const totalMinutes = Math.max(
+    0,
+    Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60_000),
+  );
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours === 0) return `${minutes}m`;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}

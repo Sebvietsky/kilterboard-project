@@ -293,6 +293,35 @@ describe('SessionsService', () => {
     });
   });
 
+  describe('getSession', () => {
+    it('renvoie la session de son propriétaire', async () => {
+      const session = { id: 7, userId: user.userId, entries: [] };
+      prismaMock.boardSession.findUnique.mockResolvedValue(session);
+
+      await expect(service.getSession(7, user.userId)).resolves.toBe(session);
+    });
+
+    it('rejette une session inexistante', async () => {
+      prismaMock.boardSession.findUnique.mockResolvedValue(null);
+
+      await expect(service.getSession(7, user.userId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("rejette la session d'un autre utilisateur", async () => {
+      prismaMock.boardSession.findUnique.mockResolvedValue({
+        id: 7,
+        userId: 2,
+        entries: [],
+      });
+
+      await expect(service.getSession(7, user.userId)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
   describe('resolveSessionId', () => {
     const ownOpenSession = { id: 7, userId: user.userId, endedAt: null };
 

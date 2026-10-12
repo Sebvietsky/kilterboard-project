@@ -4,7 +4,7 @@ import {
   useQueryClient,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { ActiveSession, Session } from './types';
+import { ActiveSession, Session, SessionDetail, SessionSummary } from './types';
 import { api } from '../api/client';
 import { sessionKeys } from './keys';
 
@@ -21,6 +21,40 @@ export function useActiveSession(): UseQueryResult<
   return useQuery({
     queryKey: sessionKeys.active(),
     queryFn: fetchActiveSession,
+  });
+}
+
+export function fetchMySessions(): Promise<SessionSummary[]> {
+  return api.get<SessionSummary[]>('/sessions/me');
+}
+
+// L'historique ne montre que les séances terminées où l'on a grimpé. La route
+// renvoie aussi la session en cours, et les sessions vides (démarrées par
+// erreur, ou fermées par le serveur sans aucun bloc) : du bruit dans une liste
+// dont le but est de retrouver ses séances.
+function selectPastSessions(sessions: SessionSummary[]): SessionSummary[] {
+  return sessions.filter(
+    (session) => session.endedAt !== null && session._count.entries > 0,
+  );
+}
+
+export function useMySessions(): UseQueryResult<SessionSummary[], Error> {
+  return useQuery({
+    queryKey: sessionKeys.mine(),
+    queryFn: fetchMySessions,
+    select: selectPastSessions,
+  });
+}
+
+export function fetchSession(id: number): Promise<SessionDetail> {
+  return api.get<SessionDetail>(`/sessions/${id}`);
+}
+
+export function useSession(id: number): UseQueryResult<SessionDetail, Error> {
+  return useQuery({
+    enabled: Number.isFinite(id),
+    queryKey: sessionKeys.detail(id),
+    queryFn: () => fetchSession(id),
   });
 }
 
