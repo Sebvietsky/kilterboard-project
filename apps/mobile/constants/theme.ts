@@ -77,6 +77,9 @@ export const colors = {
   chipOnInk: palette.skyDots,
   chipOnInkFlash: palette.goldDots,
   chipOnInkProject: palette.coralDots,
+  // Voile translucide posé sur le fond de l'app : signale sans peser (pastille
+  // de session du header).
+  surfaceVeil: palette.skyDots,
   // Overlays
   overlay: palette.inkOverlay,
 } as const;
