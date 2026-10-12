@@ -92,6 +92,41 @@ describe('PlaylistsService', () => {
     });
   });
 
+  describe('findMine', () => {
+    const row = {
+      id: 1,
+      userId: user.userId,
+      name: 'Projets',
+      description: null,
+      isPublic: false,
+      createdAt: new Date(),
+      user: { username: 'seb' },
+      _count: { playlistBoulders: 2 },
+    };
+
+    it("n'expose pas containsBoulder quand aucun bloc n'est demandé", async () => {
+      prismaMock.playlist.findMany.mockResolvedValue([row]);
+
+      const [playlist] = await service.findMine(user);
+
+      expect(playlist).not.toHaveProperty('containsBoulder');
+    });
+
+    it('indique, pour le bloc demandé, quelles playlists le contiennent', async () => {
+      prismaMock.playlist.findMany.mockResolvedValue([
+        { ...row, id: 1, playlistBoulders: [{ boulderId: 10 }] },
+        { ...row, id: 2, playlistBoulders: [] },
+      ]);
+
+      const playlists = await service.findMine(user, 10);
+
+      expect(playlists.map((p) => [p.id, p.containsBoulder])).toEqual([
+        [1, true],
+        [2, false],
+      ]);
+    });
+  });
+
   describe('createPlaylist', () => {
     // Une playlist naît privée : publier doit être un geste délibéré.
     it('crée une playlist privée par défaut', async () => {

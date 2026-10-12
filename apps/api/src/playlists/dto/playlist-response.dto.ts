@@ -7,6 +7,9 @@ export class PlaylistSummaryDto {
   creatorUsername!: string;
   boulderCount!: number;
   createdAt!: Date;
+  // Présent uniquement quand la liste est demandée pour un bloc donné
+  // (GET /playlists/me?boulderId=…).
+  containsBoulder?: boolean;
 }
 
 export class PlaylistBoulderDto {

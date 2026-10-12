@@ -9,3 +9,14 @@ get {
   body: none
   auth: inherit
 }
+
+params:query {
+  ~boulderId: {{boulderId}}
+}
+
+docs {
+  Playlists de l'utilisateur connecté.
+
+  Avec `boulderId` (désactivé par défaut), chaque playlist porte en plus
+  `containsBoulder` : c'est ce que lit la feuille « Add to playlist » du mobile.
+}

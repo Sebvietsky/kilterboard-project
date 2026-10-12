@@ -11,3 +11,20 @@ export interface PlaylistSummary {
   boulderCount: number;
   createdAt: string; // string JSON, PAS Date
 }
+
+// Playlist vue depuis un bloc (GET /playlists/me?boulderId=…) : le serveur
+// ajoute `containsBoulder`. Type distinct plutôt qu'un champ optionnel sur
+// PlaylistSummary : ici il est toujours présent, et l'écran n'a pas à traiter
+// un `undefined` qui ne peut pas arriver.
+export type PlaylistForBoulder = PlaylistSummary & {
+  containsBoulder: boolean;
+};
+
+// Réponse de POST /playlists.
+export type CreatedPlaylist = {
+  id: number;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  createdAt: string;
+};
