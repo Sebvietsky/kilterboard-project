@@ -21,20 +21,30 @@ import {
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import { useFonts } from 'expo-font';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,
-      retry: 1,
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000,
+        retry: 1,
+      },
     },
-  },
-});
+  });
+}
 
 export default function RootLayout() {
+  // Dans un state et non en constante de module : quand ce fichier est
+  // rechargé à chaud (une simple édition, ou un changement de branche pendant
+  // que l'app tourne), une constante de module est recréée — nouveau cache —
+  // alors que les écrans déjà montés restent abonnés à l'ancien. Les
+  // invalidations partaient alors dans un cache vide et plus rien ne se
+  // mettait à jour. Le state, lui, survit au rechargement.
+  const [queryClient] = useState(createQueryClient);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -87,6 +97,15 @@ function RootNavigation() {
         <Stack.Screen name="search" />
         <Stack.Screen
           name="boulder/[id]"
+          options={{
+            headerShown: true,
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="session/[id]"
           options={{
             headerShown: true,
             title: '',

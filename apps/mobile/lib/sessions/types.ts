@@ -49,6 +49,11 @@ export type ActiveSession = Session & {
   entries: SessionEntry[];
 };
 
+// Même forme que la session active : GET /sessions/:id et GET /sessions/active
+// partagent le même `include` côté serveur. Deux noms pour deux intentions.
+export type SessionDetail = ActiveSession;
+
+// Élément de GET /sessions/me : pas les passages, seulement leur nombre.
 export type SessionSummary = Session & {
   board: {
     name: string;

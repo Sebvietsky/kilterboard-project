@@ -9,17 +9,29 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ChevronRight } from 'lucide-react-native';
+import {
+  EntryRow,
+  GradeCircle,
+  StatusBadge,
+} from '@/components/session/EntryRow';
+import { SessionHero } from '@/components/session/SessionHero';
 import {
   useActiveSession,
   useEndSession,
+  useMySessions,
   useStartSession,
 } from '@/lib/sessions/queries';
-import { formatElapsed, useElapsedSeconds } from '@/lib/sessions/elapsed';
-import { deriveSessionStats } from '@/lib/sessions/stats';
-import type { ActiveSession, SessionEntry } from '@/lib/sessions/types';
+import {
+  formatDuration,
+  formatElapsed,
+  useElapsedSeconds,
+} from '@/lib/sessions/elapsed';
+import type { ActiveSession, SessionSummary } from '@/lib/sessions/types';
 import { useMyProjects } from '@/lib/ascents/queries';
 import type { MyProject } from '@/lib/ascents/types';
-import { formatClockTime } from '@/lib/format/clockTime';
+import { formatClockTime, formatDay } from '@/lib/format/clockTime';
+import { plural } from '@/lib/format/plural';
 import {
   colors,
   spacing,
@@ -29,8 +41,8 @@ import {
   status as statusColors,
 } from '@/constants/theme';
 
-const GRADE_CIRCLE_SIZE = spacing.xxl + spacing.sm;
 const PROJECT_CARD_WIDTH = spacing.xxxl * 4;
+const CHEVRON_SIZE = spacing.xl - spacing.xs;
 
 // Écran plein et non modal : Session est un onglet de premier niveau, on doit
 // pouvoir en sortir et y revenir sans perdre son état. Rien n'est gardé en
@@ -91,30 +103,99 @@ function SessionBody({
   );
 }
 
+// Au repos, l'écran sert à deux choses : démarrer une séance, et retrouver les
+// précédentes. L'historique est la liste ; la carte Start en est l'en-tête.
 function NoSession() {
+  const router = useRouter();
   const startSession = useStartSession();
+  const history = useMySessions();
 
   return (
-    <View style={styles.centered}>
-      <Text style={styles.stateTitle}>No session in progress</Text>
-      <Text style={styles.stateHint}>
-        Start a session to time your climb and keep track of the boulders you
-        log.
-      </Text>
-      <Pressable
-        onPress={() => startSession.mutate()}
-        disabled={startSession.isPending}
-        style={({ pressed }) => [
-          styles.primaryButton,
-          pressed && styles.primaryButtonPressed,
-          startSession.isPending && styles.buttonDisabled,
-        ]}
-      >
-        <Text style={styles.primaryButtonText}>Start session</Text>
-      </Pressable>
-      {startSession.isError ? (
-        <Text style={styles.errorText}>{startSession.error.message}</Text>
-      ) : null}
+    <FlatList
+      data={history.data}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={({ item }) => (
+        <Pressable
+          onPress={() => router.push(`/session/${item.id}`)}
+          style={styles.rowPressable}
+        >
+          <PastSessionCard session={item} />
+        </Pressable>
+      )}
+      contentContainerStyle={styles.listContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={history.isRefetching}
+          onRefresh={history.refetch}
+          tintColor={colors.primary}
+        />
+      }
+      ListHeaderComponent={
+        <View style={styles.listHeader}>
+          <View style={styles.padded}>
+            <View style={styles.startCard}>
+              <Text style={styles.stateTitle}>No session in progress</Text>
+              <Text style={styles.stateHint}>
+                Start a session to time your climb and keep track of the
+                boulders you log.
+              </Text>
+              <Pressable
+                onPress={() => startSession.mutate()}
+                disabled={startSession.isPending}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.primaryButtonPressed,
+                  startSession.isPending && styles.buttonDisabled,
+                ]}
+              >
+                <Text style={styles.primaryButtonText}>Start session</Text>
+              </Pressable>
+              {startSession.isError ? (
+                <Text style={styles.errorText}>
+                  {startSession.error.message}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={[styles.sectionHeader, styles.padded]}>
+            <Text style={styles.sectionTitle}>Past sessions</Text>
+            {history.data ? (
+              <Text style={styles.sectionCount}>{history.data.length}</Text>
+            ) : null}
+          </View>
+        </View>
+      }
+      ListEmptyComponent={
+        <Text style={[styles.emptyList, styles.padded]}>
+          {history.isLoading
+            ? 'Loading your sessions…'
+            : history.isError
+              ? 'Couldn’t load your past sessions. Pull to retry.'
+              : 'Sessions you finish will show up here.'}
+        </Text>
+      }
+    />
+  );
+}
+
+function PastSessionCard({ session }: { session: SessionSummary }) {
+  return (
+    <View style={styles.pastCard}>
+      <View style={styles.pastCardText}>
+        <Text style={styles.pastCardTitle}>{formatDay(session.startedAt)}</Text>
+        <Text style={styles.pastCardMeta}>
+          {formatClockTime(session.startedAt)}
+          {/* Le filtre de l'historique garantit `endedAt`, mais le type ne le
+              sait pas : sans durée, on n'affiche que l'heure. */}
+          {session.endedAt
+            ? ` · ${formatDuration(session.startedAt, session.endedAt)}`
+            : ''}
+          {' · '}
+          {plural(session._count.entries, 'climb')}
+        </Text>
+      </View>
+      <ChevronRight size={CHEVRON_SIZE} color={colors.textSubtle} />
     </View>
   );
 }
@@ -169,7 +250,7 @@ function RunningSession({
       ListHeaderComponent={
         <View style={styles.listHeader}>
           <View style={styles.padded}>
-            <SessionCard session={session} />
+            <LiveSessionHero session={session} />
           </View>
 
           <View style={styles.padded}>
@@ -206,71 +287,19 @@ function RunningSession({
   );
 }
 
-// Le chrono vit dans la carte et pas dans RunningSession : son état change
-// chaque seconde, et seul ce composant doit se re-rendre — pas la liste.
-function SessionCard({ session }: { session: ActiveSession }) {
+// Le chrono vit ici et pas dans RunningSession : son état change chaque
+// seconde, et seule la carte doit se re-rendre — pas la liste.
+function LiveSessionHero({ session }: { session: ActiveSession }) {
   const elapsed = useElapsedSeconds(session.startedAt);
-  const stats = deriveSessionStats(session.entries);
 
   return (
-    <View style={styles.sessionCard}>
-      <View style={styles.activeRow}>
-        <View style={styles.activeDot} />
-        <Text style={styles.activeLabel}>Active session</Text>
-      </View>
-
-      <Text style={styles.timer}>{formatElapsed(elapsed)}</Text>
-      <Text style={styles.startedAt}>
-        Started {formatClockTime(session.startedAt)}
-      </Text>
-
-      <View style={styles.statsRow}>
-        <StatChip label={plural(stats.climbs, 'climb')} />
-        {stats.hardest ? <StatChip label={`${stats.hardest} hardest`} /> : null}
-        {stats.flashes > 0 ? (
-          <StatChip
-            label={plural(stats.flashes, 'flash', 'flashes')}
-            tone="flash"
-          />
-        ) : null}
-        {stats.projectsSent > 0 ? (
-          <StatChip
-            label={`${plural(stats.projectsSent, 'project')} sent`}
-            tone="project"
-          />
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-// La teinte suit le code couleur des statuts partout dans l'app : gold pour
-// un flash, coral pour un projet. Sans `tone`, une stat neutre.
-function StatChip({
-  label,
-  tone,
-}: {
-  label: string;
-  tone?: 'flash' | 'project';
-}) {
-  return (
-    <View
-      style={[
-        styles.statChip,
-        tone === 'flash' && styles.statChipFlash,
-        tone === 'project' && styles.statChipProject,
-      ]}
-    >
-      <Text
-        style={[
-          styles.statChipText,
-          tone === 'flash' && styles.statChipTextFlash,
-          tone === 'project' && styles.statChipTextProject,
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
+    <SessionHero
+      active
+      label="Active session"
+      value={formatElapsed(elapsed)}
+      caption={`Started ${formatClockTime(session.startedAt)}`}
+      entries={session.entries}
+    />
   );
 }
 
@@ -317,9 +346,7 @@ function ProjectCard({ project }: { project: MyProject }) {
     <View style={styles.projectCard}>
       <View style={styles.projectCardTop}>
         <GradeCircle label={boulder.grade.vScale} muted />
-        <View style={[styles.badge, styles.badgeProject]}>
-          <Text style={[styles.badgeText, styles.badgeProjectText]}>Proj.</Text>
-        </View>
+        <StatusBadge tone="project" label="Proj." />
       </View>
       <Text style={styles.projectName} numberOfLines={1}>
         {boulder.name}
@@ -330,71 +357,6 @@ function ProjectCard({ project }: { project: MyProject }) {
       </Text>
     </View>
   );
-}
-
-function EntryRow({ entry }: { entry: SessionEntry }) {
-  const { boulder } = entry.ascent;
-
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowTime}>{formatClockTime(entry.createdAt)}</Text>
-      <GradeCircle
-        label={boulder.grade.vScale}
-        muted={entry.status === 'PROJECT'}
-      />
-      <Text style={styles.rowName} numberOfLines={1}>
-        {boulder.name}
-      </Text>
-      <EntryBadge entry={entry} />
-    </View>
-  );
-}
-
-// Le badge dit ce qui s'est passé CETTE fois : flash, envoi en n essais, ou
-// n essais sans envoi. Les essais sont ceux du passage, pas le cumul du projet.
-function EntryBadge({ entry }: { entry: SessionEntry }) {
-  const tries =
-    entry.attempts > 0 ? plural(entry.attempts, 'try', 'tries') : '';
-
-  if (entry.status === 'FLASH') {
-    return (
-      <View style={[styles.badge, styles.badgeFlash]}>
-        <Text style={[styles.badgeText, styles.badgeFlashText]}>Flash</Text>
-      </View>
-    );
-  }
-
-  if (entry.status === 'SENT') {
-    return (
-      <View style={[styles.badge, styles.badgeSent]}>
-        <Text style={[styles.badgeText, styles.badgeSentText]}>
-          {tries || 'Sent'}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.badge, styles.badgeProject]}>
-      <Text style={[styles.badgeText, styles.badgeProjectText]}>
-        {tries ? `${tries} → Proj.` : 'Proj.'}
-      </Text>
-    </View>
-  );
-}
-
-function GradeCircle({ label, muted }: { label: string; muted?: boolean }) {
-  return (
-    <View style={[styles.gradeCircle, muted && styles.gradeCircleMuted]}>
-      <Text style={[styles.gradeText, muted && styles.gradeTextMuted]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function plural(count: number, singular: string, pluralForm = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
 const styles = StyleSheet.create({
@@ -475,7 +437,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  // ── Structure de la liste ───────────────────────────────
+  // ── Structure des listes ────────────────────────────────
   // Le padding horizontal est porté par chaque bloc (`padded`) et non par la
   // liste : le carrousel des projets doit pouvoir défiler jusqu'au bord.
   listContent: {
@@ -487,6 +449,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   padded: {
+    paddingHorizontal: spacing.lg,
+  },
+  rowPressable: {
     paddingHorizontal: spacing.lg,
   },
   section: {
@@ -517,72 +482,37 @@ const styles = StyleSheet.create({
     fontSize: typography.size.sm,
     color: colors.textSubtle,
   },
-  // ── Carte de la session ─────────────────────────────────
-  sessionCard: {
-    backgroundColor: colors.ink,
+  // ── Au repos : Start et historique ──────────────────────
+  startCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.xl,
-    gap: spacing.xs,
+    gap: spacing.sm,
+    ...shadows.card,
   },
-  activeRow: {
+  pastCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    padding: spacing.lg,
+    ...shadows.card,
   },
-  activeDot: {
-    width: spacing.sm,
-    height: spacing.sm,
-    borderRadius: radii.full,
-    backgroundColor: colors.gold,
+  pastCardText: {
+    flex: 1,
+    gap: spacing.xs,
   },
-  activeLabel: {
-    fontFamily: typography.family.dataBold,
-    fontSize: typography.size.xs,
-    color: colors.sky,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  pastCardTitle: {
+    fontFamily: typography.family.heading,
+    fontSize: typography.size.md,
+    color: colors.text,
   },
-  // tabular-nums : chiffres à chasse fixe, sinon le chrono tremble à chaque
-  // seconde (un « 1 » est plus étroit qu'un « 8 »).
-  timer: {
-    fontFamily: typography.family.dataBold,
-    fontSize: typography.size.display + typography.size.md,
-    fontVariant: ['tabular-nums'],
-    color: colors.textOnInk,
-  },
-  startedAt: {
-    fontFamily: typography.family.body,
-    fontSize: typography.size.sm,
-    color: colors.textSubtle,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  statChip: {
-    backgroundColor: colors.chipOnInk,
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  statChipFlash: {
-    backgroundColor: colors.chipOnInkFlash,
-  },
-  statChipProject: {
-    backgroundColor: colors.chipOnInkProject,
-  },
-  statChipText: {
+  pastCardMeta: {
     fontFamily: typography.family.data,
     fontSize: typography.size.sm,
-    color: colors.sky,
-  },
-  statChipTextFlash: {
-    color: colors.gold,
-  },
-  statChipTextProject: {
-    color: colors.coral,
+    color: colors.textMuted,
   },
   // ── Projets à reprendre ─────────────────────────────────
   projectsContent: {
@@ -614,82 +544,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
     color: colors.textMuted,
-  },
-  // ── Lignes des passages ─────────────────────────────────
-  rowPressable: {
-    paddingHorizontal: spacing.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.card,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  rowTime: {
-    fontFamily: typography.family.data,
-    fontSize: typography.size.xs,
-    fontVariant: ['tabular-nums'],
-    color: colors.textSubtle,
-  },
-  rowName: {
-    flex: 1,
-    fontFamily: typography.family.heading,
-    fontSize: typography.size.md,
-    color: colors.text,
-  },
-  gradeCircle: {
-    width: GRADE_CIRCLE_SIZE,
-    height: GRADE_CIRCLE_SIZE,
-    borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primaryMuted,
-  },
-  // Bloc pas (encore) envoyé : la cotation passe en retrait.
-  gradeCircleMuted: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  gradeText: {
-    fontFamily: typography.family.heading,
-    fontSize: typography.size.sm,
-    color: colors.primary,
-  },
-  gradeTextMuted: {
-    color: colors.textMuted,
-  },
-  // ── Badges de statut ────────────────────────────────────
-  badge: {
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  badgeText: {
-    fontFamily: typography.family.dataBold,
-    fontSize: typography.size.xs,
-    textTransform: 'uppercase',
-  },
-  badgeFlash: {
-    backgroundColor: statusColors.flash.badgeBg,
-  },
-  badgeFlashText: {
-    color: statusColors.flash.badgeText,
-  },
-  badgeSent: {
-    backgroundColor: statusColors.ascent.badgeBg,
-  },
-  badgeSentText: {
-    color: statusColors.ascent.badgeText,
-  },
-  // Projet : fond transparent et bordure en pointillés, recette du thème.
-  badgeProject: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: statusColors.project.badgeBorder,
-  },
-  badgeProjectText: {
-    color: statusColors.project.badgeText,
   },
 });

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { EndSessionDto } from './dto/end-session.dto';
 import { JwtPayload } from '../common/interfaces/auth-payload.interface';
+import { Prisma } from '../generated/prisma/client';
 
 // Au-delà de ce délai sans aucun bloc loggé, une session ouverte est
 // considérée comme oubliée et fermée par le serveur.
@@ -28,6 +29,48 @@ function isStale(session: SessionActivity): boolean {
     Date.now() - lastActivityOf(session).getTime() > SESSION_INACTIVITY_LIMIT_MS
   );
 }
+
+// Détail d'une session : sa board et ses passages. Partagé par la session en
+// cours et par l'historique, pour que les deux écrans reçoivent exactement la
+// même forme.
+const SESSION_DETAIL = {
+  board: { select: { name: true, gymName: true } },
+  // `select` seul, jamais mélangé à un `include` : les deux sont
+  // mutuellement exclusifs à un même niveau, et la contrainte n'est
+  // vérifiée qu'à l'exécution — les args de relation imbriquée exposent
+  // `select` et `include` comme deux optionnels indépendants, donc tsc
+  // laisse passer le mélange. Une relation se demande donc DANS le
+  // select, comme n'importe quel autre champ.
+  //
+  // Un passage par log : le même bloc revient autant de fois qu'il a
+  // été travaillé. `status` et `attempts` sont ceux du passage ; le
+  // cumul et l'historique du projet restent sur l'ascension.
+  entries: {
+    select: {
+      id: true,
+      status: true,
+      attempts: true,
+      createdAt: true,
+      ascent: {
+        select: {
+          id: true,
+          boulderId: true,
+          wasProject: true,
+          boulder: {
+            select: {
+              name: true,
+              grade: {
+                select: { vScale: true, fontScale: true, rank: true },
+              },
+              angle: { select: { valueDegrees: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  },
+} satisfies Prisma.BoardSessionInclude;
 
 @Injectable()
 export class SessionsService {
@@ -156,45 +199,25 @@ export class SessionsService {
 
     return await this.prisma.boardSession.findUnique({
       where: { id: live.id },
-      include: {
-        board: { select: { name: true, gymName: true } },
-        // `select` seul, jamais mélangé à un `include` : les deux sont
-        // mutuellement exclusifs à un même niveau, et la contrainte n'est
-        // vérifiée qu'à l'exécution — les args de relation imbriquée exposent
-        // `select` et `include` comme deux optionnels indépendants, donc tsc
-        // laisse passer le mélange. Une relation se demande donc DANS le
-        // select, comme n'importe quel autre champ.
-        //
-        // Un passage par log : le même bloc revient autant de fois qu'il a
-        // été travaillé. `status` et `attempts` sont ceux du passage ; le
-        // cumul et l'historique du projet restent sur l'ascension.
-        entries: {
-          select: {
-            id: true,
-            status: true,
-            attempts: true,
-            createdAt: true,
-            ascent: {
-              select: {
-                id: true,
-                boulderId: true,
-                wasProject: true,
-                boulder: {
-                  select: {
-                    name: true,
-                    grade: {
-                      select: { vScale: true, fontScale: true, rank: true },
-                    },
-                    angle: { select: { valueDegrees: true } },
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: SESSION_DETAIL,
     });
+  }
+
+  /**
+   * Une session de l'historique, avec ses passages.
+   *
+   * 403 et non 404 sur la session d'un autre, comme `endSession` : le partage
+   * de sessions (`isShared`) est prévu, et ce contrôle sera alors le seul
+   * endroit à assouplir.
+   */
+  async getSession(id: number, userId: number) {
+    const session = await this.prisma.boardSession.findUnique({
+      where: { id },
+      include: SESSION_DETAIL,
+    });
+    assertFound(session, 'Session');
+    assertOwnerShip(session, userId);
+    return session;
   }
 
   async getMySessions(userId: number) {

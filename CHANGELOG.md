@@ -32,6 +32,9 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 - **Mobile — état de la session dans le header** : une pastille indique sur
   tous les onglets si une session tourne, avec son chrono, et mène à l'écran
   Session.
+- **Historique des sessions** : nouvelle route `GET /sessions/:id` (détail
+  d'une session avec ses passages). Côté mobile, l'onglet Session liste les
+  séances passées quand aucune ne tourne, et chacune ouvre son compte rendu.
 
 ### Corrections
 
