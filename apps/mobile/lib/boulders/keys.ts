@@ -7,3 +7,9 @@ export const boulderKeys = {
   details: () => [...boulderKeys.all, 'detail'] as const,
   detail: (id: number) => [...boulderKeys.details(), id] as const,
 };
+
+export const boulderLikedKeys = {
+  all: ['likes'] as const,
+  status: (boulderId: number) => [...boulderLikedKeys.all, boulderId] as const,
+  mine: () => [...boulderLikedKeys.all, 'mine'] as const,
+};

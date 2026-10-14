@@ -2,6 +2,7 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   UseInfiniteQueryResult,
+  useMutation,
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
@@ -9,10 +10,12 @@ import { api } from '../api/client';
 import {
   BoulderDetail,
   BoulderFilters,
+  BoulderLiked,
+  BoulderLikeStatus,
   BoulderSummary,
   PaginatedResponse,
 } from './types';
-import { boulderKeys } from './keys';
+import { boulderKeys, boulderLikedKeys } from './keys';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
 export function fetchBoulders(
@@ -76,6 +79,64 @@ export function useBoulder(id: number): UseQueryResult<BoulderDetail, Error> {
       return found
         ? { ...found, description: null, holds: [], publicNotes: [] }
         : undefined;
+    },
+  });
+}
+
+export function fetchMyBouldersLiked(): Promise<BoulderLiked[]> {
+  return api.get<BoulderLiked[]>('/boulders/likes/me');
+}
+
+export function useBoulderLike(
+  boulderId: number,
+): UseQueryResult<BoulderLikeStatus, Error> {
+  return useQuery({
+    enabled: Number.isFinite(boulderId),
+    queryKey: boulderLikedKeys.status(boulderId),
+    queryFn: () => {
+      return api.get<BoulderLikeStatus>(`/boulders/${boulderId}/like`);
+    },
+  });
+}
+
+type ToggleLikeInput = { boulderId: number; liked: boolean };
+
+// Une seule mutation pour les deux sens : `liked` est l'état affiché par le
+// cœur au moment du tap. Liké → on retire, pas liké → on pose. PUT et DELETE
+// étant idempotents, un double envoi ne peut pas inverser l'intention.
+export function useToggleBoulderLike() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ boulderId, liked }: ToggleLikeInput) => {
+      if (liked) {
+        await api.delete(`/boulders/${boulderId}/like`);
+      } else {
+        await api.put<BoulderLikeStatus>(`/boulders/${boulderId}/like`);
+      }
+    },
+    // Mise à jour optimiste : le cœur bascule au tap, sans attendre le réseau.
+    onMutate: async ({ boulderId, liked }: ToggleLikeInput) => {
+      const key = boulderLikedKeys.status(boulderId);
+      // Une lecture encore en vol écraserait la valeur optimiste avec l'état
+      // d'avant le tap : on l'annule.
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<BoulderLikeStatus>(key);
+      queryClient.setQueryData<BoulderLikeStatus>(key, { liked: !liked });
+      // Renvoyé à onError (le « contexte ») pour pouvoir revenir en arrière.
+      return { previous };
+    },
+    onError: (_error, { boulderId }, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          boulderLikedKeys.status(boulderId),
+          context.previous,
+        );
+      }
+    },
+    // onSettled : après un échec aussi, on relit l'état réel. La racine
+    // `likes` couvre à la fois le cœur et la liste « Liked ».
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: boulderLikedKeys.all });
     },
   });
 }

@@ -46,3 +46,16 @@ export interface BoulderDetail extends BoulderSummary {
   holds: Hold[];
   publicNotes: PublicNote[];
 }
+
+export interface BoulderLikeStatus {
+  liked: boolean;
+}
+
+export interface BoulderLiked {
+  id: number;
+  name: string;
+  gradeLabel: string;
+  gradeRank: number;
+  angleDegrees: number;
+  likedAt: string;
+}
