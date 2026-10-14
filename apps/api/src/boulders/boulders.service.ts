@@ -4,7 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
   BoulderDetailDto,
+  BoulderLikeStatusDto,
   BoulderSummaryDto,
+  LikedBoulderDto,
   PublicNoteDto,
 } from './dto/boulder-response.dto';
 import { Prisma } from '../generated/prisma/client';
@@ -193,5 +195,81 @@ export class BouldersService {
       where: { id },
       data: { isDraft: false, isPublic: true },
     });
+  }
+
+  /**
+   * Pose le like. Idempotent : liker un bloc déjà liké réussit sans rien
+   * changer, pour qu'un renvoi après une réponse perdue ne finisse pas en
+   * erreur.
+   */
+  async like(userId: number, boulderId: number): Promise<BoulderLikeStatusDto> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id: boulderId, isPublic: true, isDraft: false },
+      select: { id: true },
+    });
+    assertFound(boulder, 'Boulder');
+
+    // `skipDuplicates` devient `ON CONFLICT DO NOTHING` : la base absorbe le
+    // doublon, y compris entre deux requêtes simultanées. Un `create` lèverait
+    // P2002, et un findUnique préalable laisserait passer la course.
+    // Le `createdAt` du premier like est conservé.
+    await this.prisma.boulderLike.createMany({
+      data: [{ userId, boulderId }],
+      skipDuplicates: true,
+    });
+
+    return { liked: true };
+  }
+
+  /**
+   * Retire le like. Idempotent : retirer un like absent réussit aussi.
+   * `deleteMany` ne lève pas quand rien ne correspond, contrairement à
+   * `delete` (P2025). Pas de contrôle d'existence du bloc : l'état demandé,
+   * « pas liké », est vrai dans tous les cas.
+   */
+  async unlike(userId: number, boulderId: number): Promise<void> {
+    await this.prisma.boulderLike.deleteMany({
+      where: { userId, boulderId },
+    });
+  }
+
+  async isLiked(
+    userId: number,
+    boulderId: number,
+  ): Promise<BoulderLikeStatusDto> {
+    const like = await this.prisma.boulderLike.findUnique({
+      where: { userId_boulderId: { userId, boulderId } },
+      select: { userId: true },
+    });
+
+    return { liked: like !== null };
+  }
+
+  /** Blocs likés par l'utilisateur, du plus récent like au plus ancien. */
+  async findMyLikes(userId: number): Promise<LikedBoulderDto[]> {
+    const likes = await this.prisma.boulderLike.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        createdAt: true,
+        boulder: {
+          select: {
+            id: true,
+            name: true,
+            grade: { select: { vScale: true, rank: true } },
+            angle: { select: { valueDegrees: true } },
+          },
+        },
+      },
+    });
+
+    return likes.map((like) => ({
+      id: like.boulder.id,
+      name: like.boulder.name,
+      gradeLabel: like.boulder.grade.vScale,
+      gradeRank: like.boulder.grade.rank,
+      angleDegrees: like.boulder.angle.valueDegrees,
+      likedAt: like.createdAt,
+    }));
   }
 }

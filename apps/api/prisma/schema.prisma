@@ -66,6 +66,7 @@ model User {
   follows    UserFollow[] @relation("FollowerRelation")
 
   playlists     Playlist[]
+  boulderLikes  BoulderLike[]
   refreshTokens RefreshToken[]
 
   @@map("users")
@@ -214,6 +215,7 @@ model Boulder {
   ascents          Ascent[]
   ascentNotes      AscentNote[]
   playlistBoulders PlaylistBoulder[]
+  likes            BoulderLike[]
 
   @@map("boulders")
 }
@@ -394,7 +396,8 @@ model AscentNoteLike {
 // COLLECTIONS
 // ============================================================
 
-// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Favoris").
+// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Circuit du mardi").
+// Les favoris n'en sont pas une : ils ont leur propre table (BoulderLike).
 // Privée par défaut — isPublic = true pour partager avec la communauté.
 model Playlist {
   id          Int      @id @default(autoincrement())
@@ -422,6 +425,20 @@ model PlaylistBoulder {
 
   @@id([boulderId, playlistId])
   @@map("playlist_boulders")
+}
+
+// Favori : un utilisateur like un bloc.
+// Clé composite (userId, boulderId) : un user ne peut liker un bloc qu'une fois.
+// `createdAt` sert à trier les blocs likés, du plus récent au plus ancien.
+model BoulderLike {
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int      @map("boulder_id")
+  boulder   Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, boulderId])
+  @@map("boulder_likes")
 }
 
 // Stockage du refresh token

@@ -12,6 +12,12 @@ const prismaMock = {
   },
   ascent: { groupBy: jest.fn(), aggregate: jest.fn() },
   ascentNote: { findMany: jest.fn() },
+  boulderLike: {
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+  },
 };
 
 // La forme minimale que findAll déréférence dans son mapping.
@@ -272,6 +278,100 @@ describe('BouldersService', () => {
       await expect(service.publishBoulder(10, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('like', () => {
+    // PUT est idempotent : le doublon est absorbé par la base
+    // (`skipDuplicates`), jamais remonté en erreur au client.
+    it('pose le like en laissant la base absorber un doublon', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+
+      await expect(service.like(1, 10)).resolves.toEqual({ liked: true });
+      expect(prismaMock.boulderLike.createMany).toHaveBeenCalledWith({
+        data: [{ userId: 1, boulderId: 10 }],
+        skipDuplicates: true,
+      });
+    });
+
+    it('ne cherche que parmi les blocs publics et publiés', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+
+      await service.like(1, 10);
+
+      const [arg] = prismaMock.boulder.findUnique.mock.calls[0] as [
+        { where: Record<string, unknown> },
+      ];
+      expect(arg.where).toMatchObject({ isPublic: true, isDraft: false });
+    });
+
+    it('rejette un bloc introuvable', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(null);
+
+      await expect(service.like(1, 10)).rejects.toThrow(NotFoundException);
+      expect(prismaMock.boulderLike.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unlike', () => {
+    // DELETE est idempotent : `deleteMany` ne lève pas quand le like
+    // n'existe pas, contrairement à `delete`.
+    it("retire le like sans exiger qu'il existe", async () => {
+      prismaMock.boulderLike.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.unlike(1, 10)).resolves.toBeUndefined();
+      expect(prismaMock.boulderLike.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 1, boulderId: 10 },
+      });
+    });
+  });
+
+  describe('isLiked', () => {
+    it('renvoie true quand le like existe', async () => {
+      prismaMock.boulderLike.findUnique.mockResolvedValue({ userId: 1 });
+
+      await expect(service.isLiked(1, 10)).resolves.toEqual({ liked: true });
+    });
+
+    it('renvoie false sinon', async () => {
+      prismaMock.boulderLike.findUnique.mockResolvedValue(null);
+
+      await expect(service.isLiked(1, 10)).resolves.toEqual({ liked: false });
+    });
+  });
+
+  describe('findMyLikes', () => {
+    it('trie par like le plus récent et aplatit le bloc', async () => {
+      const likedAt = new Date();
+      prismaMock.boulderLike.findMany.mockResolvedValue([
+        {
+          createdAt: likedAt,
+          boulder: {
+            id: 10,
+            name: 'Crimpy',
+            grade: { vScale: 'V4', rank: 6 },
+            angle: { valueDegrees: 40 },
+          },
+        },
+      ]);
+
+      const result = await service.findMyLikes(1);
+
+      const [arg] = prismaMock.boulderLike.findMany.mock.calls[0] as [
+        { where: unknown; orderBy: unknown },
+      ];
+      expect(arg.where).toEqual({ userId: 1 });
+      expect(arg.orderBy).toEqual({ createdAt: 'desc' });
+      expect(result).toEqual([
+        {
+          id: 10,
+          name: 'Crimpy',
+          gradeLabel: 'V4',
+          gradeRank: 6,
+          angleDegrees: 40,
+          likedAt,
+        },
+      ]);
     });
   });
 });
