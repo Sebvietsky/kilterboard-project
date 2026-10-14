@@ -87,6 +87,14 @@ export function fetchMyBouldersLiked(): Promise<BoulderLiked[]> {
   return api.get<BoulderLiked[]>('/boulders/likes/me');
 }
 
+// Non paginé côté serveur, comme les playlists : un useQuery simple suffit.
+export function useMyLikedBoulders(): UseQueryResult<BoulderLiked[], Error> {
+  return useQuery({
+    queryKey: boulderLikedKeys.mine(),
+    queryFn: fetchMyBouldersLiked,
+  });
+}
+
 export function useBoulderLike(
   boulderId: number,
 ): UseQueryResult<BoulderLikeStatus, Error> {
