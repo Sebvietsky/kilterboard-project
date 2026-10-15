@@ -41,7 +41,11 @@ describe('UpdatePlaylistDto', () => {
     ).resolves.toEqual([]);
   });
 
-  // B5 (audit du 2026-10-15) : la création refuse un nom vide, l'édition
-  // l'accepte. À activer avec le correctif, sur sa branche fix/.
-  it.todo('refuse de renommer une playlist en nom vide');
+  // B5 (audit du 2026-10-15) : la création refusait un nom vide, l'édition
+  // l'acceptait.
+  it('refuse de renommer une playlist en nom vide', async () => {
+    await expect(
+      rejectedFields(UpdatePlaylistDto, { name: '' }),
+    ).resolves.toEqual(['name']);
+  });
 });

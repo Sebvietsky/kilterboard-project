@@ -508,6 +508,84 @@ describe('AscentsService', () => {
       prismaMock.ascent.update.mockResolvedValue(project);
     });
 
+    // Cahier des charges §4.2 : un projet ne sort que vers SENT, et seul un
+    // projet se supprime. Liste blanche : toute autre transition est refusée.
+    // 400 quand la demande ne peut jamais réussir, 409 quand elle aurait
+    // réussi sur un projet : le client relit alors l'état au lieu de
+    // réessayer (renvoi d'une complétion dont la réponse s'est perdue).
+    describe('transitions de statut', () => {
+      const sentAs = (status: AscentStatus) => ({
+        ...project,
+        status,
+        feltGradeId: 42,
+        sendDate: new Date(),
+      });
+
+      function expectNothingWritten() {
+        expect(prismaMock.ascent.update).not.toHaveBeenCalled();
+        expect(recomputeMock).not.toHaveBeenCalled();
+      }
+
+      // B1 : un envoi repassé en projet pouvait être supprimé, et son vote
+      // avec, sans recalcul de la cotation.
+      it.each([AscentStatus.SENT, AscentStatus.FLASH])(
+        'refuse en 400 de repasser un %s en projet',
+        async (status) => {
+          prismaMock.ascent.findUnique.mockResolvedValue(sentAs(status));
+
+          await expect(
+            service.update(7, { status: AscentStatus.PROJECT }, user),
+          ).rejects.toThrow(BadRequestException);
+          expectNothingWritten();
+        },
+      );
+
+      // B2 : terminer un projet en REPEAT contournait le grade ressenti exigé
+      // à la complétion.
+      it('refuse en 400 de terminer un projet en REPEAT', async () => {
+        await expect(
+          service.update(7, { status: AscentStatus.REPEAT }, user),
+        ).rejects.toThrow(BadRequestException);
+        expectNothingWritten();
+      });
+
+      // Avec le grade : c'est la forme exacte d'une complétion renvoyée. Le
+      // 409 doit l'emporter sur le refus du grade hors complétion (400).
+      it.each([
+        [AscentStatus.SENT, 'sans grade', {}],
+        [AscentStatus.SENT, 'avec grade', { feltGradeRank: 5 }],
+        [AscentStatus.FLASH, 'avec grade', { feltGradeRank: 5 }],
+      ])(
+        'refuse en 409 de terminer un %s déjà envoyé (%s)',
+        async (status, _label, extra) => {
+          prismaMock.ascent.findUnique.mockResolvedValue(sentAs(status));
+
+          await expect(
+            service.update(
+              7,
+              { status: AscentStatus.SENT, attemptsToAdd: 2, ...extra },
+              user,
+            ),
+          ).rejects.toThrow(ConflictException);
+          expectNothingWritten();
+        },
+      );
+
+      // B3 : une séance se consigne sur un projet (décision du 2026-10-09).
+      // Sur un envoi, elle gonflait ses essais et son nombre de séances.
+      it.each([AscentStatus.SENT, AscentStatus.FLASH])(
+        'refuse en 409 une séance sur un %s',
+        async (status) => {
+          prismaMock.ascent.findUnique.mockResolvedValue(sentAs(status));
+
+          await expect(
+            service.update(7, { attemptsToAdd: 3 }, user),
+          ).rejects.toThrow(ConflictException);
+          expectNothingWritten();
+        },
+      );
+    });
+
     // Le flash atteste d'une réussite au premier contact avec le bloc : aucune
     // transition ultérieure ne peut produire ce fait.
     it('refuse tout passage à FLASH', async () => {
@@ -768,12 +846,14 @@ describe('AscentsService', () => {
   });
 
   describe('createNote', () => {
+    // Premier envoi à cette inclinaison : il porte le vote.
     const sentAscent = {
       id: 7,
       userId: user.userId,
       boulderId: 10,
       angleId: 7,
       status: AscentStatus.SENT,
+      feltGradeId: 42,
     };
 
     beforeEach(() => {
@@ -813,6 +893,32 @@ describe('AscentsService', () => {
         ).rejects.toThrow(BadRequestException);
       },
     );
+
+    // B7 : un second SENT à la même inclinaison est un repeat (décision du
+    // 2026-10-15). Il ne porte pas de vote, et pas d'évaluation publique non
+    // plus, même si le premier envoi n'en avait pas.
+    describe("sur un envoi qui n'est pas le premier", () => {
+      const repeatSend = { ...sentAscent, feltGradeId: null };
+
+      beforeEach(() => {
+        prismaMock.ascent.findUnique.mockResolvedValue(repeatSend);
+      });
+
+      it('refuse une note publique', async () => {
+        await expect(
+          service.createNote(7, { content: 'x', visibility: 'PUBLIC' }, user),
+        ).rejects.toThrow(
+          'Public notes are only allowed on your first SENT or FLASH ascent.',
+        );
+        expect(prismaMock.ascentNote.create).not.toHaveBeenCalled();
+      });
+
+      it('autorise une note privée', async () => {
+        await expect(
+          service.createNote(7, { content: 'x', visibility: 'PRIVATE' }, user),
+        ).resolves.toBeDefined();
+      });
+    });
 
     it.each([AscentStatus.PROJECT, AscentStatus.REPEAT])(
       'autorise une note privée sur une ascension au statut %s',
