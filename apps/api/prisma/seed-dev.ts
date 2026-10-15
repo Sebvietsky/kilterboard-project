@@ -145,7 +145,11 @@ async function main() {
           attemptsCount: faker.number.int({ min: 1, max: 20 }),
           sendDate:
             status !== 'PROJECT' ? faker.date.recent({ days: 90 }) : null,
-          feltGradeId: status !== 'PROJECT' ? feltGrade.id : null,
+          // Grade ressenti au premier envoi seulement (SENT ou FLASH) : un
+          // REPEAT n'en porte pas. Chaque grimpeur ne passe qu'une fois sur
+          // un bloc ici, cette ascension est donc bien la première.
+          feltGradeId:
+            status === 'SENT' || status === 'FLASH' ? feltGrade.id : null,
           rating:
             status !== 'PROJECT' ? faker.number.int({ min: 1, max: 5 }) : null,
           wasProject: faker.datatype.boolean(0.3),

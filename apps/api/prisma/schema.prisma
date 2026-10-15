@@ -388,6 +388,9 @@ model Ascent {
   // l'historique par séance (date, essais et note de chacune).
   sessionsCount Int @default(1) @map("sessions_count")
 
+  // Grade ressenti = le vote du grimpeur pour la cotation du bloc à cette
+  // inclinaison. Donné une seule fois, au premier envoi (ou à la complétion
+  // du projet) : l'index partiel ci-dessous le garantit en base.
   feltGrade   Grade? @relation("AscentFeltGrade", fields: [feltGradeId], references: [id], onDelete: Restrict)
   feltGradeId Int?   @map("felt_grade_id")
 
@@ -400,6 +403,8 @@ model Ascent {
   ascentNotes    AscentNote[]
   sessionEntries SessionEntry[]
 
+  // Un seul grade ressenti par grimpeur, par bloc et par inclinaison.
+  @@unique([userId, boulderId, angleId], where: { feltGradeId: { not: null } }, map: "ascents_one_felt_grade_per_user_boulder_angle")
   @@map("ascents")
 }
 

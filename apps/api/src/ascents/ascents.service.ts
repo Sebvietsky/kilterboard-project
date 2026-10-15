@@ -100,15 +100,21 @@ export class AscentsService {
         'You already have an active project on this boulder at this angle. Complete it instead of logging a new ascent.',
       );
     }
-    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH) à
-    // cette inclinaison : la difficulté ressentie change avec elle.
-    if (
+    // Grade ressenti au premier envoi (SENT/FLASH) à cette inclinaison, et
+    // seulement là : c'est le vote du grimpeur pour la cotation, un par bloc
+    // et par inclinaison. Obligatoire au premier envoi, refusé partout
+    // ailleurs (envois suivants, projets, REPEAT).
+    const isFirstSend =
       (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
-      !hasAnyAscent &&
-      !dto.feltGradeRank
-    ) {
+      !hasAnyAscent;
+    if (isFirstSend && !dto.feltGradeRank) {
       throw new BadRequestException(
         'Felt grade is required for your first send.',
+      );
+    }
+    if (!isFirstSend && dto.feltGradeRank) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
       );
     }
 
@@ -233,6 +239,20 @@ export class AscentsService {
       throw new BadRequestException("An ascent can't be changed to a flash.");
     }
 
+    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
+    const completesProject =
+      ascent.status === AscentStatus.PROJECT &&
+      dto.status === AscentStatus.SENT;
+
+    // Le grade ressenti est le vote du grimpeur, donné une seule fois. En
+    // PATCH, la seule occasion est la complétion d'un projet : c'est alors le
+    // premier envoi à cette inclinaison.
+    if (dto.feltGradeRank && !completesProject) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+
     // Résolution rank -> Grade.id, comme dans create (rank est @unique).
     let grade: Grade | null = null;
     if (dto.feltGradeRank) {
@@ -251,11 +271,6 @@ export class AscentsService {
         'Felt grade is required to finish a project.',
       );
     }
-
-    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const completesProject =
-      ascent.status === AscentStatus.PROJECT &&
-      dto.status === AscentStatus.SENT;
 
     // Une séance enregistrée ou une complétion est un passage sur le bloc :
     // il figure dans le compte rendu de la session en cours. Modifier une

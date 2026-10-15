@@ -212,7 +212,9 @@ export default function BoulderDetailScreen() {
         angleDegrees: selectedAngle,
         status: selectedStatus,
         attemptsCount: selectedStatus === 'FLASH' ? 1 : attempts,
-        feltGradeRank: selectedStatus === 'PROJECT' ? undefined : feltGradeRank,
+        // Seulement quand le champ est demandé (premier envoi à cette
+        // inclinaison) : l'API refuse un grade ressenti partout ailleurs.
+        feltGradeRank: feltGradeRequired ? feltGradeRank : undefined,
         rating: selectedStatus === 'PROJECT' ? undefined : rating,
         comment: comment.trim() || undefined,
         visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',

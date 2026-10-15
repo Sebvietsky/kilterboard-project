@@ -276,6 +276,32 @@ describe('AscentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // Régression : le grade ressenti était exigé au premier envoi mais jamais
+    // refusé ensuite. Un grimpeur pouvait voter plusieurs fois pour la
+    // cotation d'un bloc à une inclinaison.
+    it.each([AscentStatus.SENT, AscentStatus.REPEAT])(
+      'refuse un grade ressenti sur un %s quand une ascension existe déjà',
+      async (status) => {
+        prismaMock.ascent.findMany.mockResolvedValue([
+          { status: AscentStatus.SENT },
+        ]);
+
+        await expect(
+          service.create({ ...baseDto, status }, user),
+        ).rejects.toThrow(BadRequestException);
+        expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('refuse un grade ressenti sur un projet', async () => {
+      await expect(
+        service.create(
+          { ...baseDto, status: AscentStatus.PROJECT, feltGradeRank: 5 },
+          user,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     // Le client envoie un rank (stable, lisible) ; la base stocke un id.
     it('résout le rank en Grade.id', async () => {
       await service.create(baseDto, user);
@@ -472,6 +498,29 @@ describe('AscentsService', () => {
           user,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // Le vote se donne une fois, à la complétion du projet. Ni une séance de
+    // projet, ni un envoi déjà enregistré ne peuvent en porter un second.
+    it.each([
+      ['une séance de projet', { feltGradeRank: 5, attemptsToAdd: 2 }, project],
+      [
+        'un envoi déjà enregistré',
+        { feltGradeRank: 5 },
+        { ...project, status: AscentStatus.SENT, feltGradeId: 42 },
+      ],
+      [
+        'un REPEAT',
+        { feltGradeRank: 5 },
+        { ...project, status: AscentStatus.REPEAT },
+      ],
+    ])('refuse un grade ressenti sur %s', async (_label, dto, ascent) => {
+      prismaMock.ascent.findUnique.mockResolvedValue(ascent);
+
+      await expect(service.update(7, dto, user)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prismaMock.ascent.update).not.toHaveBeenCalled();
     });
 
     // Le client envoie les essais de SA séance ; le serveur additionne. Un
