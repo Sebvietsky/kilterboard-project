@@ -365,6 +365,87 @@ describe('AscentsService', () => {
         wasProject: false,
       });
     });
+
+    // B9 (décision du 2026-10-15) : un projet se travaille sur un bloc jamais
+    // fait. Après un envoi à cette inclinaison, c'est un repeat.
+    it.each([AscentStatus.SENT, AscentStatus.FLASH])(
+      'refuse un projet après un %s à cette inclinaison',
+      async (status) => {
+        prismaMock.ascent.findMany.mockResolvedValue([{ status }]);
+
+        await expect(service.create(projectDto, user)).rejects.toThrow(
+          'A project can only be opened on your first ascent at this angle.',
+        );
+        expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+      },
+    );
+
+    // La première séance d'un projet : ses essais sont enregistrés à
+    // l'ouverture, et consignés dans la session en cours. Les séances
+    // suivantes passent par PATCH (attemptsToAdd), testé plus bas.
+    it('ouvre un projet avec les essais de sa première séance', async () => {
+      sessionsMock.resolveSessionId.mockResolvedValue(3);
+
+      await service.create({ ...projectDto, attemptsCount: 6 }, user);
+
+      expect(writtenData(prismaMock.ascent.create)).toMatchObject({
+        status: AscentStatus.PROJECT,
+        attemptsCount: 6,
+        sessionEntries: {
+          create: { sessionId: 3, status: AscentStatus.PROJECT, attempts: 6 },
+        },
+      });
+    });
+  });
+
+  describe('create — note', () => {
+    // B10 (décision du 2026-10-15) : la note se donne une fois, au premier
+    // envoi, comme le grade ressenti. Sinon chaque repeat pèserait dans la
+    // moyenne du bloc.
+    it('enregistre la note du premier envoi', async () => {
+      await service.create({ ...baseDto, rating: 4 }, user);
+
+      expect(writtenData(prismaMock.ascent.create)).toMatchObject({
+        rating: 4,
+      });
+    });
+
+    it('refuse une note sur un envoi qui n’est pas le premier', async () => {
+      prismaMock.ascent.findMany.mockResolvedValue([
+        { status: AscentStatus.SENT },
+      ]);
+
+      await expect(
+        service.create(
+          {
+            boulderId: 10,
+            angleDegrees: 40,
+            status: AscentStatus.SENT,
+            rating: 5,
+          },
+          user,
+        ),
+      ).rejects.toThrow(
+        'A rating can only be given on your first send at this angle.',
+      );
+      expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une note sur un projet', async () => {
+      await expect(
+        service.create(
+          {
+            boulderId: 10,
+            angleDegrees: 40,
+            status: AscentStatus.PROJECT,
+            rating: 5,
+          },
+          user,
+        ),
+      ).rejects.toThrow(
+        'A rating can only be given on your first send at this angle.',
+      );
+    });
   });
 
   describe('create — grade ressenti', () => {
@@ -651,17 +732,34 @@ describe('AscentsService', () => {
       );
     });
 
-    // Changer une note n'est pas grimper : rien à consigner, et la session
-    // n'est même pas consultée.
-    it('ne consigne rien sur une simple modification de note', async () => {
-      sessionsMock.resolveSessionId.mockResolvedValue(3);
+    // B10 (décision du 2026-10-15) : la note se donne une fois, au premier
+    // envoi, comme le grade ressenti. En PATCH, seulement à la complétion.
+    it.each([
+      ['une séance de projet', { rating: 4, attemptsToAdd: 2 }, project],
+      [
+        'un envoi déjà enregistré',
+        { rating: 4 },
+        { ...project, status: AscentStatus.SENT, feltGradeId: 42 },
+      ],
+    ])('refuse une note sur %s', async (_label, dto, ascent) => {
+      prismaMock.ascent.findUnique.mockResolvedValue(ascent);
 
-      await service.update(7, { rating: 4 }, user);
-
-      expect(sessionsMock.resolveSessionId).not.toHaveBeenCalled();
-      expect(writtenData(prismaMock.ascent.update)).not.toHaveProperty(
-        'sessionEntries',
+      await expect(service.update(7, dto, user)).rejects.toThrow(
+        'A rating can only be given on your first send at this angle.',
       );
+      expect(prismaMock.ascent.update).not.toHaveBeenCalled();
+    });
+
+    it('enregistre la note donnée à la complétion', async () => {
+      await service.update(
+        7,
+        { status: AscentStatus.SENT, feltGradeRank: 5, rating: 4 },
+        user,
+      );
+
+      expect(writtenData(prismaMock.ascent.update)).toMatchObject({
+        rating: 4,
+      });
     });
 
     // Le client raisonne en rangs, comme sur POST /ascents ; la base stocke
