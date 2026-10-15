@@ -257,9 +257,6 @@ export class AscentsService {
     //   est plus un. C'est le cas d'une complétion renvoyée après une réponse
     //   perdue : le client relit l'état au lieu de réessayer. Une séance sur
     //   un envoi tombe aussi ici.
-    if (dto.status === AscentStatus.FLASH) {
-      throw new BadRequestException("An ascent can't be changed to a flash.");
-    }
     if (dto.status !== undefined && dto.status !== AscentStatus.SENT) {
       throw new BadRequestException(
         `An ascent can't be changed to ${dto.status}.`,
