@@ -48,8 +48,22 @@ export class LikedBoulderDto {
   likedAt!: Date;
 }
 
+// Cotation du bloc à une inclinaison (ligne de `boulder_angles`).
+export class AngleGradeDto {
+  angleDegrees!: number;
+  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  gradeLabel!: string | null;
+  gradeRank!: number | null;
+  votesCount!: number;
+  // Peu de votes, hors inclinaison du créateur.
+  isEstimated!: boolean;
+}
+
 export class BoulderDetailDto extends BoulderSummaryDto {
   description!: string | null;
   holds!: HoldDto[];
   publicNotes!: PublicNoteDto[];
+  // Une entrée par inclinaison, dans l'ordre croissant. `gradeLabel` et
+  // `angleDegrees` au premier niveau restent la référence du créateur.
+  angleGrades!: AngleGradeDto[];
 }

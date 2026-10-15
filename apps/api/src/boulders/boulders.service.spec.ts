@@ -178,10 +178,32 @@ describe('BouldersService', () => {
   });
 
   describe('findOne', () => {
+    // Bloc créé à l'inclinaison 5 (40°), coté V4 par son créateur.
     const detailRow = {
       ...boulderRow,
+      angleId: 5,
       description: 'Sloper exit',
       boulderHolds: [{ role: 'START', hold: { holdCode: 'A1', x: 10, y: 20 } }],
+      boulderAngles: [
+        {
+          angleId: 5,
+          votesCount: 2,
+          angle: { valueDegrees: 40 },
+          grade: { vScale: 'V4', rank: 6 },
+        },
+        {
+          angleId: 7,
+          votesCount: 1,
+          angle: { valueDegrees: 50 },
+          grade: { vScale: 'V6', rank: 8 },
+        },
+        {
+          angleId: 9,
+          votesCount: 0,
+          angle: { valueDegrees: 60 },
+          grade: null,
+        },
+      ],
     };
 
     beforeEach(() => {
@@ -217,6 +239,39 @@ describe('BouldersService', () => {
 
       expect(detail.holds).toEqual([
         { holdCode: 'A1', x: 10, y: 20, role: 'START' },
+      ]);
+    });
+
+    // « Estimée » se déduit : peu de votes, et seulement hors de l'inclinaison
+    // du créateur. Sa ligne garde sa cotation sous le seuil, elle n'est donc
+    // pas une estimation, même avec 2 votes.
+    it('donne la cotation de chaque inclinaison, estimée hors celle du créateur', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(detailRow);
+
+      const detail = await service.findOne(10);
+
+      expect(detail.angleGrades).toEqual([
+        {
+          angleDegrees: 40,
+          gradeLabel: 'V4',
+          gradeRank: 6,
+          votesCount: 2,
+          isEstimated: false,
+        },
+        {
+          angleDegrees: 50,
+          gradeLabel: 'V6',
+          gradeRank: 8,
+          votesCount: 1,
+          isEstimated: true,
+        },
+        {
+          angleDegrees: 60,
+          gradeLabel: null,
+          gradeRank: null,
+          votesCount: 0,
+          isEstimated: false,
+        },
       ]);
     });
   });
@@ -399,22 +454,14 @@ describe('BouldersService', () => {
   });
 
   describe('findMyLikes', () => {
-    // Le bloc a été créé à 40° (angleId 5) en V4.
-    const likedBoulder = {
-      id: 10,
-      name: 'Crimpy',
-      angleId: 5,
-      grade: { vScale: 'V4', rank: 6 },
-    };
-
     it('trie par like le plus récent et aplatit le bloc', async () => {
       const likedAt = new Date();
       prismaMock.boulderLike.findMany.mockResolvedValue([
         {
           createdAt: likedAt,
-          angleId: 5,
           angle: { valueDegrees: 40 },
-          boulder: likedBoulder,
+          boulder: { id: 10, name: 'Crimpy' },
+          boulderAngle: { grade: { vScale: 'V4', rank: 6 } },
         },
       ]);
 
@@ -437,15 +484,15 @@ describe('BouldersService', () => {
       ]);
     });
 
-    // Liké à 50° : la carte rouvre le bloc à 50°, et n'affiche pas le V4 du
-    // créateur, qui ne vaut qu'à 40°.
-    it("renvoie l'inclinaison du like, sans cotation hors de celle du créateur", async () => {
+    // La cotation vient de la ligne du bloc à l'inclinaison du like : non
+    // cotée là, la carte n'affiche pas celle du créateur.
+    it("renvoie la cotation de l'inclinaison du like, null si elle n'est pas cotée", async () => {
       prismaMock.boulderLike.findMany.mockResolvedValue([
         {
           createdAt: new Date(),
-          angleId: 7,
           angle: { valueDegrees: 50 },
-          boulder: likedBoulder,
+          boulder: { id: 10, name: 'Crimpy' },
+          boulderAngle: { grade: null },
         },
       ]);
 
