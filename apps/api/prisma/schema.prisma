@@ -163,6 +163,7 @@ model Angle {
   label        String? @db.VarChar(50) // ex. "Vertical", "Overhang"
 
   boulders         Boulder[]
+  boulderAngles    BoulderAngle[]
   ascents          Ascent[]
   boulderLikes     BoulderLike[]
   playlistBoulders PlaylistBoulder[]
@@ -183,8 +184,9 @@ model Grade {
   fontScale String @unique @db.VarChar(5) // ex. "7A"
   rank      Int    @unique // ordre de difficulté croissante
 
-  boulders Boulder[] @relation("BoulderGrade")
-  ascents  Ascent[]  @relation("AscentFeltGrade")
+  boulders      Boulder[]      @relation("BoulderGrade")
+  boulderAngles BoulderAngle[] @relation("BoulderAngleGrade")
+  ascents       Ascent[]       @relation("AscentFeltGrade")
 
   @@map("grades")
 }
@@ -215,12 +217,44 @@ model Boulder {
 
   boulderHolds     BoulderHold[]
   boulderTags      BoulderTag[]
+  boulderAngles    BoulderAngle[]
   ascents          Ascent[]
   ascentNotes      AscentNote[]
   playlistBoulders PlaylistBoulder[]
   likes            BoulderLike[]
 
   @@map("boulders")
+}
+
+// Un bloc à une inclinaison : « le même bloc à une autre inclinaison est un
+// autre bloc ». Association entre Boulder et Angle, identifiée par le couple
+// (boulderId, angleId) et porteuse de la cotation effective à cette inclinaison.
+//
+// Une ligne par inclinaison de la table `angles`, toutes créées avec le bloc :
+// les ascensions, favoris et entrées de playlist y pointent par une clé
+// étrangère composée, qui exige que la ligne existe déjà.
+//
+// `gradeId` : cotation effective. Celle du créateur sur sa ligne jusqu'au seuil
+// de votes, puis la médiane des votes ; null ailleurs tant que personne n'y a
+// envoyé le bloc. `votesCount` : un vote = le grade ressenti du premier envoi
+// d'un grimpeur à cette inclinaison. « Estimée » ne se stocke pas, elle se
+// déduit (peu de votes, hors inclinaison du créateur).
+// La cotation et l'inclinaison du créateur restent sur `boulders`, en référence.
+model BoulderAngle {
+  boulderId  Int     @map("boulder_id")
+  boulder    Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId    Int     @map("angle_id")
+  angle      Angle   @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  gradeId    Int?    @map("grade_id")
+  grade      Grade?  @relation("BoulderAngleGrade", fields: [gradeId], references: [id], onDelete: Restrict)
+  votesCount Int     @default(0) @map("votes_count")
+
+  ascents          Ascent[]
+  likes            BoulderLike[]
+  playlistBoulders PlaylistBoulder[]
+
+  @@id([boulderId, angleId])
+  @@map("boulder_angles")
 }
 
 // Table de jonction entre un bloc et ses prises.
@@ -336,8 +370,11 @@ model Ascent {
   // Inclinaison à laquelle le bloc a été grimpé, pas celle de sa création :
   // le même bloc à 40° et à 45° donne deux réussites distinctes. Toujours
   // envoyée par le client, jamais devinée : sans BLE, seul l'écran la connaît.
-  angleId Int   @map("angle_id")
-  angle   Angle @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison : la clé composée garantit que la ligne existe,
+  // et donne accès à la cotation effective.
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
 
   status        AscentStatus
   attemptsCount Int          @default(0) @map("attempts_count")
@@ -426,14 +463,16 @@ model Playlist {
 // Clé composite (boulderId, playlistId, angleId) : un bloc n'apparaît qu'une fois
 // par playlist et par inclinaison. Le même bloc à deux inclinaisons fait deux entrées.
 model PlaylistBoulder {
-  boulder    Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  boulderId  Int      @map("boulder_id")
-  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
-  playlistId Int      @map("playlist_id")
-  angle      Angle    @relation(fields: [angleId], references: [id], onDelete: Restrict)
-  angleId    Int      @map("angle_id")
-  position   Int? // Ordre d'affichage dans la playlist, null = non ordonné
-  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  playlist     Playlist     @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  playlistId   Int          @map("playlist_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  angleId      Int          @map("angle_id")
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  position     Int? // Ordre d'affichage dans la playlist, null = non ordonné
+  addedAt      DateTime     @default(now()) @map("added_at") @db.Timestamptz
 
   @@id([boulderId, playlistId, angleId])
   @@map("playlist_boulders")
@@ -444,13 +483,15 @@ model PlaylistBoulder {
 // inclinaison. Le même bloc liké à deux inclinaisons fait deux favoris.
 // `createdAt` sert à trier les blocs likés, du plus récent au plus ancien.
 model BoulderLike {
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boulderId Int      @map("boulder_id")
-  boulder   Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  angleId   Int      @map("angle_id")
-  angle     Angle    @relation(fields: [angleId], references: [id], onDelete: Restrict)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  userId       Int          @map("user_id")
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
 
   @@id([userId, boulderId, angleId])
   @@map("boulder_likes")
