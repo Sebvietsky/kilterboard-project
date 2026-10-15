@@ -1,6 +1,6 @@
 # Inclinaison d'un bloc — conception
 
-Discuté et décidé le 2026-10-12. Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le raisonnement et le découpage. Rien n'est implémenté.
+Discuté et décidé le 2026-10-12, complété le 2026-10-15. Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le raisonnement et le découpage. Étape 1 faite (#66).
 
 ## Le besoin
 
@@ -19,7 +19,7 @@ Un envoi à 60° et un envoi à 55° du même bloc sont deux réussites distinct
 
 - Dans l'en-tête du détail d'un bloc : l'inclinaison seule (« 60° »), cliquable. La cotation reste dans l'écran.
 - Choix local à l'écran. Il ne modifie jamais le filtre d'Explore, que le filtre soit vide ou déjà posé sur une inclinaison.
-- À l'ouverture : la dernière inclinaison choisie par l'utilisateur (sa board y est probablement encore), sinon celle du filtre d'Explore, sinon celle du créateur.
+- À l'ouverture : l'inclinaison du lien, c'est-à-dire du contexte d'où l'on vient (carte d'Explore, ascension d'un projet ou d'un passage, et à terme favori ou entrée de playlist), sinon celle du créateur. Écarté le 2026-10-15 : « la dernière inclinaison choisie », qui demandait un état global et contredisait le contexte du lien.
 - Écarté : un réglage global « inclinaison de ma board » avec avertissement quand on en sort. Trop lourd, et sans BLE l'app ne connaît pas l'inclinaison réelle.
 
 ## Cotation par inclinaison
@@ -62,4 +62,4 @@ La table est un résultat précalculé, pas une information nouvelle : la média
 - Naissance de la ligne `boulder_angle_grades` aux inclinaisons autres que celle du créateur. Deux options à comparer avant l'étape 2 :
   - au premier vote (proposition de l'agent) : la cotation n'est jamais vide, mais un projet ouvert à cette inclinaison n'a pas de ligne ;
   - au premier essai (proposition de Seb) : la ligne existe dès qu'on y touche, avec 0 vote et une cotation vide, et l'ascension pourrait s'y rattacher directement au lieu de porter `boulder_id` et l'inclinaison. Coût : une cotation nullable, et une jointure de plus pour « mes ascensions sur ce bloc ».
-- Playlists : une playlist reste une liste de blocs sans inclinaison (décidé le 2026-10-12). Une fois l'inclinaison en place, un sélecteur unique pour toute la playlist est une piste, puisqu'on ne change pas l'inclinaison de la board en cours de playlist.
+- Playlists : pas de verrouillage à une inclinaison. Chaque entrée porte la sienne (décidé le 2026-10-15, branche `feature/angle-collections`).
