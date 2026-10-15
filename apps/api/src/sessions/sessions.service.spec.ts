@@ -17,6 +17,7 @@ const prismaMock = {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    findMany: jest.fn(),
   },
 };
 
@@ -290,6 +291,21 @@ describe('SessionsService', () => {
         where: { id: 42 },
         data: { endedAt: startedAt },
       });
+    });
+  });
+
+  describe('getMySessions', () => {
+    // L'historique est personnel : le filtre sur l'utilisateur est la seule
+    // chose qui empêche d'y voir les sessions des autres.
+    it("ne lit que les sessions de l'utilisateur", async () => {
+      prismaMock.boardSession.findMany.mockResolvedValue([]);
+
+      await service.getMySessions(user.userId);
+
+      const [arg] = prismaMock.boardSession.findMany.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({ userId: user.userId });
     });
   });
 

@@ -33,12 +33,18 @@ const prismaMock = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn(),
   },
   ascentNote: { findFirst: jest.fn(), create: jest.fn() },
-  // La transaction exécute son callback avec le client lui-même : les
-  // écritures faites « dans la transaction » restent lisibles sur prismaMock.
   $transaction: jest.fn(),
 };
+
+// Le client que reçoit le callback de la transaction. Un objet distinct de
+// prismaMock, sinon un appel à `this.prisma` au lieu de `tx` passerait
+// inaperçu. Ses fonctions sont celles de prismaMock : les écritures restent
+// lisibles au même endroit, et `mock.contexts` dit par quel client elles sont
+// passées. L'atomicité elle-même ne se prouve qu'en e2e.
+const txMock = { ...prismaMock, ascent: { ...prismaMock.ascent } };
 
 // La résolution de la session (implicite, explicite, zombie) appartient à
 // SessionsService et y est testée. Ici on vérifie seulement ce que l'ascension
@@ -90,7 +96,7 @@ describe('AscentsService', () => {
     prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 40°
     prismaMock.ascent.create.mockResolvedValue({ id: 99 });
     prismaMock.$transaction.mockImplementation(
-      (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock),
+      (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
     );
     sessionsMock.resolveSessionId.mockResolvedValue(null); // hors session
   });
@@ -101,13 +107,25 @@ describe('AscentsService', () => {
       async (status) => {
         await service.create({ ...baseDto, status, attemptsCount: 1 }, user);
 
-        expect(recomputeMock).toHaveBeenCalledWith(prismaMock, 10, 7);
+        // `toBe` et non `toHaveBeenCalledWith`, qui compare par contenu :
+        // txMock a le même contenu que prismaMock, seule l'identité diffère.
+        const [client, boulderId, angleId] = recomputeMock.mock.calls[0];
+        expect(client).toBe(txMock);
+        expect([boulderId, angleId]).toEqual([10, 7]);
         // Après l'écriture de l'ascension : sinon le nouveau vote n'est pas lu.
         expect(
           prismaMock.ascent.create.mock.invocationCallOrder[0],
         ).toBeLessThan(recomputeMock.mock.invocationCallOrder[0]);
       },
     );
+
+    // Le vote et son recalcul dans la même transaction : l'ascension doit être
+    // écrite par le client de la transaction, pas par le client global.
+    it("écrit l'ascension par le client de la transaction", async () => {
+      await service.create(baseDto, user);
+
+      expect(prismaMock.ascent.create.mock.contexts[0]).toBe(txMock.ascent);
+    });
 
     it("ne recalcule rien sur un envoi qui n'est pas le premier", async () => {
       prismaMock.ascent.findMany.mockResolvedValue([
@@ -165,7 +183,10 @@ describe('AscentsService', () => {
           user,
         );
 
-        expect(recomputeMock).toHaveBeenCalledWith(prismaMock, 10, 3);
+        const [client, boulderId, angleId] = recomputeMock.mock.calls[0];
+        expect(client).toBe(txMock);
+        expect([boulderId, angleId]).toEqual([10, 3]);
+        expect(prismaMock.ascent.update.mock.contexts[0]).toBe(txMock.ascent);
       });
 
       it('ne recalcule rien sur une séance de projet', async () => {
@@ -273,14 +294,20 @@ describe('AscentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // Sans grade ressenti, et assertion sur le message : avec un grade, le
+    // refus du grade hors premier envoi levait la même exception, et le test
+    // restait vert sans la règle du flash.
     it("rejette un flash sur un bloc où l'utilisateur a déjà une ascension", async () => {
       prismaMock.ascent.findMany.mockResolvedValue([
         { status: AscentStatus.SENT },
       ]);
 
-      await expect(service.create(flashDto, user)).rejects.toThrow(
-        BadRequestException,
+      await expect(
+        service.create({ ...flashDto, feltGradeRank: undefined }, user),
+      ).rejects.toThrow(
+        'Flash is only possible on your first ascent at this angle.',
       );
+      expect(prismaMock.ascent.create).not.toHaveBeenCalled();
     });
 
     // Régression : un SENT en 1 essai était promu en FLASH juste avant
@@ -312,18 +339,22 @@ describe('AscentsService', () => {
       );
     });
 
-    it.each([AscentStatus.FLASH, AscentStatus.SENT])(
-      "rejette un %s tant qu'un projet est actif (à terminer via PATCH)",
-      async (status) => {
-        prismaMock.ascent.findMany.mockResolvedValue([
-          { status: AscentStatus.PROJECT },
-        ]);
+    // SENT seulement, sans grade ressenti : un FLASH est déjà refusé par la
+    // règle du flash (le projet est une ascension), et un grade par celle du
+    // grade ressenti. Le message dit quelle règle a refusé.
+    it("rejette un SENT tant qu'un projet est actif (à terminer via PATCH)", async () => {
+      prismaMock.ascent.findMany.mockResolvedValue([
+        { status: AscentStatus.PROJECT },
+      ]);
 
-        await expect(
-          service.create({ ...baseDto, status, attemptsCount: 1 }, user),
-        ).rejects.toThrow(BadRequestException);
-      },
-    );
+      await expect(
+        service.create(
+          { boulderId: 10, angleDegrees: 40, status: AscentStatus.SENT },
+          user,
+        ),
+      ).rejects.toThrow('Complete it instead of logging a new ascent.');
+      expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+    });
 
     it("laisse sendDate à null et n'exige pas de grade ressenti", async () => {
       await service.create(projectDto, user);
@@ -489,17 +520,6 @@ describe('AscentsService', () => {
       await expect(
         service.update(7, { status: AscentStatus.SENT }, user),
       ).rejects.toThrow(BadRequestException);
-    });
-
-    it("accepte le grade déjà présent sur l'ascension", async () => {
-      prismaMock.ascent.findUnique.mockResolvedValue({
-        ...project,
-        feltGradeId: 42,
-      });
-
-      await expect(
-        service.update(7, { status: AscentStatus.SENT }, user),
-      ).resolves.toBeDefined();
     });
 
     it('marque wasProject et pose sendDate à la complétion', async () => {
@@ -668,7 +688,38 @@ describe('AscentsService', () => {
           { status: AscentStatus.SENT, feltGradeRank: 5 },
           user,
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.ascent.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // Les ascensions et leurs notes privées n'appartiennent qu'à leur auteur :
+  // le filtre sur l'utilisateur est la seule chose qui l'assure.
+  describe('lecture de mes ascensions', () => {
+    beforeEach(() => {
+      prismaMock.ascent.count.mockResolvedValue(0);
+    });
+
+    it("ne lit que les ascensions de l'utilisateur, et le total aussi", async () => {
+      await service.findMyAscents(user.userId, {});
+
+      const [list] = prismaMock.ascent.findMany.mock.calls[0] as [
+        { where: unknown },
+      ];
+      const [count] = prismaMock.ascent.count.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(list.where).toEqual({ userId: user.userId });
+      expect(count.where).toEqual({ userId: user.userId });
+    });
+
+    it("ne lit sur un bloc que les ascensions de l'utilisateur", async () => {
+      await service.findMyAscentOnBoulder(user.userId, 10);
+
+      const [arg] = prismaMock.ascent.findMany.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({ userId: user.userId, boulderId: 10 });
     });
   });
 
