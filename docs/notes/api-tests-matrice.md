@@ -20,7 +20,7 @@ Abréviations :
 | Flash = 1 essai | CdC | S | asc › rejette un flash annoncé en n essais | M07 tuée | — |
 | Projet seulement au premier contact à cette inclinaison (donc un seul ouvert) | DEC, Seb 2026-10-15 (B9) | S | asc › rejette un second projet actif ; refuse un projet après un SENT/FLASH ; ouvre un projet avec les essais de sa première séance | F08 tuée | — (B9 corrigé) |
 | Projet actif : pas de SENT par POST | CdC §4.2 | S | asc › rejette un SENT tant qu'un projet est actif | M08 tuée (masquée avant 2ec45eb) | — |
-| Après un envoi : un second SENT est un repeat (statut REPEAT inutilisé dans le MVP) | Seb 2026-10-15 (B6) | S | asc › « ne l'exige plus quand une ascension existe » | — | REPEAT sans envoi : à trancher |
+| Après un envoi : un second SENT est un repeat (statut REPEAT inutilisé dans le MVP) | Seb 2026-10-15 (B6) | S | asc › « ne l'exige plus quand une ascension existe » | — | — (REPEAT refusé en création par le DTO : asc.dto › refuse REPEAT, F11 tuée) |
 | Grade ressenti obligatoire au premier envoi | CL | S | asc › exige un grade ressenti au premier % | M05 tuée | — |
 | Note (étoiles) seulement au premier envoi, comme le grade ressenti | Seb 2026-10-15 (B10) | S | asc › create — note ; refuse une note sur… (update) | F09, F10 tuées | unicité en base : non garantie (pas d'index) |
 | Grade ressenti refusé ailleurs | 3371a76 | S | asc › refuse un grade ressenti sur… (create et update) | M04, M11 tuées | un seul grade par grimpeur en base : e2e |
