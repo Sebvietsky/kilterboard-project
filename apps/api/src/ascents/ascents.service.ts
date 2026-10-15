@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
@@ -245,18 +246,35 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Le flash atteste d'une réussite au premier contact avec le bloc : c'est
-    // un fait établi à la création, jamais un état qu'on atteint par la suite.
-    // Aucune transition ne mène donc à FLASH — pas même la complétion d'un
-    // projet, qui prouve précisément le contraire.
+    // Transitions en liste blanche : la seule est PROJECT -> SENT, la
+    // complétion. Tout ce qui n'est pas prévu est refusé, y compris un statut
+    // ajouté plus tard. Deux refus distincts :
+    // - 400 : la cible n'est jamais valide. Le flash atteste d'une réussite au
+    //   premier contact, un fait de création qu'aucune transition n'atteint ;
+    //   un envoi ne redevient pas projet (il pourrait être supprimé, et son
+    //   vote avec) ; un projet ne se termine pas en REPEAT (sans grade).
+    // - 409 : la demande aurait réussi sur un projet, mais l'ascension n'en
+    //   est plus un. C'est le cas d'une complétion renvoyée après une réponse
+    //   perdue : le client relit l'état au lieu de réessayer. Une séance sur
+    //   un envoi tombe aussi ici.
     if (dto.status === AscentStatus.FLASH) {
       throw new BadRequestException("An ascent can't be changed to a flash.");
     }
+    if (dto.status !== undefined && dto.status !== AscentStatus.SENT) {
+      throw new BadRequestException(
+        `An ascent can't be changed to ${dto.status}.`,
+      );
+    }
+    if (
+      (dto.status !== undefined || dto.attemptsToAdd !== undefined) &&
+      ascent.status !== AscentStatus.PROJECT
+    ) {
+      throw new ConflictException('This ascent is no longer a project.');
+    }
 
-    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const completesProject =
-      ascent.status === AscentStatus.PROJECT &&
-      dto.status === AscentStatus.SENT;
+    // Après les gardes ci-dessus, un statut fourni est forcément une
+    // complétion.
+    const completesProject = dto.status === AscentStatus.SENT;
 
     // Le grade ressenti est le vote du grimpeur, donné une seule fois. En
     // PATCH, la seule occasion est la complétion d'un projet : c'est alors le
@@ -278,9 +296,9 @@ export class AscentsService {
       }
     }
 
-    // Grade ressenti obligatoire pour clore un projet — sauf s'il en porte
-    // déjà un.
-    if (dto.status === AscentStatus.SENT && !grade && !ascent.feltGradeId) {
+    // Grade ressenti obligatoire pour clore un projet. Un projet n'en porte
+    // jamais (refusé à la création depuis 3371a76) : il vient de la requête.
+    if (completesProject && !grade) {
       throw new BadRequestException(
         'Felt grade is required to finish a project.',
       );
@@ -360,12 +378,16 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Règle métier : 1 seule note publique par user par bloc (premier SENT ou FLASH uniquement)
-    // Les REPEAT ne peuvent avoir que des notes privées
+    // Règle métier : le commentaire public est l'évaluation du bloc, donnée
+    // une fois, au premier envoi à cette inclinaison (FLASH, SENT ou projet
+    // terminé). Ensuite, notes privées seulement : un second SENT est un
+    // repeat. Le premier envoi se reconnaît à son vote : le grade ressenti
+    // y est obligatoire et refusé partout ailleurs.
     if (
       dto.visibility === 'PUBLIC' &&
-      ascent.status !== AscentStatus.SENT &&
-      ascent.status !== AscentStatus.FLASH
+      ((ascent.status !== AscentStatus.SENT &&
+        ascent.status !== AscentStatus.FLASH) ||
+        ascent.feltGradeId === null)
     ) {
       throw new BadRequestException(
         'Public notes are only allowed on your first SENT or FLASH ascent.',
