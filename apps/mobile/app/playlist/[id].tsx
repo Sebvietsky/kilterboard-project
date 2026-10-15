@@ -11,7 +11,7 @@ import {
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { X } from 'lucide-react-native';
-import { EditPlaylistSheet } from '@/components/playlists/EditPlaylistSheet';
+import { PlaylistFormSheet } from '@/components/playlists/PlaylistFormSheet';
 import {
   useDeletePlaylist,
   usePlaylist,
@@ -209,7 +209,7 @@ export default function PlaylistDetailScreen() {
           ) : null
         }
       />
-      <EditPlaylistSheet
+      <PlaylistFormSheet
         key={editOpenCount}
         playlist={data}
         visible={editOpen}
@@ -228,8 +228,26 @@ function BoulderRow({
 }) {
   const { boulder } = item;
 
+  // Croix à gauche, puis la même disposition que les cartes de Liked et
+  // d'Explore : nom et inclinaison à gauche, cotation au bord droit.
   return (
     <View style={styles.row}>
+      {onRemove ? (
+        <Pressable
+          onPress={onRemove}
+          hitSlop={spacing.md}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${boulder.name} from playlist`}
+        >
+          <X size={ICON_SIZE} color={colors.textSubtle} />
+        </Pressable>
+      ) : null}
+      <View style={styles.rowText}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {boulder.name}
+        </Text>
+        <Text style={styles.rowMeta}>{boulder.angleDegrees}°</Text>
+      </View>
       {/* Cotation à l'inclinaison de l'entrée : non cotée, la ligne le dit
           plutôt que d'afficher celle du créateur. */}
       {boulder.vScale !== null ? (
@@ -241,22 +259,6 @@ function BoulderRow({
           <Text style={styles.ungradedText}>Not graded</Text>
         </View>
       )}
-      <View style={styles.rowText}>
-        <Text style={styles.rowName} numberOfLines={1}>
-          {boulder.name}
-        </Text>
-        <Text style={styles.rowMeta}>{boulder.angleDegrees}°</Text>
-      </View>
-      {onRemove ? (
-        <Pressable
-          onPress={onRemove}
-          hitSlop={spacing.md}
-          accessibilityRole="button"
-          accessibilityLabel={`Remove ${boulder.name} from playlist`}
-        >
-          <X size={ICON_SIZE} color={colors.textSubtle} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }

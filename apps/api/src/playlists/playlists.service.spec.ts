@@ -142,6 +142,17 @@ describe('PlaylistsService', () => {
       _count: { playlistBoulders: 2 },
     };
 
+    it('trie de la plus récente à la plus ancienne', async () => {
+      prismaMock.playlist.findMany.mockResolvedValue([]);
+
+      await service.findMine(user);
+
+      const [arg] = prismaMock.playlist.findMany.mock.calls[0] as [
+        { orderBy: unknown },
+      ];
+      expect(arg.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }]);
+    });
+
     it("n'expose pas containsBoulder quand aucun bloc n'est demandé", async () => {
       prismaMock.playlist.findMany.mockResolvedValue([row]);
 

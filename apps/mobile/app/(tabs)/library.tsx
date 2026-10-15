@@ -9,7 +9,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { PlaylistFormSheet } from '@/components/playlists/PlaylistFormSheet';
 import { useMyProjects } from '@/lib/ascents/queries';
 import { useMyPlaylists } from '@/lib/playlists/queries';
 import { useMyLikedBoulders } from '@/lib/boulders/queries';
@@ -20,6 +22,10 @@ import type { BoulderLiked } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
 type Segment = 'projects' | 'playlists' | 'liked';
+
+// Bouton de création : rond de 56 pt, la taille d'usage d'un bouton flottant.
+const FAB_SIZE = spacing.xxxl + spacing.sm;
+const FAB_ICON_SIZE = spacing.xl + spacing.xs;
 
 const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'projects', label: 'Projects' },
@@ -100,31 +106,57 @@ function ProjectsList() {
 function PlaylistsList() {
   const router = useRouter();
   const playlists = useMyPlaylists();
+  // Compteur et non booléen : il sert aussi de `key` à la feuille, qui repart
+  // ainsi d'un formulaire vide à chaque ouverture.
+  const [createOpenCount, setCreateOpenCount] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <ListState
-      query={playlists}
-      emptyLabel="No playlists yet."
-      emptyHint="Playlists you create will show up here."
-    >
-      <FlatList
-        data={playlists.data}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/playlist/${item.id}`)}>
-            <PlaylistRow playlist={item} />
-          </Pressable>
-        )}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={playlists.isRefetching}
-            onRefresh={playlists.refetch}
-            tintColor={colors.primary}
-          />
-        }
+    <View style={styles.fill}>
+      <ListState
+        query={playlists}
+        emptyLabel="No playlists yet."
+        emptyHint="Tap + to create your first playlist."
+      >
+        <FlatList
+          data={playlists.data}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <Pressable onPress={() => router.push(`/playlist/${item.id}`)}>
+              <PlaylistRow playlist={item} />
+            </Pressable>
+          )}
+          contentContainerStyle={[styles.listContent, styles.listContentFab]}
+          refreshControl={
+            <RefreshControl
+              refreshing={playlists.isRefetching}
+              onRefresh={playlists.refetch}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      </ListState>
+
+      {/* Hors de ListState : le bouton reste là quand la liste est vide,
+          c'est même là qu'il sert le plus. */}
+      <Pressable
+        onPress={() => {
+          setCreateOpenCount((count) => count + 1);
+          setCreateOpen(true);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="New playlist"
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+      >
+        <Plus size={FAB_ICON_SIZE} color={colors.textOnPrimary} />
+      </Pressable>
+
+      <PlaylistFormSheet
+        key={createOpenCount}
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
       />
-    </ListState>
+    </View>
   );
 }
 
@@ -329,6 +361,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  fill: {
+    flex: 1,
+  },
+  // Place pour le bouton flottant : la dernière carte doit pouvoir remonter
+  // au-dessus de lui, sinon il en masque le bas.
+  listContentFab: {
+    paddingBottom: FAB_SIZE + spacing.xxl,
+  },
+  fab: {
+    position: 'absolute',
+    right: spacing.lg,
+    bottom: spacing.lg,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.card,
+  },
+  fabPressed: {
+    backgroundColor: colors.primaryPressed,
   },
   centered: {
     flex: 1,
