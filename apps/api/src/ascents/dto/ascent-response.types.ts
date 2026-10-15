@@ -9,6 +9,7 @@ export type AscentWithDetails = Prisma.AscentGetPayload<{
         angle: { select: { valueDegrees: true } };
       };
     };
+    angle: { select: { valueDegrees: true } };
     feltGrade: { select: { vScale: true; fontScale: true } };
     ascentNotes: true;
   };
@@ -16,6 +17,7 @@ export type AscentWithDetails = Prisma.AscentGetPayload<{
 
 export type AscentWithBoulderDetails = Prisma.AscentGetPayload<{
   include: {
+    angle: { select: { valueDegrees: true } };
     feltGrade: { select: { vScale: true; fontScale: true } };
     ascentNotes: true;
   };

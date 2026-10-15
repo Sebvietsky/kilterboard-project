@@ -43,10 +43,26 @@ export class AscentsService {
     if (!boulder.isPublic || boulder.isDraft)
       throw new NotFoundException('Boulder not found');
 
-    // On récupère l'historique du user sur ce bloc pour sécuriser les règles
-    // métier, en une seule requête.
+    // Résolution degrés -> Angle.id, comme le rank du grade ressenti
+    // (valueDegrees est @unique ; inclinaison inconnue -> 400).
+    const angle = await this.prisma.angle.findUnique({
+      where: { valueDegrees: dto.angleDegrees },
+      select: { id: true },
+    });
+    if (!angle) {
+      throw new BadRequestException('Invalid angle.');
+    }
+
+    // On récupère l'historique du user sur ce bloc À CETTE INCLINAISON pour
+    // sécuriser les règles métier, en une seule requête. Le filtre suffit à
+    // rendre toutes les règles ci-dessous « par bloc et par inclinaison » :
+    // un envoi à 40° ne compte pas à 45°.
     const myAscents = await this.prisma.ascent.findMany({
-      where: { userId: user.userId, boulderId: dto.boulderId },
+      where: {
+        userId: user.userId,
+        boulderId: dto.boulderId,
+        angleId: angle.id,
+      },
       select: { status: true },
     });
     const hasAnyAscent = myAscents.length > 0;
@@ -54,10 +70,11 @@ export class AscentsService {
       (a) => a.status === AscentStatus.PROJECT,
     );
 
-    // Flash n'est possible qu'au tout premier contact avec le bloc.
+    // Flash n'est possible qu'au tout premier contact avec le bloc, à cette
+    // inclinaison.
     if (dto.status === AscentStatus.FLASH && hasAnyAscent) {
       throw new BadRequestException(
-        'Flash is only possible on your first ascent.',
+        'Flash is only possible on your first ascent at this angle.',
       );
     }
     // Un flash est par définition réussi au premier essai. Le statut portant
@@ -71,10 +88,10 @@ export class AscentsService {
         'A flash is a first-attempt send: attempts must be 1.',
       );
     }
-    // Un seul projet actif par bloc.
+    // Un seul projet actif par bloc et par inclinaison.
     if (dto.status === AscentStatus.PROJECT && hasActiveProject) {
       throw new BadRequestException(
-        'You already have an active project on this boulder.',
+        'You already have an active project on this boulder at this angle.',
       );
     }
     // Tant qu'un projet est actif, on le termine par PATCH sur l'ascension
@@ -86,10 +103,11 @@ export class AscentsService {
       hasActiveProject
     ) {
       throw new BadRequestException(
-        'You already have an active project on this boulder. Complete it instead of logging a new ascent.',
+        'You already have an active project on this boulder at this angle. Complete it instead of logging a new ascent.',
       );
     }
-    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH).
+    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH) à
+    // cette inclinaison : la difficulté ressentie change avec elle.
     if (
       (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
       !hasAnyAscent &&
@@ -119,6 +137,7 @@ export class AscentsService {
       data: {
         userId: user.userId,
         boulderId: dto.boulderId,
+        angleId: angle.id,
         status: dto.status,
         attemptsCount,
         feltGradeId: grade?.id ?? null,
@@ -158,6 +177,9 @@ export class AscentsService {
               angle: { select: { valueDegrees: true } },
             },
           },
+          // Inclinaison de l'ascension, à ne pas confondre avec
+          // `boulder.angle`, celle de la création du bloc.
+          angle: { select: { valueDegrees: true } },
           feltGrade: { select: { vScale: true, fontScale: true } },
           ascentNotes: {
             where: { userId },
@@ -188,6 +210,9 @@ export class AscentsService {
     return await this.prisma.ascent.findMany({
       where: { userId, boulderId },
       include: {
+        // Toutes les inclinaisons d'un coup : le mobile filtre sur celle du
+        // sélecteur, et en changer ne relance pas de requête.
+        angle: { select: { valueDegrees: true } },
         feltGrade: { select: { vScale: true, fontScale: true } },
         ascentNotes: { where: { userId } },
       },

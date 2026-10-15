@@ -138,6 +138,7 @@ async function main() {
         data: {
           userId: user.id,
           boulderId: boulder.id,
+          angleId: boulder.angleId,
           status,
           attemptsCount: faker.number.int({ min: 1, max: 20 }),
           sendDate:
