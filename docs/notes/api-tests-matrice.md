@@ -2,7 +2,7 @@
 
 Tenue selon le protocole de `docs/notes/api-tests.md` (§7). Une ligne par règle. Mise à jour dans la PR qui change la règle ou ses tests.
 
-Dernière passe complète : 2026-10-15, sur `feature/community-grade` (69394b6) et `chore/api-tests-audit`. 80 mutations (M = services, C = cotation, A = messages d'auth, D = DTO, F = correctifs de `fix/ascent-status-transitions`), toutes tuées, sauf M19 (seuil exact des 2 h). M10 et M12 ont disparu avec la réécriture de `update` (remplacées par F01 et F07).
+Dernière passe complète : 2026-10-15, sur `feature/community-grade` (69394b6) et `chore/api-tests-audit`. 83 mutations (M = services, C = cotation, A = messages d'auth, D = DTO, F = correctifs de `fix/ascent-status-transitions`), toutes tuées, sauf M19 (seuil exact des 2 h). M03, M10 et M12 ont disparu avec la réécriture de leurs lignes (remplacées par F08, F01 et F07).
 
 Abréviations :
 - Sources : CdC = cahier des charges ; DEC = `DECISIONS.md` ; CL = `CLAUDE.md` > Règles métier ; code = commentaire de code seulement, règle à faire consigner.
@@ -18,10 +18,11 @@ Abréviations :
 | Règles par bloc ET par inclinaison | DEC 10-15 | S | asc › ne lit l'historique qu'à l'inclinaison demandée | M01 tuée | — |
 | Flash seulement au premier contact | CdC, DEC | S | asc › rejette un flash sur un bloc… | M02 tuée (masquée avant 2ec45eb) | — |
 | Flash = 1 essai | CdC | S | asc › rejette un flash annoncé en n essais | M07 tuée | — |
-| Un projet ouvert par bloc et inclinaison | DEC | S | asc › rejette un second projet actif | M03 tuée | — |
+| Projet seulement au premier contact à cette inclinaison (donc un seul ouvert) | DEC, Seb 2026-10-15 (B9) | S | asc › rejette un second projet actif ; refuse un projet après un SENT/FLASH ; ouvre un projet avec les essais de sa première séance | F08 tuée | — (B9 corrigé) |
 | Projet actif : pas de SENT par POST | CdC §4.2 | S | asc › rejette un SENT tant qu'un projet est actif | M08 tuée (masquée avant 2ec45eb) | — |
-| Après un envoi : un second SENT est un repeat (statut REPEAT inutilisé dans le MVP) | Seb 2026-10-15 (B6) | S | asc › « ne l'exige plus quand une ascension existe » | — | B9 (projet ouvert après un envoi) et REPEAT sans envoi : à trancher |
+| Après un envoi : un second SENT est un repeat (statut REPEAT inutilisé dans le MVP) | Seb 2026-10-15 (B6) | S | asc › « ne l'exige plus quand une ascension existe » | — | REPEAT sans envoi : à trancher |
 | Grade ressenti obligatoire au premier envoi | CL | S | asc › exige un grade ressenti au premier % | M05 tuée | — |
+| Note (étoiles) seulement au premier envoi, comme le grade ressenti | Seb 2026-10-15 (B10) | S | asc › create — note ; refuse une note sur… (update) | F09, F10 tuées | unicité en base : non garantie (pas d'index) |
 | Grade ressenti refusé ailleurs | 3371a76 | S | asc › refuse un grade ressenti sur… (create et update) | M04, M11 tuées | un seul grade par grimpeur en base : e2e |
 | Transitions PATCH : projet → SENT uniquement ; 400 si la cible n'est jamais valide, 409 si l'ascension n'est plus un projet | CdC §4.2, Seb 2026-10-15 | S | asc › transitions de statut ; refuse tout passage à FLASH | F01, F02, F04 tuées | — (B1, B2 corrigés) |
 | Complétion : grade, `wasProject`, `sendDate` | CdC | S | asc › update | F07 tuée | — |
