@@ -56,6 +56,9 @@ const SESSION_DETAIL = {
           id: true,
           boulderId: true,
           wasProject: true,
+          // Inclinaison du passage, celle à laquelle rouvrir le bloc ;
+          // `boulder.angle` n'est que celle de sa création.
+          angle: { select: { valueDegrees: true } },
           boulder: {
             select: {
               name: true,

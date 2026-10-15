@@ -139,6 +139,9 @@ export class UsersService {
     return this.prisma.ascent.findMany({
       where: { userId, status: 'PROJECT' },
       include: {
+        // Un projet est ouvert À une inclinaison ; `boulder.angle` n'est que
+        // celle de la création du bloc.
+        angle: { select: { valueDegrees: true } },
         boulder: {
           select: {
             name: true,
