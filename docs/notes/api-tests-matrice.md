@@ -2,7 +2,7 @@
 
 Tenue selon le protocole de `docs/notes/api-tests.md` (§7). Une ligne par règle. Mise à jour dans la PR qui change la règle ou ses tests.
 
-Dernière passe complète : 2026-10-15, sur `feature/community-grade` (69394b6) et `chore/api-tests-audit`. 73 mutations (M = services, C = cotation, A = messages d'auth, D = DTO), toutes tuées après correction des tests, sauf M19 (seuil exact des 2 h).
+Dernière passe complète : 2026-10-15, sur `feature/community-grade` (69394b6) et `chore/api-tests-audit`. 80 mutations (M = services, C = cotation, A = messages d'auth, D = DTO, F = correctifs de `fix/ascent-status-transitions`), toutes tuées, sauf M19 (seuil exact des 2 h). M10 et M12 ont disparu avec la réécriture de `update` (remplacées par F01 et F07).
 
 Abréviations :
 - Sources : CdC = cahier des charges ; DEC = `DECISIONS.md` ; CL = `CLAUDE.md` > Règles métier ; code = commentaire de code seulement, règle à faire consigner.
@@ -20,18 +20,18 @@ Abréviations :
 | Flash = 1 essai | CdC | S | asc › rejette un flash annoncé en n essais | M07 tuée | — |
 | Un projet ouvert par bloc et inclinaison | DEC | S | asc › rejette un second projet actif | M03 tuée | — |
 | Projet actif : pas de SENT par POST | CdC §4.2 | S | asc › rejette un SENT tant qu'un projet est actif | M08 tuée (masquée avant 2ec45eb) | — |
-| Après un envoi : REPEAT uniquement | CdC §4.2 | — | asc › « ne l'exige plus quand une ascension existe » fige un second SENT | — | **B6, B9, REPEAT sans envoi : décision de Seb** |
+| Après un envoi : un second SENT est un repeat (statut REPEAT inutilisé dans le MVP) | Seb 2026-10-15 (B6) | S | asc › « ne l'exige plus quand une ascension existe » | — | B9 (projet ouvert après un envoi) et REPEAT sans envoi : à trancher |
 | Grade ressenti obligatoire au premier envoi | CL | S | asc › exige un grade ressenti au premier % | M05 tuée | — |
 | Grade ressenti refusé ailleurs | 3371a76 | S | asc › refuse un grade ressenti sur… (create et update) | M04, M11 tuées | un seul grade par grimpeur en base : e2e |
-| Transitions PATCH : projet → SENT uniquement | CdC §4.2 | S | asc › refuse tout passage à FLASH | M10 tuée | **B1, B2 : branche fix/** |
-| Complétion : grade, `wasProject`, `sendDate` | CdC | S | asc › update | M12 tuée | — |
-| Séance : essais additionnés côté serveur, ≥ 1 | DEC 07-30 | S + D | asc › additionne… ; asc.dto › refuse une séance de 0 essai | M13, D03 tuées | **B3 : séance sur un envoi acceptée** |
-| Suppression seulement en PROJECT | CdC | S | asc › remove | M14 tuée | contournable par B1 |
+| Transitions PATCH : projet → SENT uniquement ; 400 si la cible n'est jamais valide, 409 si l'ascension n'est plus un projet | CdC §4.2, Seb 2026-10-15 | S | asc › transitions de statut ; refuse tout passage à FLASH | F01, F02, F04 tuées | — (B1, B2 corrigés) |
+| Complétion : grade, `wasProject`, `sendDate` | CdC | S | asc › update | F07 tuée | — |
+| Séance : essais additionnés côté serveur, ≥ 1 | DEC 07-30 | S + D | asc › additionne… ; asc.dto › refuse une séance de 0 essai | M13, D03, F03 tuées | — (B3 corrigé : 409) |
+| Suppression seulement en PROJECT | CdC | S | asc › remove | M14 tuée | — |
 | Propriété : update, remove, note | — | S | asc › rejette… d'un autre utilisateur (403) | M09, M17 tuées | — |
 | Mes ascensions = les miennes | implicite | S | asc › lecture de mes ascensions | M18 tuée | — |
 | Rattachement : absent, `null`, id | DEC 07-31 | D + S | asc › transmet sessionId tel quel ; asc.dto › sessionId | D02 tuée | — |
 | Passage écrit au log, à la séance, à la complétion ; rien sur une note | DEC 10-09 | S | asc › passage dans la session ; update | — | écriture imbriquée atomique : e2e |
-| Note publique seulement sur SENT ou FLASH | CL | S | asc › createNote | M15 tuée | B7, rattaché à B6 |
+| Commentaire public seulement au premier envoi à cette inclinaison (celui qui porte le vote) | CL, Seb 2026-10-15 | S | asc › createNote ; sur un envoi qui n'est pas le premier | M15, F05 tuées | — (B7 corrigé) |
 | Une note publique par user, bloc et inclinaison | DEC 10-15 | S | asc › refuse une seconde note publique… | M16 tuée | concurrence : e2e |
 | Note : non vide, ≤ 2000 caractères, visibilité connue | code | D | asc.dto › CreateNoteDto | D04 tuée | — |
 
@@ -46,7 +46,7 @@ Abréviations :
 | Seuls les envois à cette inclinaison votent | DEC | S | cg › ne compte que les grades ressentis d'envois… | C05, C09 tuées | — |
 | Nombre de votes stocké | DEC | S | cg › écrit la médiane et le nombre de votes | C08 tuée | — |
 | Verrou de ligne avant la lecture des votes | 3456556 | S | cg › verrouille la ligne avant de lire | C07 tuée | sérialisation réelle : e2e |
-| Recalcul au premier envoi et à la complétion, jamais ailleurs | DEC | S | asc › vote pour la cotation | C10, C13 tuées | **retrait d'un vote (B1) : aucun recalcul** |
+| Recalcul au premier envoi et à la complétion, jamais ailleurs | DEC | S | asc › vote pour la cotation | C10, C13 tuées | — (un envoi ne peut plus être retiré) |
 | Ascension et recalcul dans la même transaction | 3456556 | S | asc › écrit l'ascension par le client de la transaction ; identité de `tx` | C11, C12, C14 tuées (C11 et C14 survivaient avant 2ec45eb) | atomicité : e2e |
 | Une ligne `boulder_angles` par bloc et par inclinaison | 88e3d56 | B | — | — | e2e (clés composées) |
 
@@ -95,7 +95,7 @@ Abréviations :
 | Entrée = bloc + inclinaison, doublon 409 | DEC 10-15 | S + D + B | pl › addBoulder ; playlists.dto › AddBoulderDto | M41, D08 tuées | unicité en base : e2e |
 | Mes playlists = les miennes | implicite | S | pl › ne lit que les playlists de l'utilisateur | M40 tuée | — |
 | Bloc ajouté à une playlist : visible (public, publié) | code (like, ascension) | — | — | — | **B4 : règle à trancher** |
-| Nom de playlist non vide | code | D | playlists.dto › CreatePlaylistDto ; `it.todo` à l'édition | — | **B5 : branche fix/** |
+| Nom de playlist non vide | code | D | playlists.dto › CreatePlaylistDto, UpdatePlaylistDto | F06 tuée | — (B5 corrigé) |
 | `/admin` réservé aux ADMIN | CdC | G | roles.guard.spec | M48 tuée | `@Roles` sur le contrôleur : e2e |
 | Tri admin par liste blanche | code | S | admin.service.spec, pagination.utils.spec | — | — |
 
