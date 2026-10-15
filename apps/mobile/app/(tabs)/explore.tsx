@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
+import { boulderHref } from '@/lib/boulders/href';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useRef, useState } from 'react';
@@ -189,7 +190,9 @@ export default function ExploreScreen() {
         data={boulders}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/boulder/${item.id}`)}>
+          <Pressable
+            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+          >
             <BoulderCard item={item} />
           </Pressable>
         )}

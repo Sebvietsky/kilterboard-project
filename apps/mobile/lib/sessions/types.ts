@@ -33,6 +33,8 @@ export type SessionEntry = {
     id: number;
     boulderId: number;
     wasProject: boolean;
+    // Inclinaison du passage ; `boulder.angle` est celle de la création.
+    angle: { valueDegrees: number };
     boulder: {
       name: string;
       grade: { vScale: string; fontScale: string; rank: number };

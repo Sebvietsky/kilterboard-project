@@ -29,6 +29,7 @@ import {
 } from '@/lib/sessions/elapsed';
 import type { ActiveSession, SessionSummary } from '@/lib/sessions/types';
 import { useMyProjects } from '@/lib/ascents/queries';
+import { boulderHref } from '@/lib/boulders/href';
 import type { MyProject } from '@/lib/ascents/types';
 import { formatClockTime, formatDay } from '@/lib/format/clockTime';
 import { plural } from '@/lib/format/plural';
@@ -233,7 +234,14 @@ function RunningSession({
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
         <Pressable
-          onPress={() => router.push(`/boulder/${item.ascent.boulderId}`)}
+          onPress={() =>
+            router.push(
+              boulderHref(
+                item.ascent.boulderId,
+                item.ascent.angle.valueDegrees,
+              ),
+            )
+          }
           style={styles.rowPressable}
         >
           <EntryRow entry={item} />
@@ -328,7 +336,11 @@ function ContinueProjects() {
         data={projects.data}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/boulder/${item.boulderId}`)}>
+          <Pressable
+            onPress={() =>
+              router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+            }
+          >
             <ProjectCard project={item} />
           </Pressable>
         )}

@@ -17,8 +17,11 @@ import {
   shadows,
   status as statusColors,
 } from '@/constants/theme';
+import { ChevronDown } from 'lucide-react-native';
 import { BoardLED } from '@/components/BoardLED';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
+import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { ANGLES } from '@/lib/filters/const';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import {
   useBoulder,
@@ -65,7 +68,10 @@ export default function BoulderDetailScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [rating, setRating] = useState<number>();
 
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, angle: angleParam } = useLocalSearchParams<{
+    id: string;
+    angle?: string;
+  }>();
   const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const myAscents = useMyAscentsOnBoulder(boulderId);
@@ -74,7 +80,24 @@ export default function BoulderDetailScreen() {
   const updateAscent = useUpdateAscent();
   const like = useBoulderLike(boulderId);
   const toggleLike = useToggleBoulderLike();
-  const statuses = myAscents.data?.map((a) => a.status) ?? [];
+
+  // Inclinaison affichée : celle choisie dans le sélecteur, sinon celle du
+  // lien (le contexte d'où l'on vient), sinon celle du créateur, valeur par
+  // défaut du bloc. Un paramètre hors de la liste est ignoré plutôt que
+  // d'afficher une inclinaison que l'API refuserait au log.
+  const [pickedAngle, setPickedAngle] = useState<number>();
+  const [anglePickerOpen, setAnglePickerOpen] = useState(false);
+  const linkAngle = ANGLES.includes(Number(angleParam))
+    ? Number(angleParam)
+    : undefined;
+  const selectedAngle = pickedAngle ?? linkAngle ?? boulder.data?.angleDegrees;
+
+  // Toutes les règles du formulaire sont par bloc ET par inclinaison : on ne
+  // garde que les ascensions faites à l'inclinaison affichée. L'API renvoie
+  // toutes les inclinaisons d'un coup, changer de sélection ne relit rien.
+  const ascentsAtAngle =
+    myAscents.data?.filter((a) => a.angle.valueDegrees === selectedAngle) ?? [];
+  const statuses = ascentsAtAngle.map((a) => a.status);
   const currentStatus = statuses.includes('FLASH')
     ? 'FLASH'
     : statuses.includes('SENT')
@@ -82,7 +105,7 @@ export default function BoulderDetailScreen() {
       : statuses.includes('PROJECT')
         ? 'PROJECT'
         : null;
-  const availableStatuses = deriveAvailableStatuses(myAscents.data ?? []);
+  const availableStatuses = deriveAvailableStatuses(ascentsAtAngle);
   // La sélection ne survit pas à un changement de disponibilité : myAscents peut
   // se refetch hors du submit (retour de focus, autre appareil) et rendre le
   // statut choisi impossible. Sans cette garde, plus aucun segment n'est actif
@@ -92,17 +115,18 @@ export default function BoulderDetailScreen() {
     availableStatuses[0] ??
     null;
 
-  const hasAnyAscent = (myAscents.data ?? []).length > 0;
+  const hasAnyAscent = ascentsAtAngle.length > 0;
 
   // Un projet actif change la nature du formulaire : on ne crée plus une
   // ascension, on fait vivre celle qui existe (PATCH).
   const activeProject =
-    myAscents.data?.find((a) => a.status === 'PROJECT') ?? null;
+    ascentsAtAngle.find((a) => a.status === 'PROJECT') ?? null;
   const isManagingProject = !!activeProject && selectedStatus === 'PROJECT';
   const isClosingProject = isManagingProject && projectMode === 'sent';
 
-  // Note publique = au premier envoi seulement. Clore un projet EST ce premier
-  // envoi : l'ascension passe SENT, et c'est la seule du bloc.
+  // Note publique = au premier envoi seulement, à cette inclinaison. Clore un
+  // projet EST ce premier envoi : l'ascension passe SENT, et c'est la seule
+  // du bloc à cette inclinaison.
   const canBePublic =
     isClosingProject ||
     (!hasAnyAscent &&
@@ -142,8 +166,16 @@ export default function BoulderDetailScreen() {
     setComment('');
   }
 
+  // Changer d'inclinaison, c'est changer de bloc : ce qui était saisi pour
+  // l'autre (statut, essais, grade ressenti) ne vaut plus.
+  function selectAngle(angle: number) {
+    if (angle === selectedAngle) return;
+    setPickedAngle(angle);
+    resetForm();
+  }
+
   function submit() {
-    if (!selectedStatus) return;
+    if (!selectedStatus || selectedAngle === undefined) return;
 
     // Un projet en cours se modifie (PATCH), il ne se recrée pas : le back
     // refuse d'ailleurs tout POST tant qu'il est ouvert.
@@ -176,6 +208,7 @@ export default function BoulderDetailScreen() {
     logAscent.mutate(
       {
         boulderId,
+        angleDegrees: selectedAngle,
         status: selectedStatus,
         attemptsCount: selectedStatus === 'FLASH' ? 1 : attempts,
         feltGradeRank: selectedStatus === 'PROJECT' ? undefined : feltGradeRank,
@@ -228,6 +261,15 @@ export default function BoulderDetailScreen() {
 
   // boulder.data garanti défini
   const detail = boulder.data;
+  // Défini dès que le bloc l'est : à défaut d'autre choix, celle du créateur.
+  const angle = selectedAngle ?? detail.angleDegrees;
+  // Seule l'inclinaison du créateur a une cotation tant que la cotation
+  // communautaire (étape 2) n'existe pas. Afficher la sienne ailleurs
+  // laisserait croire qu'un 50° vaut un 45°.
+  const isSetAngle = angle === detail.angleDegrees;
+  const notesAtAngle = detail.publicNotes.filter(
+    (note) => note.angleDegrees === angle,
+  );
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -247,8 +289,24 @@ export default function BoulderDetailScreen() {
           <Text style={styles.setter}>by {detail.creatorUsername}</Text>
         </View>
         <View style={styles.gradeBlock}>
-          <Text style={styles.grade}>{detail.gradeLabel}</Text>
-          <Text style={styles.angle}>{detail.angleDegrees}°</Text>
+          {isSetAngle ? (
+            <Text style={styles.grade}>{detail.gradeLabel}</Text>
+          ) : (
+            <Text style={styles.notGraded}>Not graded yet</Text>
+          )}
+          <Pressable
+            onPress={() => setAnglePickerOpen(true)}
+            hitSlop={spacing.sm}
+            accessibilityRole="button"
+            accessibilityLabel={`Board angle ${angle} degrees, change`}
+            style={({ pressed }) => [
+              styles.angleButton,
+              pressed && styles.angleButtonPressed,
+            ]}
+          >
+            <Text style={styles.angle}>{angle}°</Text>
+            <ChevronDown size={typography.size.md} color={colors.textMuted} />
+          </Pressable>
         </View>
       </View>
 
@@ -468,18 +526,21 @@ export default function BoulderDetailScreen() {
             le placeholderData de useBoulder pose publicNotes: [] en dur, donc
             en venant d'Explore on annoncerait « No notes yet » sur un bloc qui
             en a. Pendant ce temps, on ne montre rien plutôt qu'un mensonge. */}
-        {detail.publicNotes.length === 0 ? (
+        {/* Seuls les commentaires de l'inclinaison affichée : le même bloc
+            à une autre inclinaison se commente à part. */}
+        {notesAtAngle.length === 0 ? (
           boulder.isPlaceholderData ? null : (
-            <Text style={styles.placeholderText}>No notes yet.</Text>
+            <Text style={styles.placeholderText}>
+              No notes at {angle}° yet.
+            </Text>
           )
         ) : (
-          detail.publicNotes.map((note) => (
-            // Clé sur username : le backend n'expose pas d'id de note, mais
-            // interdit plus d'une note publique par (utilisateur, bloc) — le
-            // pseudo est donc unique dans cette liste. Si cette règle tombe,
-            // les clés entrent en collision SANS erreur : React réutilisera
-            // simplement le mauvais nœud.
-            <View key={note.username} style={styles.noteCard}>
+          notesAtAngle.map((note) => (
+            // Clé sur l'id, unique par construction. Le pseudo ne l'est plus
+            // (une note publique par inclinaison), et une clé qui dépendrait
+            // d'une règle métier entrerait en collision SANS erreur le jour
+            // où la règle change : React réutiliserait le mauvais nœud.
+            <View key={note.id} style={styles.noteCard}>
               <View style={styles.noteHeader}>
                 <Text style={styles.noteAuthor} numberOfLines={1}>
                   {note.username}
@@ -509,6 +570,13 @@ export default function BoulderDetailScreen() {
         boulderId={boulderId}
         visible={playlistSheetOpen}
         onClose={() => setPlaylistSheetOpen(false)}
+      />
+      <AnglePickerSheet
+        visible={anglePickerOpen}
+        selected={angle}
+        creatorAngle={detail.angleDegrees}
+        onSelect={selectAngle}
+        onClose={() => setAnglePickerOpen(false)}
       />
     </ScrollView>
   );
@@ -796,6 +864,29 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.data,
     fontSize: typography.size.md,
     color: colors.textMuted,
+  },
+  // Même taille de ligne que la cotation qu'il remplace, en retrait : une
+  // absence d'information, pas une alerte.
+  notGraded: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    lineHeight: typography.size.xxl,
+    color: colors.textSubtle,
+  },
+  // Contour discret : l'inclinaison se lit comme une donnée, et le chevron
+  // dit qu'elle se change.
+  angleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  angleButtonPressed: {
+    backgroundColor: colors.surfaceMuted,
   },
   setter: {
     fontFamily: typography.family.body,
