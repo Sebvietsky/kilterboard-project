@@ -10,6 +10,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { AscentStatus, Role } from '../generated/prisma/client';
 import { CreateAscentDto } from './dto/create-ascent.dto';
+import { recomputeAngleGrade } from '../boulders/community-grade';
+
+// Le calcul de la cotation est testé dans community-grade.spec.ts. Ici on
+// vérifie seulement QUAND l'ascension le déclenche.
+jest.mock('../boulders/community-grade', () => ({
+  recomputeAngleGrade: jest.fn(),
+}));
+const recomputeMock = jest.mocked(recomputeAngleGrade);
 
 // Ces tests couvrent les RÈGLES MÉTIER, pas Prisma : le client est mocké et on
 // vérifie soit l'exception levée, soit le payload passé à `ascent.create`.
@@ -27,6 +35,9 @@ const prismaMock = {
     delete: jest.fn(),
   },
   ascentNote: { findFirst: jest.fn(), create: jest.fn() },
+  // La transaction exécute son callback avec le client lui-même : les
+  // écritures faites « dans la transaction » restent lisibles sur prismaMock.
+  $transaction: jest.fn(),
 };
 
 // La résolution de la session (implicite, explicite, zombie) appartient à
@@ -78,7 +89,91 @@ describe('AscentsService', () => {
     prismaMock.grade.findUnique.mockResolvedValue({ id: 42, rank: 5 });
     prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 40°
     prismaMock.ascent.create.mockResolvedValue({ id: 99 });
+    prismaMock.$transaction.mockImplementation(
+      (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock),
+    );
     sessionsMock.resolveSessionId.mockResolvedValue(null); // hors session
+  });
+
+  describe('vote pour la cotation', () => {
+    it.each([AscentStatus.SENT, AscentStatus.FLASH])(
+      'recalcule la cotation au premier %s, dans la transaction',
+      async (status) => {
+        await service.create({ ...baseDto, status, attemptsCount: 1 }, user);
+
+        expect(recomputeMock).toHaveBeenCalledWith(prismaMock, 10, 7);
+        // Après l'écriture de l'ascension : sinon le nouveau vote n'est pas lu.
+        expect(
+          prismaMock.ascent.create.mock.invocationCallOrder[0],
+        ).toBeLessThan(recomputeMock.mock.invocationCallOrder[0]);
+      },
+    );
+
+    it("ne recalcule rien sur un envoi qui n'est pas le premier", async () => {
+      prismaMock.ascent.findMany.mockResolvedValue([
+        { status: AscentStatus.SENT },
+      ]);
+
+      await service.create(
+        { boulderId: 10, angleDegrees: 40, status: AscentStatus.SENT },
+        user,
+      );
+
+      expect(recomputeMock).not.toHaveBeenCalled();
+    });
+
+    it("ne recalcule rien sur l'ouverture d'un projet", async () => {
+      await service.create(
+        { boulderId: 10, angleDegrees: 40, status: AscentStatus.PROJECT },
+        user,
+      );
+
+      expect(recomputeMock).not.toHaveBeenCalled();
+    });
+
+    // Si le recalcul échoue, l'ascension ne doit pas rester sans sa cotation :
+    // l'erreur remonte de la transaction, qui annule tout.
+    it('fait échouer le log quand le recalcul échoue', async () => {
+      recomputeMock.mockRejectedValueOnce(new Error('lock timeout'));
+
+      await expect(service.create(baseDto, user)).rejects.toThrow(
+        'lock timeout',
+      );
+    });
+
+    describe("à la complétion d'un projet", () => {
+      const project = {
+        id: 7,
+        userId: user.userId,
+        boulderId: 10,
+        angleId: 3,
+        status: AscentStatus.PROJECT,
+        feltGradeId: null,
+        wasProject: false,
+        sendDate: null,
+      };
+
+      beforeEach(() => {
+        prismaMock.ascent.findUnique.mockResolvedValue(project);
+        prismaMock.ascent.update.mockResolvedValue(project);
+      });
+
+      it("recalcule la cotation à l'inclinaison du projet", async () => {
+        await service.update(
+          7,
+          { status: AscentStatus.SENT, feltGradeRank: 5 },
+          user,
+        );
+
+        expect(recomputeMock).toHaveBeenCalledWith(prismaMock, 10, 3);
+      });
+
+      it('ne recalcule rien sur une séance de projet', async () => {
+        await service.update(7, { attemptsToAdd: 2 }, user);
+
+        expect(recomputeMock).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('create — accès au bloc', () => {
