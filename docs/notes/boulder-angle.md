@@ -1,6 +1,6 @@
 # Inclinaison d'un bloc — conception
 
-Discuté et décidé le 2026-10-12, complété le 2026-10-15. Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le raisonnement et le découpage. Étape 1 faite (#66).
+Discuté et décidé le 2026-10-12, complété le 2026-10-15. Les décisions sont dans `docs/DECISIONS.md` ; ce fichier garde le raisonnement et le découpage. Étape 1 faite (#66), étape 2 faite (#70).
 
 ## Le besoin
 
@@ -36,30 +36,30 @@ Scénarios écartés pour le passage du seuil : le créateur compte comme un vot
 
 ## Modèle de données
 
-Relation N-N entre `Boulder` et `Angle`, portée par une table :
+`boulder_angles` : `boulder_id`, `angle_id` (clé primaire), `grade_id` (cotation effective, nullable), `votes_count`.
 
-`boulder_angle_grades` : `boulder_id`, `angle_id`, `grade_id` (cotation effective), `votes_count`. Unique sur (`boulder_id`, `angle_id`).
-
-- À la création d'un bloc : une seule ligne, pour l'inclinaison du créateur, avec sa cotation et 0 vote.
-- Aux autres inclinaisons : aucune ligne tant que personne n'a voté. La ligne est créée au premier vote.
-- À chaque vote : médiane recalculée et ligne mise à jour dans la même transaction que l'ascension.
+- Une ligne par inclinaison de la table `angles`, toutes créées avec le bloc (seeds : `ensureBoulderAngles`). Ajouter une inclinaison demande de compléter les lignes.
+- `ascents`, `boulder_likes` et `playlist_boulders` y pointent par la clé étrangère composée `(boulder_id, angle_id)`.
+- Recalcul à chaque vote (`apps/api/src/boulders/community-grade.ts`), dans la transaction de l'ascension, avec verrou de ligne. Recalcul complet : `db:recompute-grades`.
 - « Estimée » ne se stocke pas : c'est `votes_count < 5` sur une inclinaison qui n'est pas celle du créateur.
+- Un vote = le grade ressenti du premier envoi, un par grimpeur, bloc et inclinaison (index partiel `ascents_one_felt_grade_per_user_boulder_angle`). Médiane basse pour un nombre pair de votes.
 
-La table est un résultat précalculé, pas une information nouvelle : la médiane se déduit des ascensions. Elle existe pour Explore, qui filtre et trie par cotation et ne peut pas recalculer la médiane de tous les blocs à chaque affichage.
+La cotation stockée est un résultat précalculé, pas une information nouvelle : la médiane se déduit des ascensions. Elle est stockée pour Explore, qui filtre et trie par cotation et ne peut pas recalculer la médiane de tous les blocs à chaque affichage.
 
-`ascents` reçoit une colonne d'inclinaison. Migration : les ascensions existantes prennent l'inclinaison du créateur de leur bloc.
+Choix du 2026-10-15, sur deux axes indépendants :
+
+1. La liaison entre une ascension (ou un like, une entrée) et la ligne : aucune (A), clé étrangère composée (B), id propre `boulder_angle_id` (C).
+2. La naissance de la ligne : au premier vote, à la première action, ou avec le bloc (D).
+
+B impose que la ligne existe avant tout like ou toute ascension, d'où D. B + D retenu plutôt que C + D : même résultat pour l'utilisateur et même contrat d'API, pour une fraction de la migration (C réécrivait une trentaine de requêtes dans cinq services). C'est aussi la traduction directe du MCD : une association BOULDER–ANGLE porteuse de propriétés, identifiée par ses deux clés. A écarté : un bloc créé à une autre inclinaison et jamais voté y restait introuvable dans Explore.
 
 ## Découpage de `feature/boulder-angle`
 
 1. Inclinaison sur l'ascension, règles par inclinaison, sélecteur dans l'en-tête. La cotation affichée est celle du créateur à son inclinaison, « pas encore cotée » ailleurs. Pas besoin de `boulder_angle_grades` à cette étape.
-2. Cotation communautaire : la table, la médiane, le seuil, l'affichage.
+2. ✅ Cotation communautaire (#70) : la table, la médiane, le seuil, l'affichage.
 3. Explore : filtre et tri sur la cotation effective.
 
 ## Questions ouvertes
 
-- Explore : un bloc apparaît-il à toutes les inclinaisons, sans cotation là où personne n'a voté, ou seulement là où il est coté ? L'inclinaison de création reste dans tous les cas la référence du bloc.
-- Session : le compte rendu d'une séance doit-il afficher l'inclinaison de chaque passage ?
-- Naissance de la ligne `boulder_angle_grades` aux inclinaisons autres que celle du créateur. Deux options à comparer avant l'étape 2 :
-  - au premier vote (proposition de l'agent) : la cotation n'est jamais vide, mais un projet ouvert à cette inclinaison n'a pas de ligne ;
-  - au premier essai (proposition de Seb) : la ligne existe dès qu'on y touche, avec 0 vote et une cotation vide, et l'ascension pourrait s'y rattacher directement au lieu de porter `boulder_id` et l'inclinaison. Coût : une cotation nullable, et une jointure de plus pour « mes ascensions sur ce bloc ».
-- Playlists : pas de verrouillage à une inclinaison. Chaque entrée porte la sienne (décidé le 2026-10-15, branche `feature/angle-collections`).
+- Explore filtré à une inclinaison : envois seulement (décidé le 2026-10-15) ; un bloc y apparaît s'il y est coté. Sans filtre : forme à choisir à l'étape 3.
+- Statistiques du bloc (ascensions, note) par inclinaison : pas encore faites.
