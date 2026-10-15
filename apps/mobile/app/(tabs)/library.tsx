@@ -12,23 +12,31 @@ import { useRouter } from 'expo-router';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useMyProjects } from '@/lib/ascents/queries';
 import { useMyPlaylists } from '@/lib/playlists/queries';
+import { useMyLikedBoulders } from '@/lib/boulders/queries';
 import type { MyProject } from '@/lib/ascents/types';
 import type { PlaylistSummary } from '@/lib/playlists/types';
+import type { BoulderLiked } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
-type Segment = 'projects' | 'playlists';
+type Segment = 'projects' | 'playlists' | 'liked';
 
-// Liked ne figure pas ici : aucun concept de favori n'existe côté backend
-// (AscentNoteLike porte sur un COMMENTAIRE, pas sur un bloc). Un troisième
-// segment vide ou désactivé se lirait comme une panne — on l'ajoutera avec la
-// fonctionnalité, pas avant.
 const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'projects', label: 'Projects' },
+  { value: 'liked', label: 'Liked' },
   { value: 'playlists', label: 'Playlists' },
 ];
 
+// Un Record plutôt qu'une chaîne de ternaires : ajouter un segment au type
+// sans sa liste devient une erreur de compilation.
+const SEGMENT_LISTS: Record<Segment, () => React.JSX.Element> = {
+  projects: ProjectsList,
+  playlists: PlaylistsList,
+  liked: LikedList,
+};
+
 export default function LibraryScreen() {
   const [segment, setSegment] = useState<Segment>('projects');
+  const List = SEGMENT_LISTS[segment];
 
   return (
     <View style={styles.screen}>
@@ -41,10 +49,11 @@ export default function LibraryScreen() {
         />
       </View>
 
-      {/* Rendu conditionnel et non deux listes masquées : le composant
-          démonté, sa query ne s'abonne plus. Deux listes montées lanceraient
-          deux requêtes et les garderaient fraîches pour rien. */}
-      {segment === 'projects' ? <ProjectsList /> : <PlaylistsList />}
+      {/* Une seule liste montée, et non toutes masquées sauf une : le
+          composant démonté, sa query ne s'abonne plus. Des listes montées en
+          parallèle lanceraient chacune sa requête et la garderaient fraîche
+          pour rien. */}
+      <List />
     </View>
   );
 }
@@ -114,8 +123,39 @@ function PlaylistsList() {
   );
 }
 
+function LikedList() {
+  const router = useRouter();
+  const liked = useMyLikedBoulders();
+
+  return (
+    <ListState
+      query={liked}
+      emptyLabel="No liked boulders yet."
+      emptyHint="Tap the heart on a boulder to save it here."
+    >
+      <FlatList
+        data={liked.data}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => (
+          <Pressable onPress={() => router.push(`/boulder/${item.id}`)}>
+            <LikedCard boulder={item} />
+          </Pressable>
+        )}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={liked.isRefetching}
+            onRefresh={liked.refetch}
+            tintColor={colors.primary}
+          />
+        }
+      />
+    </ListState>
+  );
+}
+
 /**
- * Chargement / erreur / vide, mutualisés entre les deux listes.
+ * Chargement / erreur / vide, mutualisés entre les listes.
  *
  * Le type d'entrée est structurel plutôt qu'un UseQueryResult<T> : les deux
  * queries portent des données différentes, et seuls ces quatre champs
@@ -201,6 +241,25 @@ function ProjectCard({ project }: { project: MyProject }) {
           {attemptsCount} {attemptsCount === 1 ? 'attempt' : 'attempts'}
         </Text>
       </View>
+    </View>
+  );
+}
+
+// Même recette que ProjectCard, sans le compteur d'essais : un favori dit
+// seulement « ce bloc m'intéresse ».
+function LikedCard({ boulder }: { boulder: BoulderLiked }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {boulder.name}
+        </Text>
+        <View style={styles.gradeBadge}>
+          <Text style={styles.gradeText}>{boulder.gradeLabel}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.metaData}>{boulder.angleDegrees}°</Text>
     </View>
   );
 }

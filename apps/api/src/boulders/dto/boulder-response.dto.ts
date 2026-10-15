@@ -30,6 +30,19 @@ export class BoulderSummaryDto {
   createdAt!: Date;
 }
 
+export class BoulderLikeStatusDto {
+  liked!: boolean;
+}
+
+export class LikedBoulderDto {
+  id!: number;
+  name!: string;
+  gradeLabel!: string;
+  gradeRank!: number;
+  angleDegrees!: number;
+  likedAt!: Date;
+}
+
 export class BoulderDetailDto extends BoulderSummaryDto {
   description!: string | null;
   holds!: HoldDto[];

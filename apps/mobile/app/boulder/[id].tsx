@@ -20,7 +20,11 @@ import {
 import { BoardLED } from '@/components/BoardLED';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { useBoulder } from '@/lib/boulders/queries';
+import {
+  useBoulder,
+  useBoulderLike,
+  useToggleBoulderLike,
+} from '@/lib/boulders/queries';
 import {
   deriveAvailableStatuses,
   useLogAscent,
@@ -68,6 +72,8 @@ export default function BoulderDetailScreen() {
   const grades = useGrades();
   const logAscent = useLogAscent();
   const updateAscent = useUpdateAscent();
+  const like = useBoulderLike(boulderId);
+  const toggleLike = useToggleBoulderLike();
   const statuses = myAscents.data?.map((a) => a.status) ?? [];
   const currentStatus = statuses.includes('FLASH')
     ? 'FLASH'
@@ -229,6 +235,13 @@ export default function BoulderDetailScreen() {
         <View style={styles.titleLeft}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{detail.name}</Text>
+            <LikeButton
+              liked={like.data?.liked}
+              // Inerte pendant un envoi : un second tap partirait en parallèle
+              // du premier, et le serveur pourrait recevoir DELETE avant PUT.
+              disabled={toggleLike.isPending}
+              onToggle={(liked) => toggleLike.mutate({ boulderId, liked })}
+            />
             {currentStatus && <StatusBadge status={currentStatus} />}
           </View>
           <Text style={styles.setter}>by {detail.creatorUsername}</Text>
@@ -640,6 +653,44 @@ function Stepper({
   );
 }
 
+function LikeButton({
+  liked,
+  disabled,
+  onToggle,
+}: {
+  // undefined tant que l'état n'est pas connu.
+  liked: boolean | undefined;
+  disabled: boolean;
+  onToggle: (liked: boolean) => void;
+}) {
+  // Grisé tant que l'état n'est pas connu : un cœur vide affirmerait « pas
+  // liké » avant de le savoir. Un tap à ce moment serait pourtant sans risque
+  // (PUT idempotent, et onMutate annule la lecture en vol) : c'est un choix
+  // d'affichage, pas une protection.
+  const unknown = liked === undefined;
+
+  return (
+    <Pressable
+      onPress={() => liked !== undefined && onToggle(liked)}
+      disabled={unknown || disabled}
+      hitSlop={spacing.sm}
+      accessibilityRole="button"
+      accessibilityLabel={liked ? 'Unlike' : 'Like'}
+      accessibilityState={{ selected: liked === true, disabled: unknown }}
+    >
+      <Text
+        style={[
+          styles.heart,
+          liked && styles.heartActive,
+          unknown && styles.heartUnknown,
+        ]}
+      >
+        {liked ? '♥' : '♡'}
+      </Text>
+    </Pressable>
+  );
+}
+
 function StatusBadge({ status }: { status: AscentStatus }) {
   const config = {
     FLASH: {
@@ -721,6 +772,17 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.display,
     fontSize: typography.size.xxl,
     color: colors.text,
+  },
+  // Coral : la couleur des likes dans le thème.
+  heart: {
+    fontSize: typography.size.xxl,
+    color: colors.textMuted,
+  },
+  heartActive: {
+    color: colors.coral,
+  },
+  heartUnknown: {
+    opacity: 0.4,
   },
   gradeBlock: {
     alignItems: 'flex-end',
