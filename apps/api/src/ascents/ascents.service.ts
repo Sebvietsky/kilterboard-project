@@ -27,6 +27,7 @@ import {
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
 import { resolveAngleId } from '../common/utils/angle.utils';
+import { recomputeAngleGrade } from '../boulders/community-grade';
 import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @Injectable()
@@ -100,15 +101,21 @@ export class AscentsService {
         'You already have an active project on this boulder at this angle. Complete it instead of logging a new ascent.',
       );
     }
-    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH) à
-    // cette inclinaison : la difficulté ressentie change avec elle.
-    if (
+    // Grade ressenti au premier envoi (SENT/FLASH) à cette inclinaison, et
+    // seulement là : c'est le vote du grimpeur pour la cotation, un par bloc
+    // et par inclinaison. Obligatoire au premier envoi, refusé partout
+    // ailleurs (envois suivants, projets, REPEAT).
+    const isFirstSend =
       (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
-      !hasAnyAscent &&
-      !dto.feltGradeRank
-    ) {
+      !hasAnyAscent;
+    if (isFirstSend && !dto.feltGradeRank) {
       throw new BadRequestException(
         'Felt grade is required for your first send.',
+      );
+    }
+    if (!isFirstSend && dto.feltGradeRank) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
       );
     }
 
@@ -127,27 +134,40 @@ export class AscentsService {
       user.userId,
     );
 
-    return await this.prisma.ascent.create({
-      data: {
-        userId: user.userId,
-        boulderId: dto.boulderId,
-        angleId,
-        status: dto.status,
-        attemptsCount,
-        feltGradeId: grade?.id ?? null,
-        rating: dto.rating ?? null,
-        // Écriture imbriquée : l'ascension et son passage dans la session
-        // sont créés dans la même transaction, jamais l'un sans l'autre.
-        ...(sessionId && {
-          sessionEntries: {
-            create: { sessionId, status: dto.status, attempts: attemptsCount },
-          },
-        }),
-        sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
-        // Un projet actif bloque tout create ci-dessus : jamais de conversion
-        // ici. La transition projet -> send se fait via PATCH (complétion).
-        wasProject: false,
-      },
+    // Une transaction : au premier envoi, l'ascension porte un vote, et la
+    // cotation du bloc à cette inclinaison est recalculée avec. Un vote écrit
+    // sans son recalcul laisserait la cotation fausse.
+    return await this.prisma.$transaction(async (tx) => {
+      const created = await tx.ascent.create({
+        data: {
+          userId: user.userId,
+          boulderId: dto.boulderId,
+          angleId,
+          status: dto.status,
+          attemptsCount,
+          feltGradeId: grade?.id ?? null,
+          rating: dto.rating ?? null,
+          // Écriture imbriquée : l'ascension et son passage dans la session
+          // sont créés ensemble, jamais l'un sans l'autre.
+          ...(sessionId && {
+            sessionEntries: {
+              create: {
+                sessionId,
+                status: dto.status,
+                attempts: attemptsCount,
+              },
+            },
+          }),
+          sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
+          // Un projet actif bloque tout create ci-dessus : jamais de
+          // conversion ici. La transition projet -> send se fait via PATCH.
+          wasProject: false,
+        },
+      });
+      if (isFirstSend) {
+        await recomputeAngleGrade(tx, dto.boulderId, angleId);
+      }
+      return created;
     });
   }
 
@@ -233,6 +253,20 @@ export class AscentsService {
       throw new BadRequestException("An ascent can't be changed to a flash.");
     }
 
+    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
+    const completesProject =
+      ascent.status === AscentStatus.PROJECT &&
+      dto.status === AscentStatus.SENT;
+
+    // Le grade ressenti est le vote du grimpeur, donné une seule fois. En
+    // PATCH, la seule occasion est la complétion d'un projet : c'est alors le
+    // premier envoi à cette inclinaison.
+    if (dto.feltGradeRank && !completesProject) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+
     // Résolution rank -> Grade.id, comme dans create (rank est @unique).
     let grade: Grade | null = null;
     if (dto.feltGradeRank) {
@@ -252,11 +286,6 @@ export class AscentsService {
       );
     }
 
-    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const completesProject =
-      ascent.status === AscentStatus.PROJECT &&
-      dto.status === AscentStatus.SENT;
-
     // Une séance enregistrée ou une complétion est un passage sur le bloc :
     // il figure dans le compte rendu de la session en cours. Modifier une
     // note n'en est pas un.
@@ -270,34 +299,42 @@ export class AscentsService {
     // pas une colonne — attemptsToAdd et feltGradeRank en sont deux —, l'appel
     // échoue à l'exécution, et tsc ne peut rien voir puisqu'il type dto par la
     // classe DTO, pas par le modèle Prisma.
-    return await this.prisma.ascent.update({
-      where: { id },
-      data: {
-        ...(dto.status && { status: dto.status }),
-        ...(grade && { feltGradeId: grade.id }),
-        ...(dto.rating !== undefined && { rating: dto.rating }),
-        // Le client envoie les essais de SA séance ; c'est le serveur qui
-        // additionne. Un total ne peut donc que croître, là où une valeur
-        // absolue venue du client pourrait le faire reculer.
-        ...(dto.attemptsToAdd && {
-          attemptsCount: { increment: dto.attemptsToAdd },
-          sessionsCount: { increment: 1 },
-        }),
-        ...(sessionId && {
-          sessionEntries: {
-            create: {
-              sessionId,
-              status: dto.status ?? ascent.status,
-              attempts: dto.attemptsToAdd ?? 0,
+    // Une transaction, comme dans create : la complétion d'un projet est le
+    // premier envoi à cette inclinaison, donc un vote à compter.
+    return await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.ascent.update({
+        where: { id },
+        data: {
+          ...(dto.status && { status: dto.status }),
+          ...(grade && { feltGradeId: grade.id }),
+          ...(dto.rating !== undefined && { rating: dto.rating }),
+          // Le client envoie les essais de SA séance ; c'est le serveur qui
+          // additionne. Un total ne peut donc que croître, là où une valeur
+          // absolue venue du client pourrait le faire reculer.
+          ...(dto.attemptsToAdd && {
+            attemptsCount: { increment: dto.attemptsToAdd },
+            sessionsCount: { increment: 1 },
+          }),
+          ...(sessionId && {
+            sessionEntries: {
+              create: {
+                sessionId,
+                status: dto.status ?? ascent.status,
+                attempts: dto.attemptsToAdd ?? 0,
+              },
             },
-          },
-        }),
-        wasProject: completesProject || ascent.wasProject,
-        sendDate:
-          dto.status && dto.status !== AscentStatus.PROJECT
-            ? new Date()
-            : ascent.sendDate,
-      },
+          }),
+          wasProject: completesProject || ascent.wasProject,
+          sendDate:
+            dto.status && dto.status !== AscentStatus.PROJECT
+              ? new Date()
+              : ascent.sendDate,
+        },
+      });
+      if (completesProject) {
+        await recomputeAngleGrade(tx, ascent.boulderId, ascent.angleId);
+      }
+      return updated;
     });
   }
 

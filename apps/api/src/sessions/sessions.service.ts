@@ -62,10 +62,16 @@ const SESSION_DETAIL = {
           boulder: {
             select: {
               name: true,
+              angle: { select: { valueDegrees: true } },
+            },
+          },
+          // Cotation effective à l'inclinaison du passage, et non celle du
+          // créateur : `boulder.grade` n'est volontairement pas exposé ici.
+          boulderAngle: {
+            select: {
               grade: {
                 select: { vScale: true, fontScale: true, rank: true },
               },
-              angle: { select: { valueDegrees: true } },
             },
           },
         },

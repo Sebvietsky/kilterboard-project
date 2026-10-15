@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
-import { gradeAtAngle, resolveAngleId } from '../common/utils/angle.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
@@ -47,13 +47,11 @@ export class PlaylistsService {
           include: {
             // L'inclinaison de l'entrée, pas celle du bloc (son créateur).
             angle: { select: { valueDegrees: true } },
-            boulder: {
+            boulder: { select: { name: true } },
+            // Cotation effective du bloc à l'inclinaison de l'entrée.
+            boulderAngle: {
               select: {
-                name: true,
-                angleId: true,
-                grade: {
-                  select: { vScale: true, rank: true, fontScale: true },
-                },
+                grade: { select: { vScale: true, fontScale: true } },
               },
             },
           },
@@ -75,20 +73,17 @@ export class PlaylistsService {
       creatorUsername: playlist.user.username,
       boulderCount: playlist._count.playlistBoulders,
       createdAt: playlist.createdAt,
-      boulders: playlist.playlistBoulders.map((pb) => {
-        const grade = gradeAtAngle(pb.boulder, pb.angleId);
-        return {
-          position: pb.position,
-          addedAt: pb.addedAt,
-          boulder: {
-            id: pb.boulderId,
-            name: pb.boulder.name,
-            vScale: grade?.vScale ?? null,
-            fontScale: grade?.fontScale ?? null,
-            angleDegrees: pb.angle.valueDegrees,
-          },
-        };
-      }),
+      boulders: playlist.playlistBoulders.map((pb) => ({
+        position: pb.position,
+        addedAt: pb.addedAt,
+        boulder: {
+          id: pb.boulderId,
+          name: pb.boulder.name,
+          vScale: pb.boulderAngle.grade?.vScale ?? null,
+          fontScale: pb.boulderAngle.grade?.fontScale ?? null,
+          angleDegrees: pb.angle.valueDegrees,
+        },
+      })),
     };
   }
 

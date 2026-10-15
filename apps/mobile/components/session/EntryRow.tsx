@@ -17,13 +17,13 @@ const GRADE_CIRCLE_SIZE = spacing.xxl + spacing.sm;
 // passage. Partagée par la session en cours et par le détail d'une session
 // passée, qui affichent exactement la même donnée.
 export function EntryRow({ entry }: { entry: SessionEntry }) {
-  const { boulder } = entry.ascent;
+  const { boulder, boulderAngle } = entry.ascent;
 
   return (
     <View style={styles.row}>
       <Text style={styles.rowTime}>{formatClockTime(entry.createdAt)}</Text>
       <GradeCircle
-        label={boulder.grade.vScale}
+        label={boulderAngle.grade?.vScale ?? null}
         muted={entry.status === 'PROJECT'}
       />
       <Text style={styles.rowName} numberOfLines={1}>
@@ -64,17 +64,24 @@ export function StatusBadge({
   );
 }
 
+// `label` à null : bloc non coté à cette inclinaison. Un tiret plutôt que
+// « Not graded », qui ne tient pas dans le cercle ; le lecteur d'écran, lui,
+// reçoit les mots.
 export function GradeCircle({
   label,
   muted,
 }: {
-  label: string;
+  label: string | null;
   muted?: boolean;
 }) {
   return (
-    <View style={[styles.gradeCircle, muted && styles.gradeCircleMuted]}>
+    <View
+      style={[styles.gradeCircle, muted && styles.gradeCircleMuted]}
+      accessible
+      accessibilityLabel={label ?? 'Not graded'}
+    >
       <Text style={[styles.gradeText, muted && styles.gradeTextMuted]}>
-        {label}
+        {label ?? '—'}
       </Text>
     </View>
   );

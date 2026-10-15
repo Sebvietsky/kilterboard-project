@@ -45,10 +45,24 @@ export interface PublicNote {
   likesCount: number;
   createdAt: string;
 }
+// Cotation du bloc à une inclinaison (GET /boulders/:id, `angleGrades`).
+export interface AngleGrade {
+  angleDegrees: number;
+  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  gradeLabel: string | null;
+  gradeRank: number | null;
+  votesCount: number;
+  // Peu de votes, hors inclinaison du créateur.
+  isEstimated: boolean;
+}
+
+// `gradeLabel` et `angleDegrees` hérités de BoulderSummary restent la
+// référence du créateur ; la cotation à afficher est dans `angleGrades`.
 export interface BoulderDetail extends BoulderSummary {
   description: string | null;
   holds: Hold[];
   publicNotes: PublicNote[];
+  angleGrades: AngleGrade[];
 }
 
 export interface BoulderLikeStatus {

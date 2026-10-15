@@ -95,17 +95,24 @@ describe('PlaylistsService', () => {
     });
     // Le même bloc (créé à 40°, angleId 5) à 40° et à 50° : deux entrées, et
     // la cotation du créateur ne vaut que pour la sienne.
+    // Le même bloc à 40° et à 50° : deux entrées, chacune avec la cotation
+    // de son inclinaison (la ligne boulder_angles correspondante).
     it('donne à chaque entrée son inclinaison et la cotation qui y vaut', async () => {
-      const boulder = {
-        name: 'Crimpy',
-        angleId: 5,
-        grade: { vScale: 'V4', fontScale: '6b', rank: 6 },
-      };
       prismaMock.playlist.findUnique.mockResolvedValue({
         ...ownedPlaylist,
         playlistBoulders: [
-          { boulderId: 10, angleId: 5, angle: { valueDegrees: 40 }, boulder },
-          { boulderId: 10, angleId: 7, angle: { valueDegrees: 50 }, boulder },
+          {
+            boulderId: 10,
+            angle: { valueDegrees: 40 },
+            boulder: { name: 'Crimpy' },
+            boulderAngle: { grade: { vScale: 'V4', fontScale: '6b' } },
+          },
+          {
+            boulderId: 10,
+            angle: { valueDegrees: 50 },
+            boulder: { name: 'Crimpy' },
+            boulderAngle: { grade: null },
+          },
         ],
       });
 

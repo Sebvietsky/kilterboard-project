@@ -3,6 +3,8 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
+import { ensureBoulderAngles } from './seed-utils';
+import { recomputeAllAngleGrades } from './recompute-angle-grades';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -113,6 +115,7 @@ async function main() {
         },
       },
     });
+    await ensureBoulderAngles(prisma, boulder);
     fakeBoulders.push(boulder);
   }
   console.log(`✅ ${fakeBoulders.length} boulders seeded`);
@@ -143,7 +146,11 @@ async function main() {
           attemptsCount: faker.number.int({ min: 1, max: 20 }),
           sendDate:
             status !== 'PROJECT' ? faker.date.recent({ days: 90 }) : null,
-          feltGradeId: status !== 'PROJECT' ? feltGrade.id : null,
+          // Grade ressenti au premier envoi seulement (SENT ou FLASH) : un
+          // REPEAT n'en porte pas. Chaque grimpeur ne passe qu'une fois sur
+          // un bloc ici, cette ascension est donc bien la première.
+          feltGradeId:
+            status === 'SENT' || status === 'FLASH' ? feltGrade.id : null,
           rating:
             status !== 'PROJECT' ? faker.number.int({ min: 1, max: 5 }) : null,
           wasProject: faker.datatype.boolean(0.3),
@@ -219,6 +226,11 @@ async function main() {
 
   console.log(`✅ ${ascentCount} ascents seeded`);
   console.log(`✅ ${noteCount} notes seeded`);
+
+  // Les ascensions ci-dessus sont écrites sans passer par l'API : leurs votes
+  // ne sont pas encore comptés dans la cotation des blocs.
+  const recomputed = await recomputeAllAngleGrades(prisma);
+  console.log(`✅ ${recomputed} cotations recalculées`);
   console.log('✅ Dev seed completed');
 }
 

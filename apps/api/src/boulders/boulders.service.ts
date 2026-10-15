@@ -12,7 +12,8 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
-import { gradeAtAngle, resolveAngleId } from '../common/utils/angle.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
+import { isEstimatedGrade } from './community-grade';
 
 @Injectable()
 export class BouldersService {
@@ -122,6 +123,15 @@ export class BouldersService {
           },
         },
         _count: { select: { ascents: true } },
+        boulderAngles: {
+          select: {
+            angleId: true,
+            votesCount: true,
+            angle: { select: { valueDegrees: true } },
+            grade: { select: { vScale: true, rank: true } },
+          },
+          orderBy: { angle: { valueDegrees: 'asc' } },
+        },
       },
     });
 
@@ -154,6 +164,16 @@ export class BouldersService {
         role: bh.role,
       })),
       publicNotes,
+      angleGrades: boulder.boulderAngles.map((ba) => ({
+        angleDegrees: ba.angle.valueDegrees,
+        gradeLabel: ba.grade?.vScale ?? null,
+        gradeRank: ba.grade?.rank ?? null,
+        votesCount: ba.votesCount,
+        isEstimated: isEstimatedGrade(
+          ba.votesCount,
+          ba.angleId === boulder.angleId,
+        ),
+      })),
     };
   }
 
@@ -277,29 +297,22 @@ export class BouldersService {
       orderBy: { createdAt: 'desc' },
       select: {
         createdAt: true,
-        angleId: true,
         angle: { select: { valueDegrees: true } },
-        boulder: {
-          select: {
-            id: true,
-            name: true,
-            angleId: true,
-            grade: { select: { vScale: true, rank: true } },
-          },
+        boulder: { select: { id: true, name: true } },
+        // Cotation effective du bloc à l'inclinaison du like.
+        boulderAngle: {
+          select: { grade: { select: { vScale: true, rank: true } } },
         },
       },
     });
 
-    return likes.map((like) => {
-      const grade = gradeAtAngle(like.boulder, like.angleId);
-      return {
-        id: like.boulder.id,
-        name: like.boulder.name,
-        gradeLabel: grade?.vScale ?? null,
-        gradeRank: grade?.rank ?? null,
-        angleDegrees: like.angle.valueDegrees,
-        likedAt: like.createdAt,
-      };
-    });
+    return likes.map((like) => ({
+      id: like.boulder.id,
+      name: like.boulder.name,
+      gradeLabel: like.boulderAngle.grade?.vScale ?? null,
+      gradeRank: like.boulderAngle.grade?.rank ?? null,
+      angleDegrees: like.angle.valueDegrees,
+      likedAt: like.createdAt,
+    }));
   }
 }

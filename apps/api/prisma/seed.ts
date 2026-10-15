@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { HoldRole, PrismaClient } from '../src/generated/prisma/client';
 import * as bcrypt from 'bcrypt';
+import { ensureBoulderAngles } from './seed-utils';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
@@ -242,6 +243,7 @@ async function main() {
         },
       },
     });
+    await ensureBoulderAngles(prisma, boulder);
     console.log(`✅ Boulder seeded: ${boulder.name}`);
   }
 
