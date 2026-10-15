@@ -55,11 +55,14 @@ export interface BoulderLikeStatus {
   liked: boolean;
 }
 
+// Un favori = un bloc à une inclinaison : le même bloc peut apparaître deux
+// fois. `angleDegrees` est celle du like, pas celle du créateur, et la
+// cotation celle de cette inclinaison : `null` quand elle n'est pas cotée.
 export interface BoulderLiked {
   id: number;
   name: string;
-  gradeLabel: string;
-  gradeRank: number;
+  gradeLabel: string | null;
+  gradeRank: number | null;
   angleDegrees: number;
   likedAt: string;
 }

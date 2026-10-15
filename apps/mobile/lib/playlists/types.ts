@@ -31,7 +31,8 @@ export type CreatedPlaylist = {
 
 // Aligné sur PlaylistDetailDto (GET /playlists/:id). Le bloc y est aplati :
 // `vScale` et `angleDegrees` sont au premier niveau, pas sous `grade`/`angle`
-// comme dans les réponses d'ascension.
+// comme dans les réponses d'ascension. `angleDegrees` est celle de l'entrée :
+// le même bloc peut figurer deux fois, à deux inclinaisons.
 export type PlaylistDetail = PlaylistSummary & {
   boulders: {
     position: number | null;
@@ -39,8 +40,9 @@ export type PlaylistDetail = PlaylistSummary & {
     boulder: {
       id: number;
       name: string;
-      vScale: string;
-      fontScale: string;
+      // Cotation à l'inclinaison de l'entrée, `null` quand elle n'est pas cotée.
+      vScale: string | null;
+      fontScale: string | null;
       angleDegrees: number;
     };
   }[];

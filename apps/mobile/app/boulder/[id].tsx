@@ -78,7 +78,6 @@ export default function BoulderDetailScreen() {
   const grades = useGrades();
   const logAscent = useLogAscent();
   const updateAscent = useUpdateAscent();
-  const like = useBoulderLike(boulderId);
   const toggleLike = useToggleBoulderLike();
 
   // Inclinaison affichée : celle choisie dans le sélecteur, sinon celle du
@@ -91,6 +90,8 @@ export default function BoulderDetailScreen() {
     ? Number(angleParam)
     : undefined;
   const selectedAngle = pickedAngle ?? linkAngle ?? boulder.data?.angleDegrees;
+  // Le cœur suit le sélecteur : liker à 50° ne dit rien du bloc à 40°.
+  const like = useBoulderLike(boulderId, selectedAngle);
 
   // Toutes les règles du formulaire sont par bloc ET par inclinaison : on ne
   // garde que les ascensions faites à l'inclinaison affichée. L'API renvoie
@@ -282,7 +283,9 @@ export default function BoulderDetailScreen() {
               // Inerte pendant un envoi : un second tap partirait en parallèle
               // du premier, et le serveur pourrait recevoir DELETE avant PUT.
               disabled={toggleLike.isPending}
-              onToggle={(liked) => toggleLike.mutate({ boulderId, liked })}
+              onToggle={(liked) =>
+                toggleLike.mutate({ boulderId, angleDegrees: angle, liked })
+              }
             />
             {currentStatus && <StatusBadge status={currentStatus} />}
           </View>
@@ -568,6 +571,7 @@ export default function BoulderDetailScreen() {
           Monté ici pour partager `boulderId` et l'état d'ouverture. */}
       <AddToPlaylistSheet
         boulderId={boulderId}
+        angleDegrees={angle}
         visible={playlistSheetOpen}
         onClose={() => setPlaylistSheetOpen(false)}
       />

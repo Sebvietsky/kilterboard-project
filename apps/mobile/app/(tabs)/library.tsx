@@ -140,9 +140,13 @@ function LikedList() {
     >
       <FlatList
         data={liked.data}
-        keyExtractor={(item) => String(item.id)}
+        // Le même bloc peut être liké à deux inclinaisons : la clé reprend
+        // celle du like en base, et la carte rouvre le bloc à son inclinaison.
+        keyExtractor={(item) => `${item.id}-${item.angleDegrees}`}
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/boulder/${item.id}`)}>
+          <Pressable
+            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+          >
             <LikedCard boulder={item} />
           </Pressable>
         )}
@@ -251,7 +255,8 @@ function ProjectCard({ project }: { project: MyProject }) {
 }
 
 // Même recette que ProjectCard, sans le compteur d'essais : un favori dit
-// seulement « ce bloc m'intéresse ».
+// seulement « ce bloc m'intéresse ». La cotation est celle de l'inclinaison
+// du like ; non cotée, la carte le dit plutôt que d'afficher celle du créateur.
 function LikedCard({ boulder }: { boulder: BoulderLiked }) {
   return (
     <View style={styles.card}>
@@ -259,9 +264,15 @@ function LikedCard({ boulder }: { boulder: BoulderLiked }) {
         <Text style={styles.cardTitle} numberOfLines={1}>
           {boulder.name}
         </Text>
-        <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{boulder.gradeLabel}</Text>
-        </View>
+        {boulder.gradeLabel !== null ? (
+          <View style={styles.gradeBadge}>
+            <Text style={styles.gradeText}>{boulder.gradeLabel}</Text>
+          </View>
+        ) : (
+          <View style={styles.ungradedBadge}>
+            <Text style={styles.ungradedText}>Not graded</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.metaData}>{boulder.angleDegrees}°</Text>
@@ -384,6 +395,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.heading,
     fontSize: typography.size.sm,
     color: colors.primary,
+  },
+  // Neutre, comme « Not graded yet » du détail : une absence d'information,
+  // pas une alerte.
+  ungradedBadge: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  ungradedText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textSubtle,
   },
   metaRow: {
     flexDirection: 'row',
