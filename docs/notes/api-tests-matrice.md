@@ -95,7 +95,7 @@ Abréviations :
 | Écritures réservées au propriétaire | DEC 10-12 | S | pl › propriété | M43 tuée | — |
 | Entrée = bloc + inclinaison, doublon 409 | DEC 10-15 | S + D + B | pl › addBoulder ; playlists.dto › AddBoulderDto | M41, D08 tuées | unicité en base : e2e |
 | Mes playlists = les miennes | implicite | S | pl › ne lit que les playlists de l'utilisateur | M40 tuée | — |
-| Bloc ajouté à une playlist : visible (public, publié) | code (like, ascension) | — | — | — | **B4 : règle à trancher** |
+| Bloc privé ou brouillon : n'existe que pour son créateur (404 pour les autres) ; ajout en playlist | Seb 2026-10-15 (B4) | S | pl › rejette en 404 le bloc privé/brouillon d'un autre ; accepte le brouillon de son créateur | F12, F13 tuées | like et log refusent aussi le créateur sur son propre brouillon : à aligner quand la création de blocs existera |
 | Nom de playlist non vide | code | D | playlists.dto › CreatePlaylistDto, UpdatePlaylistDto | F06 tuée | — (B5 corrigé) |
 | `/admin` réservé aux ADMIN | CdC | G | roles.guard.spec | M48 tuée | `@Roles` sur le contrôleur : e2e |
 | Tri admin par liste blanche | code | S | admin.service.spec, pagination.utils.spec | — | — |
