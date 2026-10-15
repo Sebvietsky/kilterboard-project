@@ -167,6 +167,7 @@ export class BouldersService {
         ascent: {
           select: {
             feltGrade: { select: { vScale: true } },
+            angle: { select: { valueDegrees: true } },
           },
         },
         _count: { select: { ascentNoteLikes: true } },
@@ -175,6 +176,8 @@ export class BouldersService {
     });
 
     return notes.map((note) => ({
+      id: note.id,
+      angleDegrees: note.ascent.angle.valueDegrees,
       username: note.user.username,
       avatarUrl: note.user.avatarUrl,
       content: note.content,

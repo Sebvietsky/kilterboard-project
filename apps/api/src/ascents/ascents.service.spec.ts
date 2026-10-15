@@ -577,6 +577,7 @@ describe('AscentsService', () => {
       id: 7,
       userId: user.userId,
       boulderId: 10,
+      angleId: 7,
       status: AscentStatus.SENT,
     };
 
@@ -632,9 +633,11 @@ describe('AscentsService', () => {
       },
     );
 
-    // L'unicité porte sur (user, bloc), pas sur l'ascension : sans ça, deux
-    // ascensions du même grimpeur sur un bloc lui donneraient deux voix.
-    it('refuse une seconde note publique sur le même bloc', async () => {
+    // L'unicité porte sur (user, bloc, inclinaison), pas sur l'ascension :
+    // sans ça, deux ascensions du même grimpeur sur un bloc à la même
+    // inclinaison lui donneraient deux voix. Une autre inclinaison, elle,
+    // se commente à part.
+    it('refuse une seconde note publique sur le même bloc à la même inclinaison', async () => {
       prismaMock.ascentNote.findFirst.mockResolvedValue({ id: 99 });
 
       await expect(
@@ -646,6 +649,7 @@ describe('AscentsService', () => {
           userId: user.userId,
           boulderId: sentAscent.boulderId,
           visibility: 'PUBLIC',
+          ascent: { angleId: sentAscent.angleId },
         },
       });
     });

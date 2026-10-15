@@ -234,9 +234,10 @@ describe('BouldersService', () => {
     it('tolère une note dont lauteur na pas donné de cote ressentie', async () => {
       prismaMock.ascentNote.findMany.mockResolvedValue([
         {
+          id: 12,
           user: { username: 'seb', avatarUrl: null },
           content: 'Nice',
-          ascent: { feltGrade: null },
+          ascent: { feltGrade: null, angle: { valueDegrees: 50 } },
           _count: { ascentNoteLikes: 2 },
           createdAt: new Date(),
         },
@@ -245,6 +246,28 @@ describe('BouldersService', () => {
       const [note] = await service.findComments(10);
 
       expect(note).toMatchObject({ feltGradeLabel: null, likesCount: 2 });
+    });
+
+    // L'id sert de clé de liste côté client ; l'inclinaison, de filtre. Elle
+    // vient de l'ascension commentée, pas du bloc (créé à une autre).
+    it("expose l'id et l'inclinaison de l'ascension commentée", async () => {
+      prismaMock.ascentNote.findMany.mockResolvedValue([
+        {
+          id: 12,
+          user: { username: 'seb', avatarUrl: null },
+          content: 'Nice',
+          ascent: {
+            feltGrade: { vScale: 'V5' },
+            angle: { valueDegrees: 50 },
+          },
+          _count: { ascentNoteLikes: 0 },
+          createdAt: new Date(),
+        },
+      ]);
+
+      const [note] = await service.findComments(10);
+
+      expect(note).toMatchObject({ id: 12, angleDegrees: 50 });
     });
   });
 

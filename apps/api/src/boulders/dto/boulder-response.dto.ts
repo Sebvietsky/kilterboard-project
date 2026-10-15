@@ -8,6 +8,10 @@ export class HoldDto {
 }
 
 export class PublicNoteDto {
+  id!: number;
+  // Inclinaison de l'ascension commentée : un bloc à 40° et à 50° se
+  // commente séparément, et le client filtre sur l'inclinaison affichée.
+  angleDegrees!: number;
   username!: string;
   avatarUrl!: string | null;
   content!: string;

@@ -341,7 +341,9 @@ export class AscentsService {
       );
     }
 
-    // Règle métier : 1 seule note publique par user par bloc
+    // Règle métier : 1 seule note publique par user, par bloc et par
+    // inclinaison. Le même bloc à une autre inclinaison se commente à part.
+    // La note n'a pas d'inclinaison propre : elle la tient de son ascension.
     if (dto.visibility === 'PUBLIC') {
       const existingPublicNote: AscentNote | null =
         await this.prisma.ascentNote.findFirst({
@@ -349,11 +351,12 @@ export class AscentsService {
             userId: user.userId,
             boulderId: ascent.boulderId,
             visibility: 'PUBLIC',
+            ascent: { angleId: ascent.angleId },
           },
         });
       if (existingPublicNote) {
         throw new BadRequestException(
-          'You already have a public note on this boulder.',
+          'You already have a public note on this boulder at this angle.',
         );
       }
     }
