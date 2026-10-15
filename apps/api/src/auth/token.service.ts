@@ -88,15 +88,14 @@ export class TokenService {
   }
 
   /**
-   * Déconnexion. Avec `token`, seul l'appareil qui le détient est déconnecté ;
-   * sans lui, tous les appareils du compte le sont.
+   * Déconnexion d'un appareil : seul le token fourni est révoqué.
    *
-   * `userId` reste dans le filtre même quand le token est fourni : on ne peut
-   * révoquer que ses propres tokens.
+   * `userId` reste dans le filtre : on ne peut révoquer que ses propres
+   * tokens, même en présentant celui d'un autre.
    */
-  async deleteRefreshToken(userId: number, token?: string): Promise<void> {
+  async deleteRefreshToken(userId: number, token: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({
-      where: { userId, ...(token && { token }) },
+      where: { userId, token },
     });
   }
 }

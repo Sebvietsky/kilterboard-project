@@ -2,6 +2,26 @@ import 'reflect-metadata';
 import { rejectedFields } from '../../../test/dto-validation';
 import { RegisterDto } from './register.dto';
 import { RefreshTokenDto } from './refresh-token.dto';
+import { LogoutDto } from './logout.dto';
+
+// B8 (décision du 2026-10-15) : sans token, le logout déconnectait tous les
+// appareils du compte. Un oubli du client déclenchait l'action la plus large.
+describe('LogoutDto', () => {
+  it.each([
+    ['absent', {}],
+    ['vide', { refreshToken: '' }],
+  ])('refuse un logout au token %s', async (_label, body) => {
+    await expect(rejectedFields(LogoutDto, body)).resolves.toEqual([
+      'refreshToken',
+    ]);
+  });
+
+  it('accepte le token de l’appareil', async () => {
+    await expect(
+      rejectedFields(LogoutDto, { refreshToken: 'abc' }),
+    ).resolves.toEqual([]);
+  });
+});
 
 // Mot de passe et username sont validés par le DTO seul : le service ne les
 // relit pas.
