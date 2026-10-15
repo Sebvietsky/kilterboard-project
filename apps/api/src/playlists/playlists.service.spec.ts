@@ -160,6 +160,19 @@ describe('PlaylistsService', () => {
       expect(arg.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }]);
     });
 
+    // Privées comprises : sans ce filtre, « mes playlists » serait celles de
+    // tout le monde.
+    it("ne lit que les playlists de l'utilisateur", async () => {
+      prismaMock.playlist.findMany.mockResolvedValue([]);
+
+      await service.findMine(user);
+
+      const [arg] = prismaMock.playlist.findMany.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({ userId: user.userId });
+    });
+
     it("n'expose pas containsBoulder quand aucun bloc n'est demandé", async () => {
       prismaMock.playlist.findMany.mockResolvedValue([row]);
 
