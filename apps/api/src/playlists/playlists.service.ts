@@ -125,6 +125,10 @@ export class PlaylistsService {
       where: {
         userId: user.userId,
       },
+      // Ordre explicite, la plus récente en tête : sans `orderBy`, PostgreSQL
+      // ne garantit rien, et une playlist tout juste créée pouvait apparaître
+      // au milieu de la liste. `id` départage deux créations simultanées.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         user: { select: { username: true } },
         _count: { select: { playlistBoulders: true } },
