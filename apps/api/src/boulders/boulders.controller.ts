@@ -23,6 +23,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { AngleQueryDto } from '../common/dto/angle-query.dto';
 
 @Controller('boulders')
 export class BouldersController {
@@ -71,9 +72,10 @@ export class BouldersController {
   @Get(':id/like')
   async isLiked(
     @Param('id', ParseIntPipe) id: number,
+    @Query() query: AngleQueryDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<BoulderLikeStatusDto> {
-    return this.boulderService.isLiked(user.userId, id);
+    return this.boulderService.isLiked(user.userId, id, query.angle);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -81,9 +83,10 @@ export class BouldersController {
   @HttpCode(200)
   async like(
     @Param('id', ParseIntPipe) id: number,
+    @Query() query: AngleQueryDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<BoulderLikeStatusDto> {
-    return this.boulderService.like(user.userId, id);
+    return this.boulderService.like(user.userId, id, query.angle);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -91,8 +94,9 @@ export class BouldersController {
   @HttpCode(204)
   async unlike(
     @Param('id', ParseIntPipe) id: number,
+    @Query() query: AngleQueryDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<void> {
-    return this.boulderService.unlike(user.userId, id);
+    return this.boulderService.unlike(user.userId, id, query.angle);
   }
 }

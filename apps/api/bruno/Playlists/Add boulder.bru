@@ -12,10 +12,12 @@ post {
 
 body:json {
   {
-    "boulderId": {{boulderId}}
+    "boulderId": {{boulderId}},
+    "angleDegrees": 40
   }
 }
 
 docs {
+  `angleDegrees` : obligatoire, l'entrée porte son inclinaison.
   `position` : optionnel.
 }

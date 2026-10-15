@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -17,6 +18,7 @@ const prismaMock = {
     delete: jest.fn(),
   },
   boulder: { findUnique: jest.fn() },
+  angle: { findUnique: jest.fn() },
   playlistBoulder: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -45,6 +47,7 @@ describe('PlaylistsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 50°
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -90,6 +93,41 @@ describe('PlaylistsService', () => {
         id: 3,
       });
     });
+    // Le même bloc (créé à 40°, angleId 5) à 40° et à 50° : deux entrées, et
+    // la cotation du créateur ne vaut que pour la sienne.
+    it('donne à chaque entrée son inclinaison et la cotation qui y vaut', async () => {
+      const boulder = {
+        name: 'Crimpy',
+        angleId: 5,
+        grade: { vScale: 'V4', fontScale: '6b', rank: 6 },
+      };
+      prismaMock.playlist.findUnique.mockResolvedValue({
+        ...ownedPlaylist,
+        playlistBoulders: [
+          { boulderId: 10, angleId: 5, angle: { valueDegrees: 40 }, boulder },
+          { boulderId: 10, angleId: 7, angle: { valueDegrees: 50 }, boulder },
+        ],
+      });
+
+      const { boulders } = await service.findOne(3, user);
+
+      expect(boulders.map((b) => b.boulder)).toEqual([
+        {
+          id: 10,
+          name: 'Crimpy',
+          vScale: 'V4',
+          fontScale: '6b',
+          angleDegrees: 40,
+        },
+        {
+          id: 10,
+          name: 'Crimpy',
+          vScale: null,
+          fontScale: null,
+          angleDegrees: 50,
+        },
+      ]);
+    });
   });
 
   describe('findMine', () => {
@@ -118,12 +156,31 @@ describe('PlaylistsService', () => {
         { ...row, id: 2, playlistBoulders: [] },
       ]);
 
-      const playlists = await service.findMine(user, 10);
+      const playlists = await service.findMine(user, {
+        boulderId: 10,
+        angleDegrees: 50,
+      });
 
       expect(playlists.map((p) => [p.id, p.containsBoulder])).toEqual([
         [1, true],
         [2, false],
       ]);
+    });
+
+    // Le même bloc à une autre inclinaison est une autre entrée : la coche ne
+    // vaut que pour l'inclinaison affichée.
+    it("ne cherche le bloc qu'à l'inclinaison demandée", async () => {
+      prismaMock.playlist.findMany.mockResolvedValue([]);
+
+      await service.findMine(user, { boulderId: 10, angleDegrees: 50 });
+
+      const [arg] = prismaMock.playlist.findMany.mock.calls[0] as [
+        { include: { playlistBoulders: { where: unknown } } },
+      ];
+      expect(arg.include.playlistBoulders.where).toEqual({
+        boulderId: 10,
+        angle: { valueDegrees: 50 },
+      });
     });
   });
 
@@ -172,8 +229,12 @@ describe('PlaylistsService', () => {
     it.each([
       ['removePlaylist', () => service.removePlaylist(stranger, 3)],
       ['update', () => service.update({ name: 'x' }, stranger, 3)],
-      ['addBoulder', () => service.addBoulder(stranger, { boulderId: 10 }, 3)],
-      ['removeBoulder', () => service.removeBoulder(stranger, 10, 3)],
+      [
+        'addBoulder',
+        () =>
+          service.addBoulder(stranger, { boulderId: 10, angleDegrees: 50 }, 3),
+      ],
+      ['removeBoulder', () => service.removeBoulder(stranger, 10, 3, 50)],
     ])('%s refuse un non-propriétaire', async (_label, call) => {
       await expect(call()).rejects.toThrow(ForbiddenException);
     });
@@ -189,30 +250,53 @@ describe('PlaylistsService', () => {
       prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
       prismaMock.playlistBoulder.findUnique.mockResolvedValue(null);
 
-      await service.addBoulder(user, { boulderId: 10, position: 2 }, 3);
+      await service.addBoulder(
+        user,
+        { boulderId: 10, angleDegrees: 50, position: 2 },
+        3,
+      );
 
       expect(prismaMock.playlistBoulder.create).toHaveBeenCalledWith({
-        data: { boulderId: 10, playlistId: 3, position: 2 },
+        data: { boulderId: 10, playlistId: 3, angleId: 7, position: 2 },
       });
+    });
+
+    it('rejette une inclinaison inconnue', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+      prismaMock.angle.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.addBoulder(user, { boulderId: 10, angleDegrees: 47 }, 3),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.playlistBoulder.create).not.toHaveBeenCalled();
     });
 
     it('rejette un bloc inexistant', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.addBoulder(user, { boulderId: 404 }, 3),
+        service.addBoulder(user, { boulderId: 404, angleDegrees: 50 }, 3),
       ).rejects.toThrow(NotFoundException);
     });
 
-    // La contrainte unique (boulderId, playlistId) le garantirait en base, mais
+    // La clé (boulderId, playlistId, angleId) le garantirait en base, mais
     // en levant une erreur Prisma brute : on préfère un 409 explicite.
-    it('rejette un bloc déjà présent', async () => {
+    it('rejette un bloc déjà présent à cette inclinaison', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
       prismaMock.playlistBoulder.findUnique.mockResolvedValue({ id: 77 });
 
       await expect(
-        service.addBoulder(user, { boulderId: 10 }, 3),
+        service.addBoulder(user, { boulderId: 10, angleDegrees: 50 }, 3),
       ).rejects.toThrow(ConflictException);
+      expect(prismaMock.playlistBoulder.findUnique).toHaveBeenCalledWith({
+        where: {
+          boulderId_playlistId_angleId: {
+            boulderId: 10,
+            playlistId: 3,
+            angleId: 7,
+          },
+        },
+      });
       expect(prismaMock.playlistBoulder.create).not.toHaveBeenCalled();
     });
   });
@@ -222,10 +306,16 @@ describe('PlaylistsService', () => {
       prismaMock.playlist.findUnique.mockResolvedValue(ownedPlaylist);
       prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
 
-      await service.removeBoulder(user, 10, 3);
+      await service.removeBoulder(user, 10, 3, 50);
 
       expect(prismaMock.playlistBoulder.delete).toHaveBeenCalledWith({
-        where: { boulderId_playlistId: { boulderId: 10, playlistId: 3 } },
+        where: {
+          boulderId_playlistId_angleId: {
+            boulderId: 10,
+            playlistId: 3,
+            angleId: 7,
+          },
+        },
       });
     });
   });

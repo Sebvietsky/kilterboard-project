@@ -108,7 +108,7 @@ describe('AscentsService', () => {
       prismaMock.angle.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.create({ ...baseDto, angleDegrees: 65 }, user),
+        service.create({ ...baseDto, angleDegrees: 47 }, user),
       ).rejects.toThrow(BadRequestException);
       expect(prismaMock.ascent.create).not.toHaveBeenCalled();
     });

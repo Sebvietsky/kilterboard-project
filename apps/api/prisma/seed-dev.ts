@@ -170,7 +170,7 @@ async function main() {
 
   console.log('Seeding fake playlists...');
   const allBouldersList = await prisma.boulder.findMany({
-    select: { id: true },
+    select: { id: true, angleId: true },
   });
 
   for (const user of users.slice(0, 10)) {
@@ -206,6 +206,7 @@ async function main() {
           data: {
             playlistId: playlist.id,
             boulderId: b.id,
+            angleId: b.angleId,
             position: index + 1,
             addedAt: faker.date.recent({ days: 30 }),
           },

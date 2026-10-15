@@ -26,6 +26,7 @@ import {
 } from './dto/ascent-response.types';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
 import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @Injectable()
@@ -43,15 +44,8 @@ export class AscentsService {
     if (!boulder.isPublic || boulder.isDraft)
       throw new NotFoundException('Boulder not found');
 
-    // Résolution degrés -> Angle.id, comme le rank du grade ressenti
-    // (valueDegrees est @unique ; inclinaison inconnue -> 400).
-    const angle = await this.prisma.angle.findUnique({
-      where: { valueDegrees: dto.angleDegrees },
-      select: { id: true },
-    });
-    if (!angle) {
-      throw new BadRequestException('Invalid angle.');
-    }
+    // Résolution degrés -> Angle.id, comme le rank du grade ressenti.
+    const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
     // On récupère l'historique du user sur ce bloc À CETTE INCLINAISON pour
     // sécuriser les règles métier, en une seule requête. Le filtre suffit à
@@ -61,7 +55,7 @@ export class AscentsService {
       where: {
         userId: user.userId,
         boulderId: dto.boulderId,
-        angleId: angle.id,
+        angleId,
       },
       select: { status: true },
     });
@@ -137,7 +131,7 @@ export class AscentsService {
       data: {
         userId: user.userId,
         boulderId: dto.boulderId,
-        angleId: angle.id,
+        angleId,
         status: dto.status,
         attemptsCount,
         feltGradeId: grade?.id ?? null,
