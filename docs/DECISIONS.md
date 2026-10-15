@@ -9,17 +9,22 @@ Dernière mise à jour : 2026-10-15
 
 ## Chantier en cours
 
-**Prochaine action :** ouvrir `feature/angle-collections` depuis `develop` : inclinaison sur les favoris et les entrées de playlist.
+**Prochaine action :** relire et fusionner #70 (cotation communautaire), puis corriger B1 (transitions de statut en PATCH) sur une branche `fix/`, guidé par l'agent de tests : Seb écrit la logique.
 
-- Fusionnés le 2026-10-15 : favoris (#65), inclinaison étape 1 (#66). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
-- Ensuite, dans l'ordre : `feature/angle-collections`, puis inclinaison étape 2 (cotation communautaire) et étape 3 (Explore). Conception : `docs/notes/boulder-angle.md`, à lire avant d'y toucher.
+- Fusionnés le 2026-10-15 : favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
+- Ouverte : #70, inclinaison étape 2 (`boulder_angles`, un seul grade ressenti, cotation communautaire). Testée sur téléphone le 2026-10-15.
+- Audit des tests par un second agent, dans le worktree `../kilterboard-tests` (branche `chore/api-tests-audit`). Rapport du 2026-10-15 : 9 écarts (B1 à B9). Ordre : branche `chore/` des tests, puis `fix/` pour B1, B3 et B5, puis les décisions B6, B4 et B8, une à la fois.
+- Ensuite : afficher l'inclinaison dans le compte rendu de session, puis l'étape 3 (Explore). Conception : `docs/notes/boulder-angle.md`, à lire avant d'y toucher.
 - Restent à faire sans branche prévue : historique des ascensions dans le profil (`GET /ascents/me` existe) ; encart de connexion à une board sur l'onglet Session, quand le BLE sera dégelé.
+- `GET /ascents/me` expose encore la cotation du créateur (aucun écran ne l'utilise).
+- Après un changement des règles de cotation : `pnpm --filter api db:recompute-grades`.
 - Après un changement de branche pendant que l'app tourne : recharger l'app complètement (`r` dans Metro) avant de tester.
 - Après une migration : `pnpm --filter api db:generate`. Prisma 7 ne régénère plus le client dans `migrate dev`.
 
 ## Travail non commité
 
 - `apps/api/bruno/environments/Local.bru` : variables de test que Seb change au fil de l'eau. Ne jamais commiter.
+- Worktree `../kilterboard-tests` : travail en cours de l'agent de tests, sur sa branche.
 
 ## Décisions tranchées (ne pas rouvrir sans raison nouvelle)
 
@@ -44,6 +49,7 @@ API
 - **2026-10-12 · Playlists** : `GET /playlists/me?boulderId=` renvoie `containsBoulder` par playlist (#61). `GET /playlists/:id` trie ses blocs par position, puis ajout le plus récent (#62).
 - **2026-10-12 · Limite de 3 tags par bloc** : à poser dans la validation le jour où la création d'un bloc existe. Aujourd'hui aucune route ne crée de bloc ni n'attribue de tag.
 - **2026-10-14 · Favoris : `PUT` et `DELETE /boulders/:id/like`, idempotents** (#65) : `createMany` + `skipDuplicates`, et `deleteMany`. Un renvoi après une réponse perdue réussit sans rien changer. `PUT` renvoie `{ liked }`, car le client `put` lève sur un corps vide.
+- **2026-10-15 · `GET /playlists/me` trie de la plus récente à la plus ancienne** (#69).
 - **2026-10-14 · `GET /boulders/:id/like` séparé** de `GET /boulders/:id`, qui reste public : pas de guard JWT optionnel, et un tap n'invalide que l'état du cœur.
 - **2026-07-30 · Tests e2e de l'API reportés.** Conception déjà faite : `docs/notes/api-tests.md`.
 
@@ -65,26 +71,35 @@ Mobile
 - **2026-10-12 · « Add to playlist »** (#61) : bouton sous le bouton de log, feuille native où un tap bascule l'appartenance du bloc. Pas de toast dans une feuille : il serait rendu dessous.
 - **2026-10-12 · Détail d'une playlist** (#62) : retrait d'un bloc, suppression et édition (nom, description, visibilité) réservés au propriétaire.
 - **2026-10-12 · Réordonner les blocs d'une playlist : reporté.** Glisser-déposer et non flèches ; demande des bibliothèques natives et un development build.
-- **2026-10-12 · Une playlist n'est pas verrouillée à une inclinaison** : on y mélange librement les inclinaisons. Complété le 2026-10-15 : chaque entrée portera la sienne.
+- **2026-10-12 · Une playlist n'est pas verrouillée à une inclinaison** : on y mélange librement les inclinaisons. Complété le 2026-10-15 : chaque entrée porte la sienne (#68).
 - **2026-10-12 · Bouton « ampoule » pour allumer un bloc sur la Kilter** : bouton rond flottant sur l'image de la board. À faire avec le BLE, pas avant : un bouton sans effet se lit comme une panne.
+- **2026-10-15 · Library : bouton + flottant pour créer une playlist** (#69), avec une feuille commune à la création et à l'édition (`PlaylistFormSheet`). Détail d'une playlist : croix de retrait à gauche, cotation à droite.
+- **2026-10-15 · Sans cotation à son inclinaison, une carte affiche « Not graded »** (badge neutre), et un tiret dans les cercles des passages de session.
 - **2026-10-12 · Le refresh a trois issues** (`refreshed`, `rejected`, `unavailable`) ; seul `rejected` déconnecte (#63).
 
-Inclinaison (décidé le 2026-10-12, étape 1 faite le 2026-10-15 (#66) — détail : `docs/notes/boulder-angle.md`)
+Inclinaison (décidé le 2026-10-12, étape 1 faite le 2026-10-15 (#66), étape 2 le 2026-10-15 (#70) — détail : `docs/notes/boulder-angle.md`)
 - **2026-10-15 · Principe : le même bloc à une autre inclinaison est un autre bloc.** Le créateur fixe l'inclinaison par défaut du bloc (`boulders.angle_id`) ; chaque action de l'utilisateur (ascension, like, entrée de playlist) enregistre la sienne.
 - **Deux envois à deux inclinaisons sont deux réussites distinctes.** Flash, projet ouvert et grade ressenti au premier envoi passent « par bloc et par inclinaison ». L'ascension enregistre son inclinaison.
 - **Sélecteur d'inclinaison dans l'en-tête du détail d'un bloc**, local à l'écran : il ne modifie jamais le filtre d'Explore. **À l'ouverture : l'inclinaison du lien** (`boulderHref` : la carte d'Explore, l'ascension d'un projet ou d'un passage), sinon celle du créateur. Remplace « dernière inclinaison choisie » (2026-10-15).
 - **2026-10-15 · `angleDegrees` obligatoire sur `POST /ascents`, sans défaut serveur** : seul le client connaît l'inclinaison réelle, et un défaut ferait d'un oubli une donnée fausse et silencieuse.
 - **2026-10-15 · Commentaire public : un par utilisateur, par bloc et par inclinaison.** L'écran n'affiche que ceux de l'inclinaison choisie ; la clé de liste est l'id du commentaire.
-- **2026-10-15 · Favoris et entrées de playlist porteront leur inclinaison.** Un bloc liké à 50° se rouvre à 50°. Pas encore implémenté : aujourd'hui ils ouvrent le bloc à l'inclinaison du créateur.
+- **2026-10-15 · Favoris et entrées de playlist portent leur inclinaison** (#68), dans leur clé primaire : le même bloc à deux inclinaisons fait deux favoris ou deux entrées. Routes : `?angle=` (degrés) sur le like et sur le retrait d'une playlist, `angleDegrees` dans le corps de l'ajout.
 - **Cotation par inclinaison : la communauté remplace le créateur à partir de 5 votes**, par la médiane des grades ressentis. Sans cotation de départ à cette inclinaison : « estimée » sous le seuil. Un vote par personne, par bloc et par inclinaison.
-- **Cotation effective stockée dans une table `boulder_angle_grades`** (bloc, inclinaison, cotation, votes) : une ligne à la création pour l'inclinaison du créateur, les autres au premier vote. Elle sert le filtre et le tri d'Explore ; `boulders.grade_id` et `angle_id` restent la référence du créateur.
-- **Affichage** : la cotation effective seule ; celle du créateur en petit, seulement si elle diffère. Message neutre indiquant que le grade ressenti compte dans la cotation.
+- **2026-10-15 · Table `boulder_angles` (choix « B + D »)** : clé `(boulder_id, angle_id)`, une ligne par inclinaison, toutes créées avec le bloc. Les ascensions, favoris et entrées de playlist y pointent par une clé étrangère composée. Elle porte la cotation effective et les votes ; `boulders.grade_id` et `angle_id` restent la référence du créateur. Remplace `boulder_angle_grades` et « les autres au premier vote ».
+- **2026-10-15 · Un vote = le grade ressenti du premier envoi**, un par grimpeur, bloc et inclinaison. L'API le refuse ailleurs (POST hors premier envoi, PATCH hors complétion d'un projet), et l'index partiel `ascents_one_felt_grade_per_user_boulder_angle` le garantit (3371a76).
+- **2026-10-15 · Médiane basse** pour un nombre pair de votes (V5 entre V5 et V6). Seuil : `COMMUNITY_GRADE_THRESHOLD = 5`. Règle unique dans `apps/api/src/boulders/community-grade.ts`, recalcul dans la transaction du vote, avec verrou de ligne.
+- **2026-10-15 · Explore filtré à une inclinaison : envois seulement.** Un bloc y apparaît s'il y est coté : à l'inclinaison du créateur, ou dès un envoi ailleurs. Un projet sans envoi ne suffit pas. Le filtre se fait dans la requête, pas sur le mobile, à cause de la pagination.
+- **2026-10-15 · Inclinaison de la board déclarée en début de séance** (avec le BLE) : elle pré-règle le filtre d'Explore, qui reste modifiable. Le lien garde la priorité : un bloc liké à 50° s'ouvre à 50°.
+- **2026-10-15 · Compte rendu de session : afficher l'inclinaison de chaque passage**, pour distinguer le même bloc à deux inclinaisons sans ouvrir la fiche. À faire.
+- **Affichage** : la cotation effective seule ; celle du créateur en petit, seulement si elle diffère. Message neutre indiquant que le grade ressenti compte dans la cotation. Fait (#70) : « Set as V5 · n votes », « Estimated · n votes ».
 
 Général
 - **2026-10-08 · Fin de session** : mise à jour de ce fichier, commit, push, puis `/clear`. Ni `/compact` ni prompt de reprise : ce fichier est importé à chaque session.
 - **2026-10-08 · Pas de SQL écrit à la main** quand Prisma sait l'exprimer : vérifier d'abord ce que la version installée supporte.
 - **2026-10-15 · SQL à la main autorisé pour une migration de données** (remplissage avant un `NOT NULL`), en complétant le fichier généré par `migrate dev --create-only`.
 - **2026-10-12 · L'agent ne se connecte jamais avec un compte que Seb utilise sur son téléphone.** Vérifications HTTP avec `test_user_15` uniquement. (Le 2026-10-09, une connexion de l'agent en `test_user_1` avait déconnecté le téléphone.)
+- **2026-10-15 · Deux agents en parallèle : un worktree chacun.** Un contrôle par mutation ne touche qu'un fichier sans modification en cours. (Le 2026-10-15, une restauration par `git checkout` a effacé le travail non commité de l'autre agent.)
+- **2026-10-15 · Les tests partent des règles métier, pas du code** : protocole dans `docs/notes/api-tests.md`, sur la branche de l'agent de tests.
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
@@ -99,6 +114,10 @@ Général
 | Plusieurs appareils connectés sur un même compte | **Tenu** (#63) : un refresh token par appareil. Vérifié en HTTP réel à deux connexions ; pas d'e2e. |
 | Like et unlike idempotents | **Tenu** (#65) : double `PUT` → 200, double `DELETE` → 204, vérifié en HTTP réel ; tests unitaires. |
 | Règles d'ascension par bloc et par inclinaison | **Tenu** (#66) par le filtre sur l'inclinaison dans `create` : vérifié en HTTP réel (second projet à 45° refusé, projet à 50° accepté) ; pas d'e2e. |
+| Un grade ressenti par grimpeur, bloc et inclinaison | **Tenu** (3371a76) par l'API et l'index partiel ; refus vérifié en HTTP réel. Index : pas d'e2e. |
+| Cotation recalculée à chaque vote | **Tenu** (#70) dans la transaction du vote, avec verrou ; vérifié en HTTP réel. Concurrence non testée. Faussée par B1. |
+| Transitions de statut : projet → envoi seulement | **Absent.** `PATCH` accepte tout sauf FLASH : un envoi peut repasser en projet puis être supprimé (B1), un projet passer en REPEAT (B2), `attemptsToAdd` s'applique à un envoi (B3). |
+| Pas de projet après un envoi à la même inclinaison | **Absent** (B9), à trancher avec B6. |
 | Timeout sur les `fetch` mobiles | **Absent.** Un hôte injoignable donne un spinner infini. |
 | Docker / docker-compose | **Absent.** Prévu pour les tests e2e de l'API. |
 | `REPEAT` | Valeur dans l'enum, aucune règle dans `create` : un `POST` avec `REPEAT` sur un bloc jamais envoyé passe. |
@@ -108,20 +127,19 @@ Général
 - Modules API existants : `auth`, `users`, `boulders`, `ascents`, `sessions`, `playlists`, `grades`, `admin`.
 - Modules API prévus : `boards`, `feed`, `challenges`.
 - Écrans mobiles placeholder : Home (échantillon de polices avec de fausses données).
-- Tests : unitaires sur `apps/api` seulement (Prisma mocké), aucun e2e, aucun test mobile.
-- Outillage : collection Bruno dans `apps/api/bruno/`. Comptes de test dans `prisma/seed.ts` (`kilter_admin`) et `prisma/seed-dev.ts` (`test_user_N`).
+- Tests : unitaires sur `apps/api` seulement (Prisma mocké), aucun DTO testé, aucun e2e, aucun test mobile.
+- Outillage : collection Bruno dans `apps/api/bruno/`. Comptes de test dans `prisma/seed.ts` (`kilter_admin`) et `prisma/seed-dev.ts` (`test_user_N`). Recalcul des cotations : `db:recompute-grades`.
 - Pièges Jest du monorepo et conventions de spec : `docs/notes/api-tests.md`.
 
 ## Questions ouvertes
 
 - Dates en base : celles écrites par Prisma sont décalées de 2 h par rapport à `now()` en SQL (PostgreSQL en `Europe/Paris`). L'API est cohérente avec elle-même ; toute requête SQL à la main qui compare avec `now()` est fausse. Cause et impact à vérifier.
-- Explore et inclinaisons (étape 3) : avec un filtre, le bloc apparaît à toute inclinaison cotée (`boulder_angle_grades`). Sans filtre, trois formes : une carte par bloc, une carte par couple (bloc, inclinaison) (plus fidèle au principe du 2026-10-15), ou une carte avec des pastilles d'inclinaison.
+- Explore sans filtre d'inclinaison : une carte par bloc, ou une carte par couple coté (bloc, inclinaison) ? La règle « envois seulement » ne tranche que le cas filtré.
 - Filtre Explore « jamais fait » : jamais fait **à cette inclinaison**. Sans filtre d'inclinaison, son sens dépend de la question précédente.
 - `GET /sessions/me` et `GET /boulders/likes/me` ne sont pas paginés. À trancher ensemble.
-- Étape 2 : statistiques du bloc (ascensions, note) et pastilles de cotation des cartes de projet et de session, encore toutes inclinaisons confondues.
-- Compte rendu de session : afficher l'inclinaison de chaque passage ? Les liens l'utilisent déjà, l'affichage non.
-- La table `angles` n'a pas 65° (seed) alors que la Kilter se règle par pas de 5°. `ANGLES` côté mobile reprend la même liste.
+- Statistiques du bloc (ascensions, note) : encore toutes inclinaisons confondues. Les pastilles de cotation sont faites (#70).
 - `login` renvoie 200 et `refresh` 201 : l'agent recommande d'aligner `refresh` sur 200 dans une branche `fix/`. À décider.
 - Test manuel à faire sur téléphone : arrêter l'API, attendre 15 min que le token d'accès expire, utiliser l'app (une erreur doit s'afficher, sans retour à l'écran de connexion), relancer l'API. Marche à suivre dans `docs/notes/mobile-reseau.md`.
-- Inclinaison, étape 2 : la ligne de `boulder_angle_grades` naît-elle au premier essai (cotation vide) ou au premier vote ? Avantages et inconvénients à comparer avant de coder.
+- Audit B6 : dans le MVP, un second envoi à la même inclinaison reste-t-il un SENT, est-il interdit, ou devient-il un REPEAT ? Questions liées : le commentaire public sur ce second envoi (B7), un projet après un envoi (B9), un REPEAT sans envoi préalable.
+- Audit B4 (ajout à une playlist du bloc privé d'un autre) et B8 (`logout` sans token déconnecte tous les appareils) : règles à écrire.
 - L'authentification n'a de test automatique que côté service. Le scénario à deux appareils et tout le côté mobile ne sont vérifiés qu'à la main : meilleur candidat pour démarrer les tests e2e.
