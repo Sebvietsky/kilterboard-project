@@ -7,6 +7,13 @@ export class CreateAscentDto {
   @Type(() => Number)
   boulderId!: number;
 
+  // Obligatoire et sans défaut serveur : seul le client sait à quelle
+  // inclinaison la board était réglée. Un défaut (celle du créateur) ferait
+  // d'un oubli une donnée fausse et silencieuse plutôt qu'un 400.
+  @IsInt()
+  @Type(() => Number)
+  angleDegrees!: number;
+
   @IsEnum(AscentStatus)
   status!: AscentStatus;
 

@@ -163,6 +163,7 @@ model Angle {
   label        String? @db.VarChar(50) // ex. "Vertical", "Overhang"
 
   boulders Boulder[]
+  ascents  Ascent[]
 
   @@map("angles")
 }
@@ -329,6 +330,12 @@ model Ascent {
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   boulderId Int     @map("boulder_id")
   boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+
+  // Inclinaison à laquelle le bloc a été grimpé, pas celle de sa création :
+  // le même bloc à 40° et à 45° donne deux réussites distinctes. Toujours
+  // envoyée par le client, jamais devinée : sans BLE, seul l'écran la connaît.
+  angleId Int   @map("angle_id")
+  angle   Angle @relation(fields: [angleId], references: [id], onDelete: Restrict)
 
   status        AscentStatus
   attemptsCount Int          @default(0) @map("attempts_count")

@@ -34,6 +34,10 @@ export interface Hold {
   role: HoldRole;
 }
 export interface PublicNote {
+  id: number;
+  // Inclinaison de l'ascension commentée : l'écran n'affiche que les
+  // commentaires de l'inclinaison sélectionnée.
+  angleDegrees: number;
   username: string;
   avatarUrl: string | null;
   content: string;

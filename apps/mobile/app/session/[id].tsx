@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { EntryRow } from '@/components/session/EntryRow';
 import { SessionHero } from '@/components/session/SessionHero';
 import { useSession } from '@/lib/sessions/queries';
+import { boulderHref } from '@/lib/boulders/href';
 import { formatDuration } from '@/lib/sessions/elapsed';
 import type { SessionDetail } from '@/lib/sessions/types';
 import { ApiError } from '@/lib/api/errors';
@@ -75,7 +76,14 @@ export default function SessionDetailScreen() {
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
         <Pressable
-          onPress={() => router.push(`/boulder/${item.ascent.boulderId}`)}
+          onPress={() =>
+            router.push(
+              boulderHref(
+                item.ascent.boulderId,
+                item.ascent.angle.valueDegrees,
+              ),
+            )
+          }
         >
           <EntryRow entry={item} />
         </Pressable>

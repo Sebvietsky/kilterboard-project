@@ -13,6 +13,7 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { useMyProjects } from '@/lib/ascents/queries';
 import { useMyPlaylists } from '@/lib/playlists/queries';
 import { useMyLikedBoulders } from '@/lib/boulders/queries';
+import { boulderHref } from '@/lib/boulders/href';
 import type { MyProject } from '@/lib/ascents/types';
 import type { PlaylistSummary } from '@/lib/playlists/types';
 import type { BoulderLiked } from '@/lib/boulders/types';
@@ -75,7 +76,11 @@ function ProjectsList() {
           // boulderId et non boulder.id : la réponse n'expose pas l'id du
           // bloc dans la relation imbriquée, seulement au niveau de
           // l'ascension.
-          <Pressable onPress={() => router.push(`/boulder/${item.boulderId}`)}>
+          <Pressable
+            onPress={() =>
+              router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+            }
+          >
             <ProjectCard project={item} />
           </Pressable>
         )}
@@ -235,7 +240,7 @@ function ProjectCard({ project }: { project: MyProject }) {
       </View>
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaData}>{boulder.angle.valueDegrees}°</Text>
+        <Text style={styles.metaData}>{project.angle.valueDegrees}°</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.metaData}>
           {attemptsCount} {attemptsCount === 1 ? 'attempt' : 'attempts'}

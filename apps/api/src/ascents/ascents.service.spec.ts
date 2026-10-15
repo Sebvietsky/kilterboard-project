@@ -18,6 +18,7 @@ import { CreateAscentDto } from './dto/create-ascent.dto';
 const prismaMock = {
   boulder: { findUnique: jest.fn() },
   grade: { findUnique: jest.fn() },
+  angle: { findUnique: jest.fn() },
   ascent: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -41,6 +42,7 @@ const publicBoulder = { id: 10, isPublic: true, isDraft: false };
 // Le DTO minimal qui passe : premier contact, grade ressenti fourni.
 const baseDto: CreateAscentDto = {
   boulderId: 10,
+  angleDegrees: 40,
   status: AscentStatus.SENT,
   feltGradeRank: 5,
 };
@@ -74,6 +76,7 @@ describe('AscentsService', () => {
     prismaMock.boulder.findUnique.mockResolvedValue(publicBoulder);
     prismaMock.ascent.findMany.mockResolvedValue([]); // aucun historique
     prismaMock.grade.findUnique.mockResolvedValue({ id: 42, rank: 5 });
+    prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 40°
     prismaMock.ascent.create.mockResolvedValue({ id: 99 });
     sessionsMock.resolveSessionId.mockResolvedValue(null); // hors session
   });
@@ -100,6 +103,42 @@ describe('AscentsService', () => {
     });
   });
 
+  describe('create — inclinaison', () => {
+    it('rejette une inclinaison inconnue', async () => {
+      prismaMock.angle.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create({ ...baseDto, angleDegrees: 65 }, user),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.ascent.create).not.toHaveBeenCalled();
+    });
+
+    // Le client envoie des degrés ; la base stocke un id.
+    it("résout les degrés en Angle.id et l'enregistre", async () => {
+      await service.create(baseDto, user);
+
+      expect(prismaMock.angle.findUnique).toHaveBeenCalledWith({
+        where: { valueDegrees: 40 },
+        select: { id: true },
+      });
+      expect(writtenData(prismaMock.ascent.create)).toMatchObject({
+        angleId: 7,
+      });
+    });
+
+    // C'est ce filtre qui rend toutes les règles « par inclinaison » : un
+    // envoi à 45° n'est pas dans l'historique lu pour un log à 40°. Sans lui,
+    // flash, projet et grade ressenti redeviendraient des règles par bloc.
+    it("ne lit l'historique qu'à l'inclinaison demandée", async () => {
+      await service.create(baseDto, user);
+
+      const [arg] = prismaMock.ascent.findMany.mock.calls[0] as [
+        { where: Record<string, unknown> },
+      ];
+      expect(arg.where).toEqual({ userId: 1, boulderId: 10, angleId: 7 });
+    });
+  });
+
   describe('create — règle du flash', () => {
     const flashDto: CreateAscentDto = {
       ...baseDto,
@@ -118,7 +157,12 @@ describe('AscentsService', () => {
 
     it('déduit attemptsCount = 1 quand le client omet le compteur', async () => {
       await service.create(
-        { boulderId: 10, status: AscentStatus.FLASH, feltGradeRank: 5 },
+        {
+          boulderId: 10,
+          angleDegrees: 40,
+          status: AscentStatus.FLASH,
+          feltGradeRank: 5,
+        },
         user,
       );
 
@@ -159,6 +203,7 @@ describe('AscentsService', () => {
   describe('create — projets', () => {
     const projectDto: CreateAscentDto = {
       boulderId: 10,
+      angleDegrees: 40,
       status: AscentStatus.PROJECT,
     };
 
@@ -201,7 +246,10 @@ describe('AscentsService', () => {
       'exige un grade ressenti au premier %s',
       async (status) => {
         await expect(
-          service.create({ boulderId: 10, status, attemptsCount: 1 }, user),
+          service.create(
+            { boulderId: 10, angleDegrees: 40, status, attemptsCount: 1 },
+            user,
+          ),
         ).rejects.toThrow(BadRequestException);
       },
     );
@@ -213,7 +261,10 @@ describe('AscentsService', () => {
       ]);
 
       await expect(
-        service.create({ boulderId: 10, status: AscentStatus.SENT }, user),
+        service.create(
+          { boulderId: 10, angleDegrees: 40, status: AscentStatus.SENT },
+          user,
+        ),
       ).resolves.toBeDefined();
     });
 
@@ -526,6 +577,7 @@ describe('AscentsService', () => {
       id: 7,
       userId: user.userId,
       boulderId: 10,
+      angleId: 7,
       status: AscentStatus.SENT,
     };
 
@@ -581,9 +633,11 @@ describe('AscentsService', () => {
       },
     );
 
-    // L'unicité porte sur (user, bloc), pas sur l'ascension : sans ça, deux
-    // ascensions du même grimpeur sur un bloc lui donneraient deux voix.
-    it('refuse une seconde note publique sur le même bloc', async () => {
+    // L'unicité porte sur (user, bloc, inclinaison), pas sur l'ascension :
+    // sans ça, deux ascensions du même grimpeur sur un bloc à la même
+    // inclinaison lui donneraient deux voix. Une autre inclinaison, elle,
+    // se commente à part.
+    it('refuse une seconde note publique sur le même bloc à la même inclinaison', async () => {
       prismaMock.ascentNote.findFirst.mockResolvedValue({ id: 99 });
 
       await expect(
@@ -595,6 +649,7 @@ describe('AscentsService', () => {
           userId: user.userId,
           boulderId: sentAscent.boulderId,
           visibility: 'PUBLIC',
+          ascent: { angleId: sentAscent.angleId },
         },
       });
     });
