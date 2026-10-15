@@ -41,8 +41,9 @@ export class BoulderLikeStatusDto {
 export class LikedBoulderDto {
   id!: number;
   name!: string;
-  gradeLabel!: string;
-  gradeRank!: number;
+  // Cotation à l'inclinaison du like ; `null` quand elle n'est pas cotée.
+  gradeLabel!: string | null;
+  gradeRank!: number | null;
   angleDegrees!: number;
   likedAt!: Date;
 }

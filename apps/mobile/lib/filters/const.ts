@@ -1,4 +1,6 @@
-export const ANGLES = [20, 25, 30, 35, 40, 45, 50, 55, 60, 70];
+// Mêmes valeurs que la table `angles` (prisma/seed.ts) : la Kilter se règle
+// par pas de 5°. Une valeur absente ici ou là-bas donne un 400 au log.
+export const ANGLES = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
 
 export const GRADES = [
   { rank: 2, label: 'V0' },

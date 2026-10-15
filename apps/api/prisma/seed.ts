@@ -23,6 +23,7 @@ async function main() {
     { valueDegrees: 50, label: 'Roof' },
     { valueDegrees: 55, label: 'Near Roof' },
     { valueDegrees: 60, label: 'Full Roof' },
+    { valueDegrees: 65, label: 'Near Horizontal' },
     { valueDegrees: 70, label: 'Horizontal' },
   ];
 

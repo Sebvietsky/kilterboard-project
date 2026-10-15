@@ -19,6 +19,7 @@ import {
 } from '@/lib/playlists/queries';
 import type { PlaylistDetail } from '@/lib/playlists/types';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { boulderHref } from '@/lib/boulders/href';
 import { ApiError } from '@/lib/api/errors';
 import { plural } from '@/lib/format/plural';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
@@ -97,6 +98,7 @@ export default function PlaylistDetailScreen() {
           removeBoulder.mutate({
             playlistId,
             boulderId: item.boulder.id,
+            angleDegrees: item.boulder.angleDegrees,
             contains: true,
           }),
       },
@@ -126,9 +128,19 @@ export default function PlaylistDetailScreen() {
       <FlatList
         style={styles.screen}
         data={data.boulders}
-        keyExtractor={(item) => String(item.boulder.id)}
+        // Le bloc seul ne suffit plus comme clé : il peut figurer deux fois,
+        // à deux inclinaisons. La clé reprend celle de l'entrée en base.
+        keyExtractor={(item) =>
+          `${item.boulder.id}-${item.boulder.angleDegrees}`
+        }
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/boulder/${item.boulder.id}`)}>
+          <Pressable
+            onPress={() =>
+              router.push(
+                boulderHref(item.boulder.id, item.boulder.angleDegrees),
+              )
+            }
+          >
             <BoulderRow
               item={item}
               onRemove={isOwner ? () => confirmRemove(item) : undefined}
@@ -218,9 +230,17 @@ function BoulderRow({
 
   return (
     <View style={styles.row}>
-      <View style={styles.gradeBadge}>
-        <Text style={styles.gradeText}>{boulder.vScale}</Text>
-      </View>
+      {/* Cotation à l'inclinaison de l'entrée : non cotée, la ligne le dit
+          plutôt que d'afficher celle du créateur. */}
+      {boulder.vScale !== null ? (
+        <View style={styles.gradeBadge}>
+          <Text style={styles.gradeText}>{boulder.vScale}</Text>
+        </View>
+      ) : (
+        <View style={styles.ungradedBadge}>
+          <Text style={styles.ungradedText}>Not graded</Text>
+        </View>
+      )}
       <View style={styles.rowText}>
         <Text style={styles.rowName} numberOfLines={1}>
           {boulder.name}
@@ -373,6 +393,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.heading,
     fontSize: typography.size.sm,
     color: colors.primary,
+  },
+  // Neutre, comme « Not graded yet » du détail : une absence d'information,
+  // pas une alerte.
+  ungradedBadge: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  ungradedText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textSubtle,
   },
   // Contour et non aplat : destructif, mais relégué en bas de liste.
   deleteButton: {

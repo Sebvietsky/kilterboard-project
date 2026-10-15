@@ -29,19 +29,25 @@ const ICON_SIZE = spacing.xl - spacing.xs;
  * sous la feuille (un Modal natif passe au-dessus de toute l'app, ToastHost
  * compris).
  *
+ * Le bloc est rangé à l'inclinaison affichée par l'écran : le même bloc à une
+ * autre inclinaison est une autre entrée, et les coches ne valent que pour
+ * celle-ci. Le sous-titre le dit, sans quoi rien ne l'indique dans la feuille.
+ *
  * `pageSheet` : la feuille native d'iOS, qui se ferme d'un geste vers le bas.
  * Sur Android, `onRequestClose` répond au bouton retour.
  */
 export function AddToPlaylistSheet({
   boulderId,
+  angleDegrees,
   visible,
   onClose,
 }: {
   boulderId: number;
+  angleDegrees: number;
   visible: boolean;
   onClose: () => void;
 }) {
-  const playlists = useMyPlaylistsForBoulder(boulderId, visible);
+  const playlists = useMyPlaylistsForBoulder(boulderId, angleDegrees, visible);
   const toggle = useTogglePlaylistBoulder();
   const create = useCreatePlaylistWithBoulder();
   const [name, setName] = useState('');
@@ -52,7 +58,7 @@ export function AddToPlaylistSheet({
   function createPlaylist() {
     if (!trimmedName || create.isPending) return;
     create.mutate(
-      { name: trimmedName, boulderId },
+      { name: trimmedName, boulderId, angleDegrees },
       { onSuccess: () => setName('') },
     );
   }
@@ -66,7 +72,10 @@ export function AddToPlaylistSheet({
     >
       <View style={styles.sheet}>
         <View style={styles.header}>
-          <Text style={styles.title}>Add to playlist</Text>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Add to playlist</Text>
+            <Text style={styles.subtitle}>At {angleDegrees}°</Text>
+          </View>
           <Pressable onPress={onClose} hitSlop={spacing.md}>
             <Text style={styles.done}>Done</Text>
           </Pressable>
@@ -136,6 +145,7 @@ export function AddToPlaylistSheet({
                   toggle.mutate({
                     playlistId: item.id,
                     boulderId,
+                    angleDegrees,
                     contains: item.containsBoulder,
                   })
                 }
@@ -208,10 +218,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
+  headerText: {
+    gap: spacing.xs,
+  },
   title: {
     fontFamily: typography.family.heading,
     fontSize: typography.size.xl,
     color: colors.text,
+  },
+  subtitle: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
   done: {
     fontFamily: typography.family.bodySemibold,

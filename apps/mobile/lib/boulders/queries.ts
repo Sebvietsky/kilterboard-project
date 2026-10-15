@@ -95,19 +95,29 @@ export function useMyLikedBoulders(): UseQueryResult<BoulderLiked[], Error> {
   });
 }
 
+// `angleDegrees` undefined tant que l'écran ne la connaît pas (bloc encore en
+// chargement) : la requête attend, le cœur reste grisé.
 export function useBoulderLike(
   boulderId: number,
+  angleDegrees: number | undefined,
 ): UseQueryResult<BoulderLikeStatus, Error> {
   return useQuery({
-    enabled: Number.isFinite(boulderId),
-    queryKey: boulderLikedKeys.status(boulderId),
+    enabled: Number.isFinite(boulderId) && angleDegrees !== undefined,
+    // `?? 0` ne sert qu'au typage : la requête ne part pas sans inclinaison.
+    queryKey: boulderLikedKeys.status(boulderId, angleDegrees ?? 0),
     queryFn: () => {
-      return api.get<BoulderLikeStatus>(`/boulders/${boulderId}/like`);
+      return api.get<BoulderLikeStatus>(
+        `/boulders/${boulderId}/like?angle=${angleDegrees}`,
+      );
     },
   });
 }
 
-type ToggleLikeInput = { boulderId: number; liked: boolean };
+type ToggleLikeInput = {
+  boulderId: number;
+  angleDegrees: number;
+  liked: boolean;
+};
 
 // Une seule mutation pour les deux sens : `liked` est l'état affiché par le
 // cœur au moment du tap. Liké → on retire, pas liké → on pose. PUT et DELETE
@@ -115,16 +125,17 @@ type ToggleLikeInput = { boulderId: number; liked: boolean };
 export function useToggleBoulderLike() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ boulderId, liked }: ToggleLikeInput) => {
+    mutationFn: async ({ boulderId, angleDegrees, liked }: ToggleLikeInput) => {
+      const url = `/boulders/${boulderId}/like?angle=${angleDegrees}`;
       if (liked) {
-        await api.delete(`/boulders/${boulderId}/like`);
+        await api.delete(url);
       } else {
-        await api.put<BoulderLikeStatus>(`/boulders/${boulderId}/like`);
+        await api.put<BoulderLikeStatus>(url);
       }
     },
     // Mise à jour optimiste : le cœur bascule au tap, sans attendre le réseau.
-    onMutate: async ({ boulderId, liked }: ToggleLikeInput) => {
-      const key = boulderLikedKeys.status(boulderId);
+    onMutate: async ({ boulderId, angleDegrees, liked }: ToggleLikeInput) => {
+      const key = boulderLikedKeys.status(boulderId, angleDegrees);
       // Une lecture encore en vol écraserait la valeur optimiste avec l'état
       // d'avant le tap : on l'annule.
       await queryClient.cancelQueries({ queryKey: key });
@@ -133,10 +144,10 @@ export function useToggleBoulderLike() {
       // Renvoyé à onError (le « contexte ») pour pouvoir revenir en arrière.
       return { previous };
     },
-    onError: (_error, { boulderId }, context) => {
+    onError: (_error, { boulderId, angleDegrees }, context) => {
       if (context?.previous) {
         queryClient.setQueryData(
-          boulderLikedKeys.status(boulderId),
+          boulderLikedKeys.status(boulderId, angleDegrees),
           context.previous,
         );
       }

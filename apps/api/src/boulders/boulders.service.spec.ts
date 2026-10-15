@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,9 +19,10 @@ const prismaMock = {
   boulderLike: {
     createMany: jest.fn(),
     deleteMany: jest.fn(),
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
   },
+  angle: { findUnique: jest.fn() },
 };
 
 // La forme minimale que findAll déréférence dans son mapping.
@@ -305,14 +310,22 @@ describe('BouldersService', () => {
   });
 
   describe('like', () => {
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 50°
+    });
+
     // PUT est idempotent : le doublon est absorbé par la base
     // (`skipDuplicates`), jamais remonté en erreur au client.
-    it('pose le like en laissant la base absorber un doublon', async () => {
+    it("pose le like à l'inclinaison demandée, doublon absorbé par la base", async () => {
       prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
 
-      await expect(service.like(1, 10)).resolves.toEqual({ liked: true });
+      await expect(service.like(1, 10, 50)).resolves.toEqual({ liked: true });
+      expect(prismaMock.angle.findUnique).toHaveBeenCalledWith({
+        where: { valueDegrees: 50 },
+        select: { id: true },
+      });
       expect(prismaMock.boulderLike.createMany).toHaveBeenCalledWith({
-        data: [{ userId: 1, boulderId: 10 }],
+        data: [{ userId: 1, boulderId: 10, angleId: 7 }],
         skipDuplicates: true,
       });
     });
@@ -320,7 +333,7 @@ describe('BouldersService', () => {
     it('ne cherche que parmi les blocs publics et publiés', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
 
-      await service.like(1, 10);
+      await service.like(1, 10, 50);
 
       const [arg] = prismaMock.boulder.findUnique.mock.calls[0] as [
         { where: Record<string, unknown> },
@@ -331,7 +344,17 @@ describe('BouldersService', () => {
     it('rejette un bloc introuvable', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue(null);
 
-      await expect(service.like(1, 10)).rejects.toThrow(NotFoundException);
+      await expect(service.like(1, 10, 50)).rejects.toThrow(NotFoundException);
+      expect(prismaMock.boulderLike.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejette une inclinaison inconnue', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+      prismaMock.angle.findUnique.mockResolvedValue(null);
+
+      await expect(service.like(1, 10, 47)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(prismaMock.boulderLike.createMany).not.toHaveBeenCalled();
     });
   });
@@ -339,42 +362,59 @@ describe('BouldersService', () => {
   describe('unlike', () => {
     // DELETE est idempotent : `deleteMany` ne lève pas quand le like
     // n'existe pas, contrairement à `delete`.
-    it("retire le like sans exiger qu'il existe", async () => {
+    it("retire le like à cette inclinaison sans exiger qu'il existe", async () => {
       prismaMock.boulderLike.deleteMany.mockResolvedValue({ count: 0 });
 
-      await expect(service.unlike(1, 10)).resolves.toBeUndefined();
+      await expect(service.unlike(1, 10, 50)).resolves.toBeUndefined();
       expect(prismaMock.boulderLike.deleteMany).toHaveBeenCalledWith({
-        where: { userId: 1, boulderId: 10 },
+        where: { userId: 1, boulderId: 10, angle: { valueDegrees: 50 } },
       });
     });
   });
 
   describe('isLiked', () => {
-    it('renvoie true quand le like existe', async () => {
-      prismaMock.boulderLike.findUnique.mockResolvedValue({ userId: 1 });
+    it('renvoie true quand le like existe à cette inclinaison', async () => {
+      prismaMock.boulderLike.findFirst.mockResolvedValue({ userId: 1 });
 
-      await expect(service.isLiked(1, 10)).resolves.toEqual({ liked: true });
+      await expect(service.isLiked(1, 10, 50)).resolves.toEqual({
+        liked: true,
+      });
+      const [arg] = prismaMock.boulderLike.findFirst.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({
+        userId: 1,
+        boulderId: 10,
+        angle: { valueDegrees: 50 },
+      });
     });
 
     it('renvoie false sinon', async () => {
-      prismaMock.boulderLike.findUnique.mockResolvedValue(null);
+      prismaMock.boulderLike.findFirst.mockResolvedValue(null);
 
-      await expect(service.isLiked(1, 10)).resolves.toEqual({ liked: false });
+      await expect(service.isLiked(1, 10, 50)).resolves.toEqual({
+        liked: false,
+      });
     });
   });
 
   describe('findMyLikes', () => {
+    // Le bloc a été créé à 40° (angleId 5) en V4.
+    const likedBoulder = {
+      id: 10,
+      name: 'Crimpy',
+      angleId: 5,
+      grade: { vScale: 'V4', rank: 6 },
+    };
+
     it('trie par like le plus récent et aplatit le bloc', async () => {
       const likedAt = new Date();
       prismaMock.boulderLike.findMany.mockResolvedValue([
         {
           createdAt: likedAt,
-          boulder: {
-            id: 10,
-            name: 'Crimpy',
-            grade: { vScale: 'V4', rank: 6 },
-            angle: { valueDegrees: 40 },
-          },
+          angleId: 5,
+          angle: { valueDegrees: 40 },
+          boulder: likedBoulder,
         },
       ]);
 
@@ -395,6 +435,27 @@ describe('BouldersService', () => {
           likedAt,
         },
       ]);
+    });
+
+    // Liké à 50° : la carte rouvre le bloc à 50°, et n'affiche pas le V4 du
+    // créateur, qui ne vaut qu'à 40°.
+    it("renvoie l'inclinaison du like, sans cotation hors de celle du créateur", async () => {
+      prismaMock.boulderLike.findMany.mockResolvedValue([
+        {
+          createdAt: new Date(),
+          angleId: 7,
+          angle: { valueDegrees: 50 },
+          boulder: likedBoulder,
+        },
+      ]);
+
+      const [like] = await service.findMyLikes(1);
+
+      expect(like).toMatchObject({
+        angleDegrees: 50,
+        gradeLabel: null,
+        gradeRank: null,
+      });
     });
   });
 });

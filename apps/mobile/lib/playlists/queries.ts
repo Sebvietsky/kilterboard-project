@@ -29,24 +29,34 @@ export function useMyPlaylists(): UseQueryResult<PlaylistSummary[], Error> {
 
 export function fetchMyPlaylistsForBoulder(
   boulderId: number,
+  angleDegrees: number,
 ): Promise<PlaylistForBoulder[]> {
-  return api.get<PlaylistForBoulder[]>(`/playlists/me?boulderId=${boulderId}`);
+  return api.get<PlaylistForBoulder[]>(
+    `/playlists/me?boulderId=${boulderId}&angle=${angleDegrees}`,
+  );
 }
 
 // `enabled` : la feuille d'ajout est montée avec l'écran du bloc, mais la
-// requête ne part qu'à son ouverture.
+// requête ne part qu'à son ouverture. Les coches valent pour l'inclinaison
+// affichée : le même bloc à une autre inclinaison est une autre entrée.
 export function useMyPlaylistsForBoulder(
   boulderId: number,
+  angleDegrees: number,
   enabled: boolean,
 ): UseQueryResult<PlaylistForBoulder[], Error> {
   return useQuery({
     enabled: enabled && Number.isFinite(boulderId),
-    queryKey: playlistKeys.mineForBoulder(boulderId),
-    queryFn: () => fetchMyPlaylistsForBoulder(boulderId),
+    queryKey: playlistKeys.mineForBoulder(boulderId, angleDegrees),
+    queryFn: () => fetchMyPlaylistsForBoulder(boulderId, angleDegrees),
   });
 }
 
-type PlaylistBoulderInput = { playlistId: number; boulderId: number };
+// Une entrée de playlist = un bloc à une inclinaison.
+type PlaylistBoulderInput = {
+  playlistId: number;
+  boulderId: number;
+  angleDegrees: number;
+};
 
 // Une seule mutation pour les deux sens : la feuille bascule l'appartenance
 // d'un tap, et c'est l'état affiché (`containsBoulder`) qui dit lequel faire.
@@ -56,12 +66,18 @@ export function useTogglePlaylistBoulder() {
     mutationFn: async ({
       playlistId,
       boulderId,
+      angleDegrees,
       contains,
     }: PlaylistBoulderInput & { contains: boolean }) => {
       if (contains) {
-        await api.delete(`/playlists/${playlistId}/boulders/${boulderId}`);
+        await api.delete(
+          `/playlists/${playlistId}/boulders/${boulderId}?angle=${angleDegrees}`,
+        );
       } else {
-        await api.post(`/playlists/${playlistId}/boulders`, { boulderId });
+        await api.post(`/playlists/${playlistId}/boulders`, {
+          boulderId,
+          angleDegrees,
+        });
       }
     },
     // onSettled : après un échec aussi, on relit l'état réel. Un 409 « déjà
@@ -80,12 +96,17 @@ export function useCreatePlaylistWithBoulder() {
     mutationFn: async ({
       name,
       boulderId,
+      angleDegrees,
     }: {
       name: string;
       boulderId: number;
+      angleDegrees: number;
     }) => {
       const playlist = await api.post<CreatedPlaylist>('/playlists', { name });
-      await api.post(`/playlists/${playlist.id}/boulders`, { boulderId });
+      await api.post(`/playlists/${playlist.id}/boulders`, {
+        boulderId,
+        angleDegrees,
+      });
       return playlist;
     },
     onSettled: () => {

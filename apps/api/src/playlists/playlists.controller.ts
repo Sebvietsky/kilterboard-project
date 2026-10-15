@@ -23,6 +23,7 @@ import {
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { FilterMyPlaylistsDto } from './dto/filter-my-playlists.dto';
+import { AngleQueryDto } from '../common/dto/angle-query.dto';
 import {
   AddBoulderDto,
   AddOrRemoveBoulderResponseDto,
@@ -46,7 +47,13 @@ export class PlaylistsController {
     @Query() filters: FilterMyPlaylistsDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<PlaylistSummaryDto[]> {
-    return this.playlistService.findMine(user, filters.boulderId);
+    // Le DTO garantit `angle` dès que `boulderId` est là ; le test sur les
+    // deux sert au compilateur, qui ne voit pas cette règle de validation.
+    const forBoulder =
+      filters.boulderId !== undefined && filters.angle !== undefined
+        ? { boulderId: filters.boulderId, angleDegrees: filters.angle }
+        : undefined;
+    return this.playlistService.findMine(user, forBoulder);
   }
 
   @Get(':id')
@@ -93,7 +100,13 @@ export class PlaylistsController {
     @Param('id', ParseIntPipe) playlistId: number,
     @CurrentUser() user: JwtPayload,
     @Param('boulderId', ParseIntPipe) boulderId: number,
+    @Query() query: AngleQueryDto,
   ): Promise<void> {
-    return this.playlistService.removeBoulder(user, boulderId, playlistId);
+    return this.playlistService.removeBoulder(
+      user,
+      boulderId,
+      playlistId,
+      query.angle,
+    );
   }
 }
