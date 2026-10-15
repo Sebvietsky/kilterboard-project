@@ -73,7 +73,7 @@ Abréviations :
 | Un refresh token par appareil, ménage des expirés seulement | DEC 10-12 | S | tok › generateTokens — connexion | M29 tuée | 2 appareils : e2e |
 | Grâce de 60 s, sans rallonger un token | DEC 10-12 | S | tok › generateTokens — refresh | M30 tuée | — |
 | Refresh expiré refusé ; token présenté transmis | DEC 10-12 | S | au › refreshToken | M32, M34 tuées | — |
-| Logout : seulement ses tokens, seulement celui envoyé | DEC 10-12 | S | tok › deleteRefreshToken ; au › logoutUser | M31 tuée | **B8 : sans token, tous les appareils (non consigné)** |
+| Logout : seulement ses tokens, seulement celui envoyé, token obligatoire | DEC 10-12, Seb 2026-10-15 (B8) | S + D | tok › deleteRefreshToken ; au › logoutUser ; auth.dto › LogoutDto | M31, F14, F15 tuées | « tous les appareils » : route explicite à créer |
 | Rate limiting de l'auth | DEC 09-29 | G | — | — | e2e |
 | `getMe` : 401 si le token ne désigne aucun compte | DEC 07-30 | S | us › rend 401… | — | — |
 | Profil public sans email, rôle ni hash | DEC 07-30 | S | us › n'expose ni l'email, ni le rôle, ni le hash | M44 tuée | — |
