@@ -282,20 +282,6 @@ export class AscentsService {
       );
     }
 
-    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const completesProject =
-      ascent.status === AscentStatus.PROJECT &&
-      dto.status === AscentStatus.SENT;
-
-    // Le grade ressenti est le vote du grimpeur, donné une seule fois. En
-    // PATCH, la seule occasion est la complétion d'un projet : c'est alors le
-    // premier envoi à cette inclinaison.
-    if (dto.feltGradeRank && !completesProject) {
-      throw new BadRequestException(
-        'A felt grade can only be given on your first send at this angle.',
-      );
-    }
-
     // Résolution rank -> Grade.id, comme dans create (rank est @unique).
     let grade: Grade | null = null;
     if (dto.feltGradeRank) {
