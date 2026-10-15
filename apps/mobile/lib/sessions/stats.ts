@@ -1,5 +1,7 @@
 import type { SessionEntry } from './types';
 
+type Grade = NonNullable<SessionEntry['ascent']['boulderAngle']['grade']>;
+
 export type SessionStats = {
   climbs: number;
   // Cotation la plus dure ENVOYÉE : un projet qui résiste encore n'est pas un
@@ -14,17 +16,20 @@ export type SessionStats = {
 // affichée juste en dessous.
 export function deriveSessionStats(entries: SessionEntry[]): SessionStats {
   const sends = entries.filter((entry) => entry.status !== 'PROJECT');
-  const hardest = sends.reduce<SessionEntry | null>(
-    (best, entry) =>
-      !best || entry.ascent.boulder.grade.rank > best.ascent.boulder.grade.rank
-        ? entry
-        : best,
-    null,
-  );
+  // Cotation à l'inclinaison du passage. Le premier envoi d'un grimpeur y
+  // vote, la ligne est donc presque toujours cotée ; un ancien envoi sans
+  // grade ressenti peut toutefois la laisser à null, et il est alors ignoré.
+  const hardest = sends
+    .map((entry) => entry.ascent.boulderAngle.grade)
+    .reduce<Grade | null>(
+      (best, grade) =>
+        grade && (!best || grade.rank > best.rank) ? grade : best,
+      null,
+    );
 
   return {
     climbs: entries.length,
-    hardest: hardest?.ascent.boulder.grade.vScale ?? null,
+    hardest: hardest?.vScale ?? null,
     flashes: entries.filter((entry) => entry.status === 'FLASH').length,
     // Un projet n'a qu'un seul passage SENT : celui de sa complétion.
     projectsSent: sends.filter(

@@ -76,8 +76,16 @@ export function useBoulder(id: number): UseQueryResult<BoulderDetail, Error> {
         .flatMap((p) => p[1]?.pages ?? [])
         .flatMap((p) => p.data);
       const found = allSummaries.find((b) => b?.id === id);
+      // `angleGrades` vide : l'écran retombe sur la cotation du créateur à
+      // son inclinaison le temps de recevoir la vraie réponse.
       return found
-        ? { ...found, description: null, holds: [], publicNotes: [] }
+        ? {
+            ...found,
+            description: null,
+            holds: [],
+            publicNotes: [],
+            angleGrades: [],
+          }
         : undefined;
     },
   });

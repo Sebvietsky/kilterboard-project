@@ -39,6 +39,7 @@ import { useGrades } from '@/lib/grades/queries';
 import { Grade } from '@/lib/grades/types';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
+import { plural } from '@/lib/format/plural';
 import { showToast, TOAST_VISIBLE_MS } from '@/lib/toast/useToastStore';
 import { useEffect, useState } from 'react';
 
@@ -266,10 +267,23 @@ export default function BoulderDetailScreen() {
   const detail = boulder.data;
   // Défini dès que le bloc l'est : à défaut d'autre choix, celle du créateur.
   const angle = selectedAngle ?? detail.angleDegrees;
-  // Seule l'inclinaison du créateur a une cotation tant que la cotation
-  // communautaire (étape 2) n'existe pas. Afficher la sienne ailleurs
-  // laisserait croire qu'un 50° vaut un 45°.
+  // Cotation effective à l'inclinaison affichée : celle du créateur à la
+  // sienne jusqu'au seuil de votes, la médiane des votes ensuite et ailleurs.
+  // Pendant le placeholder venu d'Explore, `angleGrades` est vide : seule la
+  // cotation du créateur à son inclinaison est connue.
   const isSetAngle = angle === detail.angleDegrees;
+  const angleGrade = detail.angleGrades.find((g) => g.angleDegrees === angle);
+  const gradeLabel = angleGrade
+    ? angleGrade.gradeLabel
+    : isSetAngle
+      ? detail.gradeLabel
+      : null;
+  // La cotation du créateur, en petit, seulement quand la communauté l'a
+  // remplacée par une autre à son inclinaison.
+  const creatorGradeReplaced =
+    isSetAngle &&
+    angleGrade?.gradeLabel != null &&
+    angleGrade.gradeLabel !== detail.gradeLabel;
   const notesAtAngle = detail.publicNotes.filter(
     (note) => note.angleDegrees === angle,
   );
@@ -294,10 +308,21 @@ export default function BoulderDetailScreen() {
           <Text style={styles.setter}>by {detail.creatorUsername}</Text>
         </View>
         <View style={styles.gradeBlock}>
-          {isSetAngle ? (
-            <Text style={styles.grade}>{detail.gradeLabel}</Text>
+          {gradeLabel !== null ? (
+            <Text style={styles.grade}>{gradeLabel}</Text>
           ) : (
             <Text style={styles.notGraded}>Not graded yet</Text>
+          )}
+          {angleGrade?.isEstimated && (
+            <Text style={styles.gradeNote}>
+              Estimated · {plural(angleGrade.votesCount, 'vote')}
+            </Text>
+          )}
+          {creatorGradeReplaced && angleGrade && (
+            <Text style={styles.gradeNote}>
+              Set as {detail.gradeLabel} ·{' '}
+              {plural(angleGrade.votesCount, 'vote')}
+            </Text>
           )}
           <Pressable
             onPress={() => setAnglePickerOpen(true)}
@@ -422,6 +447,11 @@ export default function BoulderDetailScreen() {
                 selected={feltGradeRank}
                 onSelect={setFeltGradeRank}
               />
+              {/* Neutre : dire que le vote compte, sans pousser à s'aligner
+                  sur la cotation affichée (pas de « be careful »). */}
+              <Text style={styles.communityNote}>
+                Your felt grade counts toward the community grade.
+              </Text>
             </View>
           )}
 
@@ -878,6 +908,18 @@ const styles = StyleSheet.create({
     fontSize: typography.size.sm,
     lineHeight: typography.size.xxl,
     color: colors.textSubtle,
+  },
+  // Précision sous la cotation (estimée, ou cotation d'origine du créateur) :
+  // une donnée secondaire, en retrait.
+  gradeNote: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textMuted,
+  },
+  communityNote: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
   // Contour discret : l'inclinaison se lit comme une donnée, et le chevron
   // dit qu'elle se change.

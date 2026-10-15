@@ -37,8 +37,13 @@ export type SessionEntry = {
     angle: { valueDegrees: number };
     boulder: {
       name: string;
-      grade: { vScale: string; fontScale: string; rank: number };
       angle: { valueDegrees: number };
+    };
+    // Cotation effective du bloc à l'inclinaison de l'ascension, `null` si
+    // personne n'y a encore envoyé le bloc. La cotation du créateur n'est
+    // volontairement pas exposée : elle ne vaut qu'à son inclinaison.
+    boulderAngle: {
+      grade: { vScale: string; fontScale: string; rank: number } | null;
     };
   };
 };

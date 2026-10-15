@@ -262,7 +262,7 @@ function ListState({
 // ne renvoie ni ascentCount, ni averageRating, ni creatorUsername. Surtout, un
 // projet ne parle pas de la communauté mais de TES essais.
 function ProjectCard({ project }: { project: MyProject }) {
-  const { boulder, attemptsCount } = project;
+  const { boulder, boulderAngle, attemptsCount } = project;
 
   return (
     <View style={styles.card}>
@@ -270,9 +270,16 @@ function ProjectCard({ project }: { project: MyProject }) {
         <Text style={styles.cardTitle} numberOfLines={1}>
           {boulder.name}
         </Text>
-        <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{boulder.grade.vScale}</Text>
-        </View>
+        {/* Cotation à l'inclinaison du projet, comme pour les favoris. */}
+        {boulderAngle.grade ? (
+          <View style={styles.gradeBadge}>
+            <Text style={styles.gradeText}>{boulderAngle.grade.vScale}</Text>
+          </View>
+        ) : (
+          <View style={styles.ungradedBadge}>
+            <Text style={styles.ungradedText}>Not graded</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.metaRow}>

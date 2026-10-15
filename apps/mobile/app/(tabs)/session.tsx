@@ -352,12 +352,12 @@ function ContinueProjects() {
 }
 
 function ProjectCard({ project }: { project: MyProject }) {
-  const { boulder, attemptsCount, sessionsCount } = project;
+  const { boulder, boulderAngle, attemptsCount, sessionsCount } = project;
 
   return (
     <View style={styles.projectCard}>
       <View style={styles.projectCardTop}>
-        <GradeCircle label={boulder.grade.vScale} muted />
+        <GradeCircle label={boulderAngle.grade?.vScale ?? null} muted />
         <StatusBadge tone="project" label="Proj." />
       </View>
       <Text style={styles.projectName} numberOfLines={1}>
