@@ -102,4 +102,4 @@ Abréviations :
 
 ## Dette e2e
 
-Index et contraintes (sessions actives, grade ressenti unique, likes, entrées de playlist, clés composées `boulder_angles`), transactions (ascension + passage + recalcul), verrou `FOR UPDATE` sous concurrence, `ValidationPipe` réel (`forbidNonWhitelisted`), `@Roles` sur `AdminController`, `PrismaExceptionFilter`, throttling, refresh à deux appareils, cascades de `deleteBoulder`.
+Deux `POST PROJECT` simultanés : aucun index n'interdit deux projets ouverts sur le même bloc à la même inclinaison. Index et contraintes (sessions actives, grade ressenti unique, likes, entrées de playlist, clés composées `boulder_angles`), transactions (ascension + passage + recalcul), verrou `FOR UPDATE` sous concurrence, `ValidationPipe` réel (`forbidNonWhitelisted`), `@Roles` sur `AdminController`, `PrismaExceptionFilter`, throttling, refresh à deux appareils, cascades de `deleteBoulder`.
