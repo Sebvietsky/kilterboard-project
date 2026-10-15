@@ -4,6 +4,7 @@ import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
 import { ensureBoulderAngles } from './seed-utils';
+import { recomputeAllAngleGrades } from './recompute-angle-grades';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -225,6 +226,11 @@ async function main() {
 
   console.log(`✅ ${ascentCount} ascents seeded`);
   console.log(`✅ ${noteCount} notes seeded`);
+
+  // Les ascensions ci-dessus sont écrites sans passer par l'API : leurs votes
+  // ne sont pas encore comptés dans la cotation des blocs.
+  const recomputed = await recomputeAllAngleGrades(prisma);
+  console.log(`✅ ${recomputed} cotations recalculées`);
   console.log('✅ Dev seed completed');
 }
 
