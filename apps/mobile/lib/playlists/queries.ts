@@ -88,6 +88,29 @@ export function useTogglePlaylistBoulder() {
   });
 }
 
+export type CreatePlaylistInput = {
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+};
+
+// Création depuis Library, sans bloc à ranger.
+export function useCreatePlaylist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // `null` -> absent : l'API attend une chaîne ou rien, et une playlist sans
+    // description y est enregistrée à null.
+    mutationFn: ({ description, ...fields }: CreatePlaylistInput) =>
+      api.post<CreatedPlaylist>('/playlists', {
+        ...fields,
+        ...(description !== null && { description }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: playlistKeys.mine() });
+    },
+  });
+}
+
 // Crée une playlist et y range le bloc dans la foulée : depuis la feuille
 // d'ajout, créer une playlist n'a de sens que pour y mettre ce bloc.
 export function useCreatePlaylistWithBoulder() {

@@ -8,47 +8,58 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useUpdatePlaylist } from '@/lib/playlists/queries';
+import { useCreatePlaylist, useUpdatePlaylist } from '@/lib/playlists/queries';
 import type { PlaylistSummary } from '@/lib/playlists/types';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 /**
- * Feuille d'édition d'une playlist : nom, description, visibilité.
+ * Feuille de création ou d'édition d'une playlist : nom, description,
+ * visibilité. Avec `playlist`, elle l'édite ; sans, elle en crée une.
+ * Une seule feuille pour les deux : mêmes champs, mêmes règles, seuls le
+ * titre, le bouton et l'appel changent.
  *
- * Le formulaire travaille sur une copie locale et n'écrit qu'au Save : fermer
- * la feuille annule. Le parent la monte avec une `key` liée à l'ouverture,
- * pour que chaque ouverture reparte des valeurs enregistrées.
+ * Le formulaire travaille sur une copie locale et n'écrit qu'à la validation :
+ * fermer la feuille annule. Le parent la monte avec une `key` liée à
+ * l'ouverture, pour que chaque ouverture reparte des valeurs enregistrées (ou
+ * d'un formulaire vide).
  */
-export function EditPlaylistSheet({
+export function PlaylistFormSheet({
   playlist,
   visible,
   onClose,
 }: {
-  playlist: PlaylistSummary;
+  playlist?: PlaylistSummary;
   visible: boolean;
   onClose: () => void;
 }) {
   const update = useUpdatePlaylist();
-  const [name, setName] = useState(playlist.name);
-  const [description, setDescription] = useState(playlist.description ?? '');
-  const [isPublic, setIsPublic] = useState(playlist.isPublic);
+  const create = useCreatePlaylist();
+  const mutation = playlist ? update : create;
+  const [name, setName] = useState(playlist?.name ?? '');
+  const [description, setDescription] = useState(playlist?.description ?? '');
+  // Privée par défaut, comme côté serveur : publier est un geste délibéré.
+  const [isPublic, setIsPublic] = useState(playlist?.isPublic ?? false);
 
   const trimmedName = name.trim();
-  const canSave = trimmedName.length > 0 && !update.isPending;
+  const canSave = trimmedName.length > 0 && !mutation.isPending;
 
   function save() {
     if (!canSave) return;
-    update.mutate(
-      {
-        playlistId: playlist.id,
-        name: trimmedName,
-        // Chaîne vide -> null : « pas de description » n'a qu'une seule
-        // représentation en base.
-        description: description.trim() || null,
-        isPublic,
-      },
-      { onSuccess: onClose },
-    );
+    const fields = {
+      name: trimmedName,
+      // Chaîne vide -> null : « pas de description » n'a qu'une seule
+      // représentation en base.
+      description: description.trim() || null,
+      isPublic,
+    };
+    if (playlist) {
+      update.mutate(
+        { playlistId: playlist.id, ...fields },
+        { onSuccess: onClose },
+      );
+    } else {
+      create.mutate(fields, { onSuccess: onClose });
+    }
   }
 
   return (
@@ -63,10 +74,12 @@ export function EditPlaylistSheet({
           <Pressable onPress={onClose} hitSlop={spacing.md}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
-          <Text style={styles.title}>Edit playlist</Text>
+          <Text style={styles.title}>
+            {playlist ? 'Edit playlist' : 'New playlist'}
+          </Text>
           <Pressable onPress={save} disabled={!canSave} hitSlop={spacing.md}>
             <Text style={[styles.save, !canSave && styles.saveDisabled]}>
-              {update.isPending ? 'Saving…' : 'Save'}
+              {mutation.isPending ? 'Saving…' : playlist ? 'Save' : 'Create'}
             </Text>
           </Pressable>
         </View>
@@ -76,6 +89,9 @@ export function EditPlaylistSheet({
           <TextInput
             value={name}
             onChangeText={setName}
+            // Clavier ouvert d'emblée à la création : le nom est le seul
+            // champ obligatoire.
+            autoFocus={!playlist}
             maxLength={100}
             returnKeyType="done"
             style={styles.input}
@@ -110,8 +126,8 @@ export function EditPlaylistSheet({
           />
         </View>
 
-        {update.isError ? (
-          <Text style={styles.errorText}>{update.error.message}</Text>
+        {mutation.error ? (
+          <Text style={styles.errorText}>{mutation.error.message}</Text>
         ) : null}
       </View>
     </Modal>
