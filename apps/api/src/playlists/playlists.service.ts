@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { resolveAngleId } from '../common/utils/angle.utils';
@@ -213,7 +214,14 @@ export class PlaylistsService {
       where: { id: dto.boulderId },
     });
 
-    assertFound(boulder, 'Boulder');
+    // Un bloc privé ou brouillon n'existe que pour son créateur (décision du
+    // 2026-10-15) : 404 pour les autres, comme le like et le log. Sans ça,
+    // une playlist publique exposerait le nom du brouillon d'un autre.
+    const isVisible =
+      boulder !== null &&
+      ((boulder.isPublic && !boulder.isDraft) ||
+        boulder.creatorId === user.userId);
+    if (!isVisible) throw new NotFoundException('Boulder not found');
     const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
     // Doublon = même bloc à la même inclinaison. Le même bloc à une autre
