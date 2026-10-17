@@ -17,9 +17,17 @@ import {
   shadows,
   status as statusColors,
 } from '@/constants/theme';
+import { ChevronDown } from 'lucide-react-native';
 import { BoardLED } from '@/components/BoardLED';
+import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
+import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { ANGLES } from '@/lib/filters/const';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { useBoulder } from '@/lib/boulders/queries';
+import {
+  useBoulder,
+  useBoulderLike,
+  useToggleBoulderLike,
+} from '@/lib/boulders/queries';
 import {
   deriveAvailableStatuses,
   useLogAscent,
@@ -31,7 +39,9 @@ import { useGrades } from '@/lib/grades/queries';
 import { Grade } from '@/lib/grades/types';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
-import { useState } from 'react';
+import { plural } from '@/lib/format/plural';
+import { showToast, TOAST_VISIBLE_MS } from '@/lib/toast/useToastStore';
+import { useEffect, useState } from 'react';
 
 // Sous-mode du formulaire quand un projet est en cours : enregistrer une
 // séance de plus, ou clore le projet en envoi.
@@ -42,6 +52,14 @@ const PROJECT_MODES: { value: ProjectMode; label: string }[] = [
   { value: 'sent', label: 'Sent' },
 ];
 
+// Confirmation affichée après un log. Indispensable sur un bloc déjà envoyé :
+// rien d'autre ne change à l'écran, le formulaire se vide et c'est tout.
+const LOGGED_MESSAGE: Record<AscentStatus, string> = {
+  FLASH: 'Flash logged',
+  SENT: 'Send logged',
+  PROJECT: 'Project started',
+};
+
 export default function BoulderDetailScreen() {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
   const [projectMode, setProjectMode] = useState<ProjectMode>('in-project');
@@ -51,14 +69,37 @@ export default function BoulderDetailScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [rating, setRating] = useState<number>();
 
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, angle: angleParam } = useLocalSearchParams<{
+    id: string;
+    angle?: string;
+  }>();
   const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const myAscents = useMyAscentsOnBoulder(boulderId);
   const grades = useGrades();
   const logAscent = useLogAscent();
   const updateAscent = useUpdateAscent();
-  const statuses = myAscents.data?.map((a) => a.status) ?? [];
+  const toggleLike = useToggleBoulderLike();
+
+  // Inclinaison affichée : celle choisie dans le sélecteur, sinon celle du
+  // lien (le contexte d'où l'on vient), sinon celle du créateur, valeur par
+  // défaut du bloc. Un paramètre hors de la liste est ignoré plutôt que
+  // d'afficher une inclinaison que l'API refuserait au log.
+  const [pickedAngle, setPickedAngle] = useState<number>();
+  const [anglePickerOpen, setAnglePickerOpen] = useState(false);
+  const linkAngle = ANGLES.includes(Number(angleParam))
+    ? Number(angleParam)
+    : undefined;
+  const selectedAngle = pickedAngle ?? linkAngle ?? boulder.data?.angleDegrees;
+  // Le cœur suit le sélecteur : liker à 50° ne dit rien du bloc à 40°.
+  const like = useBoulderLike(boulderId, selectedAngle);
+
+  // Toutes les règles du formulaire sont par bloc ET par inclinaison : on ne
+  // garde que les ascensions faites à l'inclinaison affichée. L'API renvoie
+  // toutes les inclinaisons d'un coup, changer de sélection ne relit rien.
+  const ascentsAtAngle =
+    myAscents.data?.filter((a) => a.angle.valueDegrees === selectedAngle) ?? [];
+  const statuses = ascentsAtAngle.map((a) => a.status);
   const currentStatus = statuses.includes('FLASH')
     ? 'FLASH'
     : statuses.includes('SENT')
@@ -66,7 +107,7 @@ export default function BoulderDetailScreen() {
       : statuses.includes('PROJECT')
         ? 'PROJECT'
         : null;
-  const availableStatuses = deriveAvailableStatuses(myAscents.data ?? []);
+  const availableStatuses = deriveAvailableStatuses(ascentsAtAngle);
   // La sélection ne survit pas à un changement de disponibilité : myAscents peut
   // se refetch hors du submit (retour de focus, autre appareil) et rendre le
   // statut choisi impossible. Sans cette garde, plus aucun segment n'est actif
@@ -76,17 +117,18 @@ export default function BoulderDetailScreen() {
     availableStatuses[0] ??
     null;
 
-  const hasAnyAscent = (myAscents.data ?? []).length > 0;
+  const hasAnyAscent = ascentsAtAngle.length > 0;
 
   // Un projet actif change la nature du formulaire : on ne crée plus une
   // ascension, on fait vivre celle qui existe (PATCH).
   const activeProject =
-    myAscents.data?.find((a) => a.status === 'PROJECT') ?? null;
+    ascentsAtAngle.find((a) => a.status === 'PROJECT') ?? null;
   const isManagingProject = !!activeProject && selectedStatus === 'PROJECT';
   const isClosingProject = isManagingProject && projectMode === 'sent';
 
-  // Note publique = au premier envoi seulement. Clore un projet EST ce premier
-  // envoi : l'ascension passe SENT, et c'est la seule du bloc.
+  // Note publique = au premier envoi seulement, à cette inclinaison. Clore un
+  // projet EST ce premier envoi : l'ascension passe SENT, et c'est la seule
+  // du bloc à cette inclinaison.
   const canBePublic =
     isClosingProject ||
     (!hasAnyAscent &&
@@ -97,12 +139,25 @@ export default function BoulderDetailScreen() {
     (!hasAnyAscent &&
       (selectedStatus === 'FLASH' || selectedStatus === 'SENT'));
 
+  // Vrai juste après un log réussi. Le bouton affiche alors « Logged » et
+  // reste inerte. Sur un bloc déjà envoyé, le formulaire revient à l'identique
+  // après le log : sans cet état, rien sur le bouton ne dit que le tap a
+  // compté, et rien n'empêche d'en enchaîner dix.
+  const [justLogged, setJustLogged] = useState(false);
+  const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  useEffect(() => {
+    if (!justLogged) return;
+    const timeout = setTimeout(() => setJustLogged(false), TOAST_VISIBLE_MS);
+    return () => clearTimeout(timeout);
+  }, [justLogged]);
+
   const isPending = logAscent.isPending || updateAscent.isPending;
   const submitError = logAscent.error ?? updateAscent.error;
   const canSubmit =
     !!selectedStatus &&
     !(feltGradeRequired && feltGradeRank == null) &&
-    !isPending;
+    !isPending &&
+    !justLogged;
 
   function resetForm() {
     setLogStatus(null);
@@ -113,8 +168,16 @@ export default function BoulderDetailScreen() {
     setComment('');
   }
 
+  // Changer d'inclinaison, c'est changer de bloc : ce qui était saisi pour
+  // l'autre (statut, essais, grade ressenti) ne vaut plus.
+  function selectAngle(angle: number) {
+    if (angle === selectedAngle) return;
+    setPickedAngle(angle);
+    resetForm();
+  }
+
   function submit() {
-    if (!selectedStatus) return;
+    if (!selectedStatus || selectedAngle === undefined) return;
 
     // Un projet en cours se modifie (PATCH), il ne se recrée pas : le back
     // refuse d'ailleurs tout POST tant qu'il est ouvert.
@@ -133,7 +196,13 @@ export default function BoulderDetailScreen() {
           comment: comment.trim() || undefined,
           visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
         },
-        { onSuccess: resetForm },
+        {
+          onSuccess: () => {
+            resetForm();
+            setJustLogged(true);
+            showToast(isClosingProject ? 'Project sent' : 'Attempts saved');
+          },
+        },
       );
       return;
     }
@@ -141,14 +210,23 @@ export default function BoulderDetailScreen() {
     logAscent.mutate(
       {
         boulderId,
+        angleDegrees: selectedAngle,
         status: selectedStatus,
         attemptsCount: selectedStatus === 'FLASH' ? 1 : attempts,
-        feltGradeRank: selectedStatus === 'PROJECT' ? undefined : feltGradeRank,
-        rating: selectedStatus === 'PROJECT' ? undefined : rating,
+        // Seulement quand les champs sont affichés (premier envoi à cette
+        // inclinaison) : l'API refuse grade ressenti et note partout ailleurs.
+        feltGradeRank: feltGradeRequired ? feltGradeRank : undefined,
+        rating: feltGradeRequired ? rating : undefined,
         comment: comment.trim() || undefined,
         visibility: canBePublic && isPublic ? 'PUBLIC' : 'PRIVATE',
       },
-      { onSuccess: resetForm },
+      {
+        onSuccess: () => {
+          resetForm();
+          setJustLogged(true);
+          showToast(LOGGED_MESSAGE[selectedStatus]);
+        },
+      },
     );
   }
 
@@ -187,6 +265,28 @@ export default function BoulderDetailScreen() {
 
   // boulder.data garanti défini
   const detail = boulder.data;
+  // Défini dès que le bloc l'est : à défaut d'autre choix, celle du créateur.
+  const angle = selectedAngle ?? detail.angleDegrees;
+  // Cotation effective à l'inclinaison affichée : celle du créateur à la
+  // sienne jusqu'au seuil de votes, la médiane des votes ensuite et ailleurs.
+  // Pendant le placeholder venu d'Explore, `angleGrades` est vide : seule la
+  // cotation du créateur à son inclinaison est connue.
+  const isSetAngle = angle === detail.angleDegrees;
+  const angleGrade = detail.angleGrades.find((g) => g.angleDegrees === angle);
+  const gradeLabel = angleGrade
+    ? angleGrade.gradeLabel
+    : isSetAngle
+      ? detail.gradeLabel
+      : null;
+  // La cotation du créateur, en petit, seulement quand la communauté l'a
+  // remplacée par une autre à son inclinaison.
+  const creatorGradeReplaced =
+    isSetAngle &&
+    angleGrade?.gradeLabel != null &&
+    angleGrade.gradeLabel !== detail.gradeLabel;
+  const notesAtAngle = detail.publicNotes.filter(
+    (note) => note.angleDegrees === angle,
+  );
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -194,13 +294,49 @@ export default function BoulderDetailScreen() {
         <View style={styles.titleLeft}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{detail.name}</Text>
+            <LikeButton
+              liked={like.data?.liked}
+              // Inerte pendant un envoi : un second tap partirait en parallèle
+              // du premier, et le serveur pourrait recevoir DELETE avant PUT.
+              disabled={toggleLike.isPending}
+              onToggle={(liked) =>
+                toggleLike.mutate({ boulderId, angleDegrees: angle, liked })
+              }
+            />
             {currentStatus && <StatusBadge status={currentStatus} />}
           </View>
           <Text style={styles.setter}>by {detail.creatorUsername}</Text>
         </View>
         <View style={styles.gradeBlock}>
-          <Text style={styles.grade}>{detail.gradeLabel}</Text>
-          <Text style={styles.angle}>{detail.angleDegrees}°</Text>
+          {gradeLabel !== null ? (
+            <Text style={styles.grade}>{gradeLabel}</Text>
+          ) : (
+            <Text style={styles.notGraded}>Not graded yet</Text>
+          )}
+          {angleGrade?.isEstimated && (
+            <Text style={styles.gradeNote}>
+              Estimated · {plural(angleGrade.votesCount, 'vote')}
+            </Text>
+          )}
+          {creatorGradeReplaced && angleGrade && (
+            <Text style={styles.gradeNote}>
+              Set as {detail.gradeLabel} ·{' '}
+              {plural(angleGrade.votesCount, 'vote')}
+            </Text>
+          )}
+          <Pressable
+            onPress={() => setAnglePickerOpen(true)}
+            hitSlop={spacing.sm}
+            accessibilityRole="button"
+            accessibilityLabel={`Board angle ${angle} degrees, change`}
+            style={({ pressed }) => [
+              styles.angleButton,
+              pressed && styles.angleButtonPressed,
+            ]}
+          >
+            <Text style={styles.angle}>{angle}°</Text>
+            <ChevronDown size={typography.size.md} color={colors.textMuted} />
+          </Pressable>
         </View>
       </View>
 
@@ -311,6 +447,11 @@ export default function BoulderDetailScreen() {
                 selected={feltGradeRank}
                 onSelect={setFeltGradeRank}
               />
+              {/* Neutre : dire que le vote compte, sans pousser à s'aligner
+                  sur la cotation affichée (pas de « be careful »). */}
+              <Text style={styles.communityNote}>
+                Your felt grade counts toward the community grade.
+              </Text>
             </View>
           )}
 
@@ -370,25 +511,45 @@ export default function BoulderDetailScreen() {
           <Pressable
             onPress={submit}
             disabled={!canSubmit}
+            // L'ordre compte : « confirmé » passe après « désactivé », sinon
+            // le bouton serait gris et se lirait comme indisponible, pas
+            // comme réussi.
             style={[
               styles.submitButton,
               !canSubmit && styles.submitButtonDisabled,
+              justLogged && styles.submitButtonConfirmed,
             ]}
           >
             <Text
               style={[
                 styles.submitText,
                 !canSubmit && styles.submitTextDisabled,
+                justLogged && styles.submitTextConfirmed,
               ]}
             >
-              {isPending
-                ? 'Saving…'
-                : isClosingProject
-                  ? 'Add to Logbook'
-                  : selectedStatus === 'PROJECT'
-                    ? 'Save'
-                    : 'Log ascent'}
+              {justLogged
+                ? 'Logged ✓'
+                : isPending
+                  ? 'Saving…'
+                  : isClosingProject
+                    ? 'Add to Logbook'
+                    : selectedStatus === 'PROJECT'
+                      ? 'Save'
+                      : 'Log ascent'}
             </Text>
+          </Pressable>
+
+          {/* Sous le bouton de log et en retrait visuel (contour, pas
+              d'aplat) : ranger le bloc est une action secondaire de cet
+              écran, logger reste la principale. */}
+          <Pressable
+            onPress={() => setPlaylistSheetOpen(true)}
+            style={({ pressed }) => [
+              styles.playlistButton,
+              pressed && styles.playlistButtonPressed,
+            ]}
+          >
+            <Text style={styles.playlistButtonText}>Add to playlist</Text>
           </Pressable>
         </>
       </View>
@@ -400,18 +561,21 @@ export default function BoulderDetailScreen() {
             le placeholderData de useBoulder pose publicNotes: [] en dur, donc
             en venant d'Explore on annoncerait « No notes yet » sur un bloc qui
             en a. Pendant ce temps, on ne montre rien plutôt qu'un mensonge. */}
-        {detail.publicNotes.length === 0 ? (
+        {/* Seuls les commentaires de l'inclinaison affichée : le même bloc
+            à une autre inclinaison se commente à part. */}
+        {notesAtAngle.length === 0 ? (
           boulder.isPlaceholderData ? null : (
-            <Text style={styles.placeholderText}>No notes yet.</Text>
+            <Text style={styles.placeholderText}>
+              No notes at {angle}° yet.
+            </Text>
           )
         ) : (
-          detail.publicNotes.map((note) => (
-            // Clé sur username : le backend n'expose pas d'id de note, mais
-            // interdit plus d'une note publique par (utilisateur, bloc) — le
-            // pseudo est donc unique dans cette liste. Si cette règle tombe,
-            // les clés entrent en collision SANS erreur : React réutilisera
-            // simplement le mauvais nœud.
-            <View key={note.username} style={styles.noteCard}>
+          notesAtAngle.map((note) => (
+            // Clé sur l'id, unique par construction. Le pseudo ne l'est plus
+            // (une note publique par inclinaison), et une clé qui dépendrait
+            // d'une règle métier entrerait en collision SANS erreur le jour
+            // où la règle change : React réutiliserait le mauvais nœud.
+            <View key={note.id} style={styles.noteCard}>
               <View style={styles.noteHeader}>
                 <Text style={styles.noteAuthor} numberOfLines={1}>
                   {note.username}
@@ -434,6 +598,22 @@ export default function BoulderDetailScreen() {
           ))
         )}
       </View>
+
+      {/* Un Modal se rend hors du flux : sa place dans l'arbre ne compte pas.
+          Monté ici pour partager `boulderId` et l'état d'ouverture. */}
+      <AddToPlaylistSheet
+        boulderId={boulderId}
+        angleDegrees={angle}
+        visible={playlistSheetOpen}
+        onClose={() => setPlaylistSheetOpen(false)}
+      />
+      <AnglePickerSheet
+        visible={anglePickerOpen}
+        selected={angle}
+        creatorAngle={detail.angleDegrees}
+        onSelect={selectAngle}
+        onClose={() => setAnglePickerOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -577,6 +757,44 @@ function Stepper({
   );
 }
 
+function LikeButton({
+  liked,
+  disabled,
+  onToggle,
+}: {
+  // undefined tant que l'état n'est pas connu.
+  liked: boolean | undefined;
+  disabled: boolean;
+  onToggle: (liked: boolean) => void;
+}) {
+  // Grisé tant que l'état n'est pas connu : un cœur vide affirmerait « pas
+  // liké » avant de le savoir. Un tap à ce moment serait pourtant sans risque
+  // (PUT idempotent, et onMutate annule la lecture en vol) : c'est un choix
+  // d'affichage, pas une protection.
+  const unknown = liked === undefined;
+
+  return (
+    <Pressable
+      onPress={() => liked !== undefined && onToggle(liked)}
+      disabled={unknown || disabled}
+      hitSlop={spacing.sm}
+      accessibilityRole="button"
+      accessibilityLabel={liked ? 'Unlike' : 'Like'}
+      accessibilityState={{ selected: liked === true, disabled: unknown }}
+    >
+      <Text
+        style={[
+          styles.heart,
+          liked && styles.heartActive,
+          unknown && styles.heartUnknown,
+        ]}
+      >
+        {liked ? '♥' : '♡'}
+      </Text>
+    </Pressable>
+  );
+}
+
 function StatusBadge({ status }: { status: AscentStatus }) {
   const config = {
     FLASH: {
@@ -659,6 +877,17 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xxl,
     color: colors.text,
   },
+  // Coral : la couleur des likes dans le thème.
+  heart: {
+    fontSize: typography.size.xxl,
+    color: colors.textMuted,
+  },
+  heartActive: {
+    color: colors.coral,
+  },
+  heartUnknown: {
+    opacity: 0.4,
+  },
   gradeBlock: {
     alignItems: 'flex-end',
   },
@@ -671,6 +900,41 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.data,
     fontSize: typography.size.md,
     color: colors.textMuted,
+  },
+  // Même taille de ligne que la cotation qu'il remplace, en retrait : une
+  // absence d'information, pas une alerte.
+  notGraded: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    lineHeight: typography.size.xxl,
+    color: colors.textSubtle,
+  },
+  // Précision sous la cotation (estimée, ou cotation d'origine du créateur) :
+  // une donnée secondaire, en retrait.
+  gradeNote: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textMuted,
+  },
+  communityNote: {
+    fontFamily: typography.family.body,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
+  },
+  // Contour discret : l'inclinaison se lit comme une donnée, et le chevron
+  // dit qu'elle se change.
+  angleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  angleButtonPressed: {
+    backgroundColor: colors.surfaceMuted,
   },
   setter: {
     fontFamily: typography.family.body,
@@ -940,6 +1204,22 @@ const styles = StyleSheet.create({
   submitButtonDisabled: {
     backgroundColor: colors.surfaceMuted,
   },
+  playlistButton: {
+    height: 52,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistButtonPressed: {
+    backgroundColor: colors.primaryMuted,
+  },
+  playlistButtonText: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.primary,
+  },
   submitText: {
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
@@ -947,6 +1227,14 @@ const styles = StyleSheet.create({
   },
   submitTextDisabled: {
     color: colors.textSubtle,
+  },
+  // Recette du badge « ascent » du thème : vert pâle et texte vert foncé,
+  // contraste déjà vérifié (5,0:1).
+  submitButtonConfirmed: {
+    backgroundColor: statusColors.ascent.badgeBg,
+  },
+  submitTextConfirmed: {
+    color: statusColors.ascent.badgeText,
   },
   starRow: {
     flexDirection: 'row',

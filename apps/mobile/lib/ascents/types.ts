@@ -2,6 +2,8 @@ export type AscentStatus = 'FLASH' | 'SENT' | 'PROJECT';
 
 export type LogAscentPayload = {
   boulderId: number;
+  // Celle du sélecteur de l'écran : l'API l'exige, sans défaut.
+  angleDegrees: number;
   status: AscentStatus;
   feltGradeRank?: number;
   attemptsCount?: number;
@@ -32,6 +34,9 @@ export type Ascent = {
 export type MyAscent = {
   id: number;
   status: AscentStatus;
+  // Inclinaison de l'ascension : les règles (flash, projet, premier envoi)
+  // s'appliquent par bloc ET par inclinaison.
+  angle: { valueDegrees: number };
   attemptsCount: number;
   sessionsCount: number;
   feltGrade: { vScale: string; fontScale: string } | null;
@@ -78,11 +83,20 @@ export type UpdateAscentInput = UpdateAscentPayload & {
 export type MyProject = {
   id: number;
   boulderId: number;
+  // Inclinaison à laquelle le projet est ouvert. `boulder.angle` n'est que
+  // celle de la création du bloc.
+  angle: { valueDegrees: number };
   attemptsCount: number;
+  sessionsCount: number;
   createdAt: string;
   boulder: {
     name: string;
-    grade: { vScale: string; fontScale: string; rank: number };
     angle: { valueDegrees: number };
+  };
+  // Cotation effective du bloc à l'inclinaison de l'ascension, `null` si
+  // personne n'y a encore envoyé le bloc. La cotation du créateur n'est
+  // volontairement pas exposée : elle ne vaut qu'à son inclinaison.
+  boulderAngle: {
+    grade: { vScale: string; fontScale: string; rank: number } | null;
   };
 };

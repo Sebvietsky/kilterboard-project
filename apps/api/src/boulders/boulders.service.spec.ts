@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -12,6 +16,13 @@ const prismaMock = {
   },
   ascent: { groupBy: jest.fn(), aggregate: jest.fn() },
   ascentNote: { findMany: jest.fn() },
+  boulderLike: {
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
+  angle: { findUnique: jest.fn() },
 };
 
 // La forme minimale que findAll déréférence dans son mapping.
@@ -167,10 +178,32 @@ describe('BouldersService', () => {
   });
 
   describe('findOne', () => {
+    // Bloc créé à l'inclinaison 5 (40°), coté V4 par son créateur.
     const detailRow = {
       ...boulderRow,
+      angleId: 5,
       description: 'Sloper exit',
       boulderHolds: [{ role: 'START', hold: { holdCode: 'A1', x: 10, y: 20 } }],
+      boulderAngles: [
+        {
+          angleId: 5,
+          votesCount: 2,
+          angle: { valueDegrees: 40 },
+          grade: { vScale: 'V4', rank: 6 },
+        },
+        {
+          angleId: 7,
+          votesCount: 1,
+          angle: { valueDegrees: 50 },
+          grade: { vScale: 'V6', rank: 8 },
+        },
+        {
+          angleId: 9,
+          votesCount: 0,
+          angle: { valueDegrees: 60 },
+          grade: null,
+        },
+      ],
     };
 
     beforeEach(() => {
@@ -208,6 +241,39 @@ describe('BouldersService', () => {
         { holdCode: 'A1', x: 10, y: 20, role: 'START' },
       ]);
     });
+
+    // « Estimée » se déduit : peu de votes, et seulement hors de l'inclinaison
+    // du créateur. Sa ligne garde sa cotation sous le seuil, elle n'est donc
+    // pas une estimation, même avec 2 votes.
+    it('donne la cotation de chaque inclinaison, estimée hors celle du créateur', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(detailRow);
+
+      const detail = await service.findOne(10);
+
+      expect(detail.angleGrades).toEqual([
+        {
+          angleDegrees: 40,
+          gradeLabel: 'V4',
+          gradeRank: 6,
+          votesCount: 2,
+          isEstimated: false,
+        },
+        {
+          angleDegrees: 50,
+          gradeLabel: 'V6',
+          gradeRank: 8,
+          votesCount: 1,
+          isEstimated: true,
+        },
+        {
+          angleDegrees: 60,
+          gradeLabel: null,
+          gradeRank: null,
+          votesCount: 0,
+          isEstimated: false,
+        },
+      ]);
+    });
   });
 
   describe('findComments', () => {
@@ -228,9 +294,10 @@ describe('BouldersService', () => {
     it('tolère une note dont lauteur na pas donné de cote ressentie', async () => {
       prismaMock.ascentNote.findMany.mockResolvedValue([
         {
+          id: 12,
           user: { username: 'seb', avatarUrl: null },
           content: 'Nice',
-          ascent: { feltGrade: null },
+          ascent: { feltGrade: null, angle: { valueDegrees: 50 } },
           _count: { ascentNoteLikes: 2 },
           createdAt: new Date(),
         },
@@ -239,6 +306,28 @@ describe('BouldersService', () => {
       const [note] = await service.findComments(10);
 
       expect(note).toMatchObject({ feltGradeLabel: null, likesCount: 2 });
+    });
+
+    // L'id sert de clé de liste côté client ; l'inclinaison, de filtre. Elle
+    // vient de l'ascension commentée, pas du bloc (créé à une autre).
+    it("expose l'id et l'inclinaison de l'ascension commentée", async () => {
+      prismaMock.ascentNote.findMany.mockResolvedValue([
+        {
+          id: 12,
+          user: { username: 'seb', avatarUrl: null },
+          content: 'Nice',
+          ascent: {
+            feltGrade: { vScale: 'V5' },
+            angle: { valueDegrees: 50 },
+          },
+          _count: { ascentNoteLikes: 0 },
+          createdAt: new Date(),
+        },
+      ]);
+
+      const [note] = await service.findComments(10);
+
+      expect(note).toMatchObject({ id: 12, angleDegrees: 50 });
     });
   });
 
@@ -272,6 +361,148 @@ describe('BouldersService', () => {
       await expect(service.publishBoulder(10, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('like', () => {
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: 7 }); // 50°
+    });
+
+    // PUT est idempotent : le doublon est absorbé par la base
+    // (`skipDuplicates`), jamais remonté en erreur au client.
+    it("pose le like à l'inclinaison demandée, doublon absorbé par la base", async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+
+      await expect(service.like(1, 10, 50)).resolves.toEqual({ liked: true });
+      expect(prismaMock.angle.findUnique).toHaveBeenCalledWith({
+        where: { valueDegrees: 50 },
+        select: { id: true },
+      });
+      expect(prismaMock.boulderLike.createMany).toHaveBeenCalledWith({
+        data: [{ userId: 1, boulderId: 10, angleId: 7 }],
+        skipDuplicates: true,
+      });
+    });
+
+    it('ne cherche que parmi les blocs publics et publiés', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+
+      await service.like(1, 10, 50);
+
+      const [arg] = prismaMock.boulder.findUnique.mock.calls[0] as [
+        { where: Record<string, unknown> },
+      ];
+      expect(arg.where).toMatchObject({ isPublic: true, isDraft: false });
+    });
+
+    it('rejette un bloc introuvable', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(null);
+
+      await expect(service.like(1, 10, 50)).rejects.toThrow(NotFoundException);
+      expect(prismaMock.boulderLike.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejette une inclinaison inconnue', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10 });
+      prismaMock.angle.findUnique.mockResolvedValue(null);
+
+      await expect(service.like(1, 10, 47)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prismaMock.boulderLike.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unlike', () => {
+    // DELETE est idempotent : `deleteMany` ne lève pas quand le like
+    // n'existe pas, contrairement à `delete`.
+    it("retire le like à cette inclinaison sans exiger qu'il existe", async () => {
+      prismaMock.boulderLike.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.unlike(1, 10, 50)).resolves.toBeUndefined();
+      expect(prismaMock.boulderLike.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 1, boulderId: 10, angle: { valueDegrees: 50 } },
+      });
+    });
+  });
+
+  describe('isLiked', () => {
+    it('renvoie true quand le like existe à cette inclinaison', async () => {
+      prismaMock.boulderLike.findFirst.mockResolvedValue({ userId: 1 });
+
+      await expect(service.isLiked(1, 10, 50)).resolves.toEqual({
+        liked: true,
+      });
+      const [arg] = prismaMock.boulderLike.findFirst.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({
+        userId: 1,
+        boulderId: 10,
+        angle: { valueDegrees: 50 },
+      });
+    });
+
+    it('renvoie false sinon', async () => {
+      prismaMock.boulderLike.findFirst.mockResolvedValue(null);
+
+      await expect(service.isLiked(1, 10, 50)).resolves.toEqual({
+        liked: false,
+      });
+    });
+  });
+
+  describe('findMyLikes', () => {
+    it('trie par like le plus récent et aplatit le bloc', async () => {
+      const likedAt = new Date();
+      prismaMock.boulderLike.findMany.mockResolvedValue([
+        {
+          createdAt: likedAt,
+          angle: { valueDegrees: 40 },
+          boulder: { id: 10, name: 'Crimpy' },
+          boulderAngle: { grade: { vScale: 'V4', rank: 6 } },
+        },
+      ]);
+
+      const result = await service.findMyLikes(1);
+
+      const [arg] = prismaMock.boulderLike.findMany.mock.calls[0] as [
+        { where: unknown; orderBy: unknown },
+      ];
+      expect(arg.where).toEqual({ userId: 1 });
+      expect(arg.orderBy).toEqual({ createdAt: 'desc' });
+      expect(result).toEqual([
+        {
+          id: 10,
+          name: 'Crimpy',
+          gradeLabel: 'V4',
+          gradeRank: 6,
+          angleDegrees: 40,
+          likedAt,
+        },
+      ]);
+    });
+
+    // La cotation vient de la ligne du bloc à l'inclinaison du like : non
+    // cotée là, la carte n'affiche pas celle du créateur.
+    it("renvoie la cotation de l'inclinaison du like, null si elle n'est pas cotée", async () => {
+      prismaMock.boulderLike.findMany.mockResolvedValue([
+        {
+          createdAt: new Date(),
+          angle: { valueDegrees: 50 },
+          boulder: { id: 10, name: 'Crimpy' },
+          boulderAngle: { grade: null },
+        },
+      ]);
+
+      const [like] = await service.findMyLikes(1);
+
+      expect(like).toMatchObject({
+        angleDegrees: 50,
+        gradeLabel: null,
+        gradeRank: null,
+      });
     });
   });
 });

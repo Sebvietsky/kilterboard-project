@@ -2,8 +2,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { type JwtPayload } from '../common/interfaces/auth-payload.interface';
@@ -36,14 +38,21 @@ export class PlaylistsService {
         },
         _count: { select: { playlistBoulders: true } },
         playlistBoulders: {
+          // Ordre explicite : sans `orderBy`, PostgreSQL ne garantit rien et
+          // la liste pouvait se réordonner d'un appel à l'autre. Les blocs
+          // positionnés d'abord, puis les plus récemment ajoutés.
+          orderBy: [
+            { position: { sort: 'asc', nulls: 'last' } },
+            { addedAt: 'desc' },
+          ],
           include: {
-            boulder: {
+            // L'inclinaison de l'entrée, pas celle du bloc (son créateur).
+            angle: { select: { valueDegrees: true } },
+            boulder: { select: { name: true } },
+            // Cotation effective du bloc à l'inclinaison de l'entrée.
+            boulderAngle: {
               select: {
-                name: true,
-                grade: {
-                  select: { vScale: true, rank: true, fontScale: true },
-                },
-                angle: { select: { valueDegrees: true } },
+                grade: { select: { vScale: true, fontScale: true } },
               },
             },
           },
@@ -71,9 +80,9 @@ export class PlaylistsService {
         boulder: {
           id: pb.boulderId,
           name: pb.boulder.name,
-          vScale: pb.boulder.grade.vScale,
-          fontScale: pb.boulder.grade.fontScale,
-          angleDegrees: pb.boulder.angle.valueDegrees,
+          vScale: pb.boulderAngle.grade?.vScale ?? null,
+          fontScale: pb.boulderAngle.grade?.fontScale ?? null,
+          angleDegrees: pb.angle.valueDegrees,
         },
       })),
     };
@@ -96,14 +105,44 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async findMine(user: JwtPayload): Promise<PlaylistSummaryDto[]> {
+  /**
+   * Playlists de l'utilisateur. Avec `forBoulder`, chacune indique en plus si
+   * elle contient déjà ce bloc à cette inclinaison (`containsBoulder`).
+   *
+   * Sans cette information, l'écran « Add to playlist » ne pourrait que tenter
+   * l'ajout et découvrir le doublon par un 409 : l'utilisateur doit voir
+   * d'avance où le bloc se trouve, et pouvoir l'en retirer.
+   */
+  async findMine(
+    user: JwtPayload,
+    forBoulder?: { boulderId: number; angleDegrees: number },
+  ): Promise<PlaylistSummaryDto[]> {
     const playlists = await this.prisma.playlist.findMany({
       where: {
         userId: user.userId,
       },
+      // Ordre explicite, la plus récente en tête : sans `orderBy`, PostgreSQL
+      // ne garantit rien, et une playlist tout juste créée pouvait apparaître
+      // au milieu de la liste. `id` départage deux créations simultanées.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         user: { select: { username: true } },
         _count: { select: { playlistBoulders: true } },
+        // Relation filtrée sur le seul bloc demandé, à l'inclinaison demandée :
+        // zéro ou une ligne par playlist, la clé (bloc, playlist, inclinaison)
+        // étant unique. `false` quand aucun bloc n'est demandé — la relation
+        // n'est alors pas chargée du tout. Une inclinaison inconnue ne trouve
+        // simplement rien : la coche est vide, comme pour `isLiked`.
+        playlistBoulders:
+          forBoulder === undefined
+            ? false
+            : {
+                where: {
+                  boulderId: forBoulder.boulderId,
+                  angle: { valueDegrees: forBoulder.angleDegrees },
+                },
+                select: { boulderId: true },
+              },
       },
     });
 
@@ -116,6 +155,9 @@ export class PlaylistsService {
       creatorUsername: p.user.username,
       boulderCount: p._count.playlistBoulders,
       createdAt: p.createdAt,
+      ...(forBoulder !== undefined && {
+        containsBoulder: (p.playlistBoulders ?? []).length > 0,
+      }),
     }));
   }
 
@@ -172,10 +214,26 @@ export class PlaylistsService {
       where: { id: dto.boulderId },
     });
 
-    assertFound(boulder, 'Boulder');
+    // Un bloc privé ou brouillon n'existe que pour son créateur (décision du
+    // 2026-10-15) : 404 pour les autres, comme le like et le log. Sans ça,
+    // une playlist publique exposerait le nom du brouillon d'un autre.
+    const isVisible =
+      boulder !== null &&
+      ((boulder.isPublic && !boulder.isDraft) ||
+        boulder.creatorId === user.userId);
+    if (!isVisible) throw new NotFoundException('Boulder not found');
+    const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
+    // Doublon = même bloc à la même inclinaison. Le même bloc à une autre
+    // inclinaison est une autre entrée.
     const existing = await this.prisma.playlistBoulder.findUnique({
-      where: { boulderId_playlistId: { boulderId: dto.boulderId, playlistId } },
+      where: {
+        boulderId_playlistId_angleId: {
+          boulderId: dto.boulderId,
+          playlistId,
+          angleId,
+        },
+      },
     });
     if (existing) throw new ConflictException('Boulder already in playlist');
 
@@ -183,16 +241,19 @@ export class PlaylistsService {
       data: {
         boulderId: dto.boulderId,
         playlistId,
+        angleId,
         position: dto.position,
       },
     });
 
     return playlistBoulder;
   }
+
   async removeBoulder(
     user: JwtPayload,
     boulderId: number,
     playlistId: number,
+    angleDegrees: number,
   ): Promise<void> {
     const playlist = await this.prisma.playlist.findUnique({
       where: {
@@ -206,9 +267,12 @@ export class PlaylistsService {
     });
 
     assertFound(boulder, 'Boulder');
+    const angleId = await resolveAngleId(this.prisma, angleDegrees);
 
     await this.prisma.playlistBoulder.delete({
-      where: { boulderId_playlistId: { boulderId, playlistId } },
+      where: {
+        boulderId_playlistId_angleId: { boulderId, playlistId, angleId },
+      },
     });
   }
 }

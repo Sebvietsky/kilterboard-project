@@ -8,6 +8,10 @@ export class HoldDto {
 }
 
 export class PublicNoteDto {
+  id!: number;
+  // Inclinaison de l'ascension commentée : un bloc à 40° et à 50° se
+  // commente séparément, et le client filtre sur l'inclinaison affichée.
+  angleDegrees!: number;
   username!: string;
   avatarUrl!: string | null;
   content!: string;
@@ -30,8 +34,36 @@ export class BoulderSummaryDto {
   createdAt!: Date;
 }
 
+export class BoulderLikeStatusDto {
+  liked!: boolean;
+}
+
+export class LikedBoulderDto {
+  id!: number;
+  name!: string;
+  // Cotation à l'inclinaison du like ; `null` quand elle n'est pas cotée.
+  gradeLabel!: string | null;
+  gradeRank!: number | null;
+  angleDegrees!: number;
+  likedAt!: Date;
+}
+
+// Cotation du bloc à une inclinaison (ligne de `boulder_angles`).
+export class AngleGradeDto {
+  angleDegrees!: number;
+  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  gradeLabel!: string | null;
+  gradeRank!: number | null;
+  votesCount!: number;
+  // Peu de votes, hors inclinaison du créateur.
+  isEstimated!: boolean;
+}
+
 export class BoulderDetailDto extends BoulderSummaryDto {
   description!: string | null;
   holds!: HoldDto[];
   publicNotes!: PublicNoteDto[];
+  // Une entrée par inclinaison, dans l'ordre croissant. `gradeLabel` et
+  // `angleDegrees` au premier niveau restent la référence du créateur.
+  angleGrades!: AngleGradeDto[];
 }

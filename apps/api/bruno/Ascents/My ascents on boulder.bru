@@ -1,0 +1,11 @@
+meta {
+  name: My ascents on boulder
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/ascents/me/{{boulderId}}
+  body: none
+  auth: inherit
+}

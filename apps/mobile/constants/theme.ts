@@ -28,6 +28,8 @@ const palette = {
   coralLine: '#FF9A83',
   coralInk: '#C2452F',
   skyDots: 'rgba(157, 184, 255, 0.22)',
+  goldDots: 'rgba(255, 209, 102, 0.22)',
+  coralDots: 'rgba(255, 107, 87, 0.22)',
   inkOverlay: 'rgba(20, 30, 54, 0.5)',
 } as const;
 
@@ -69,6 +71,15 @@ export const colors = {
   success: palette.moss, // confirmations, ascension validée
   warning: palette.gold, // alertes, records, flash
   info: palette.sky, // informations, progression
+  // Pastilles posées sur une surface ink (stats de la carte session) : un
+  // voile de la couleur d'accent, lisible avec le texte de la même teinte
+  // par-dessus. Flash et projet reprennent leur couleur de statut.
+  chipOnInk: palette.skyDots,
+  chipOnInkFlash: palette.goldDots,
+  chipOnInkProject: palette.coralDots,
+  // Voile translucide posé sur le fond de l'app : signale sans peser (pastille
+  // de session du header).
+  surfaceVeil: palette.skyDots,
   // Overlays
   overlay: palette.inkOverlay,
 } as const;

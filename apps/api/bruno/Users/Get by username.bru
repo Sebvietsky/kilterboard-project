@@ -1,0 +1,15 @@
+meta {
+  name: Get by username
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/users/{{targetUsername}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Profil public : ne renvoie jamais `email` ni `role`.
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Get active
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/sessions/active
+  body: none
+  auth: inherit
+}
+
+docs {
+  Sans session active : 200 avec un corps VIDE (pas un 404). C'est le cas que
+  `api.getOrNull` traduit en `null` côté mobile.
+}

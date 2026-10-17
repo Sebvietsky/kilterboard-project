@@ -10,10 +10,11 @@
 // ============================================================
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  runtime      = "nodejs"
-  moduleFormat = "cjs"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  runtime         = "nodejs"
+  moduleFormat    = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -65,6 +66,7 @@ model User {
   follows    UserFollow[] @relation("FollowerRelation")
 
   playlists     Playlist[]
+  boulderLikes  BoulderLike[]
   refreshTokens RefreshToken[]
 
   @@map("users")
@@ -160,7 +162,11 @@ model Angle {
   valueDegrees Int     @unique @map("value_degrees")
   label        String? @db.VarChar(50) // ex. "Vertical", "Overhang"
 
-  boulders Boulder[]
+  boulders         Boulder[]
+  boulderAngles    BoulderAngle[]
+  ascents          Ascent[]
+  boulderLikes     BoulderLike[]
+  playlistBoulders PlaylistBoulder[]
 
   @@map("angles")
 }
@@ -178,8 +184,9 @@ model Grade {
   fontScale String @unique @db.VarChar(5) // ex. "7A"
   rank      Int    @unique // ordre de difficulté croissante
 
-  boulders Boulder[] @relation("BoulderGrade")
-  ascents  Ascent[]  @relation("AscentFeltGrade")
+  boulders      Boulder[]      @relation("BoulderGrade")
+  boulderAngles BoulderAngle[] @relation("BoulderAngleGrade")
+  ascents       Ascent[]       @relation("AscentFeltGrade")
 
   @@map("grades")
 }
@@ -210,11 +217,44 @@ model Boulder {
 
   boulderHolds     BoulderHold[]
   boulderTags      BoulderTag[]
+  boulderAngles    BoulderAngle[]
   ascents          Ascent[]
   ascentNotes      AscentNote[]
   playlistBoulders PlaylistBoulder[]
+  likes            BoulderLike[]
 
   @@map("boulders")
+}
+
+// Un bloc à une inclinaison : « le même bloc à une autre inclinaison est un
+// autre bloc ». Association entre Boulder et Angle, identifiée par le couple
+// (boulderId, angleId) et porteuse de la cotation effective à cette inclinaison.
+//
+// Une ligne par inclinaison de la table `angles`, toutes créées avec le bloc :
+// les ascensions, favoris et entrées de playlist y pointent par une clé
+// étrangère composée, qui exige que la ligne existe déjà.
+//
+// `gradeId` : cotation effective. Celle du créateur sur sa ligne jusqu'au seuil
+// de votes, puis la médiane des votes ; null ailleurs tant que personne n'y a
+// envoyé le bloc. `votesCount` : un vote = le grade ressenti du premier envoi
+// d'un grimpeur à cette inclinaison. « Estimée » ne se stocke pas, elle se
+// déduit (peu de votes, hors inclinaison du créateur).
+// La cotation et l'inclinaison du créateur restent sur `boulders`, en référence.
+model BoulderAngle {
+  boulderId  Int     @map("boulder_id")
+  boulder    Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId    Int     @map("angle_id")
+  angle      Angle   @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  gradeId    Int?    @map("grade_id")
+  grade      Grade?  @relation("BoulderAngleGrade", fields: [gradeId], references: [id], onDelete: Restrict)
+  votesCount Int     @default(0) @map("votes_count")
+
+  ascents          Ascent[]
+  likes            BoulderLike[]
+  playlistBoulders PlaylistBoulder[]
+
+  @@id([boulderId, angleId])
+  @@map("boulder_angles")
 }
 
 // Table de jonction entre un bloc et ses prises.
@@ -261,8 +301,7 @@ model BoulderTag {
 // Session de grimpe d'un utilisateur sur une planche.
 // Règle métier : endedAt IS NULL = session active.
 // Un utilisateur ne peut avoir qu'une seule session active à la fois —
-// cette contrainte est enforced dans SessionsService (pas via un index DB
-// car Prisma ne supporte pas encore les index partiels natifs).
+// cette contrainte est enforced dans SessionsService + par @@unique avec condition
 // boardId est nullable : on peut logger une session sans board référencé.
 model BoardSession {
   id      Int    @id @default(autoincrement())
@@ -280,9 +319,40 @@ model BoardSession {
   isShared  Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  ascents Ascent[]
+  entries SessionEntry[]
 
+  @@unique([userId], where: { endedAt: null }, map: "board_sessions_one_active_per_user")
   @@map("board_sessions")
+}
+
+// Un passage sur un bloc pendant une session. Une ligne par log, jamais
+// modifiée : c'est le journal dont on tire le compte rendu de la session.
+//
+// Table distincte et non une colonne `session_id` sur Ascent : une ascension
+// est UNE ligne par bloc (un projet se met à jour par PATCH), alors qu'un même
+// bloc peut être travaillé dans plusieurs sessions, et plusieurs fois dans la
+// même. Avec une colonne, le projet quittait la session précédente à chaque
+// nouvelle séance.
+//
+// Un log hors session n'écrit rien ici : `sessionId` est obligatoire.
+model SessionEntry {
+  id        Int          @id @default(autoincrement())
+  sessionId Int          @map("session_id")
+  session   BoardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ascentId  Int          @map("ascent_id")
+  ascent    Ascent       @relation(fields: [ascentId], references: [id], onDelete: Cascade)
+
+  // Statut de l'ascension À L'ISSUE de ce passage : PROJECT tant que le bloc
+  // résiste, SENT le jour où il tombe. Figé ici, car Ascent.status évolue.
+  status   AscentStatus
+  // Essais de CE passage, pas le cumul (qui reste sur Ascent.attemptsCount).
+  attempts Int          @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([sessionId, createdAt])
+  @@index([ascentId])
+  @@map("session_entries")
 }
 
 // Enregistrement d'une tentative ou d'une réussite sur un bloc.
@@ -291,13 +361,20 @@ model BoardSession {
 // `sendDate` : date d'envoi, null si status = PROJECT.
 // sessionId nullable : une ascension peut être enregistrée hors session.
 model Ascent {
-  id        Int           @id @default(autoincrement())
-  userId    Int           @map("user_id")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boulderId Int           @map("boulder_id")
-  boulder   Boulder       @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  sessionId Int?          @map("session_id")
-  session   BoardSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  id        Int     @id @default(autoincrement())
+  userId    Int     @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int     @map("boulder_id")
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+
+  // Inclinaison à laquelle le bloc a été grimpé, pas celle de sa création :
+  // le même bloc à 40° et à 45° donne deux réussites distinctes. Toujours
+  // envoyée par le client, jamais devinée : sans BLE, seul l'écran la connaît.
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison : la clé composée garantit que la ligne existe,
+  // et donne accès à la cotation effective.
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
 
   status        AscentStatus
   attemptsCount Int          @default(0) @map("attempts_count")
@@ -311,6 +388,9 @@ model Ascent {
   // l'historique par séance (date, essais et note de chacune).
   sessionsCount Int @default(1) @map("sessions_count")
 
+  // Grade ressenti = le vote du grimpeur pour la cotation du bloc à cette
+  // inclinaison. Donné une seule fois, au premier envoi (ou à la complétion
+  // du projet) : l'index partiel ci-dessous le garantit en base.
   feltGrade   Grade? @relation("AscentFeltGrade", fields: [feltGradeId], references: [id], onDelete: Restrict)
   feltGradeId Int?   @map("felt_grade_id")
 
@@ -320,8 +400,11 @@ model Ascent {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  ascentNotes AscentNote[]
+  ascentNotes    AscentNote[]
+  sessionEntries SessionEntry[]
 
+  // Un seul grade ressenti par grimpeur, par bloc et par inclinaison.
+  @@unique([userId, boulderId, angleId], where: { feltGradeId: { not: null } }, map: "ascents_one_felt_grade_per_user_boulder_angle")
   @@map("ascents")
 }
 
@@ -364,7 +447,8 @@ model AscentNoteLike {
 // COLLECTIONS
 // ============================================================
 
-// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Favoris").
+// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Circuit du mardi").
+// Les favoris n'en sont pas une : ils ont leur propre table (BoulderLike).
 // Privée par défaut — isPublic = true pour partager avec la communauté.
 model Playlist {
   id          Int      @id @default(autoincrement())
@@ -381,17 +465,41 @@ model Playlist {
 }
 
 // Table de jonction Playlist ↔ Boulder, avec position optionnelle pour l'ordre.
-// Clé composite (boulderId, playlistId) : un bloc n'apparaît qu'une fois par playlist.
+// Clé composite (boulderId, playlistId, angleId) : un bloc n'apparaît qu'une fois
+// par playlist et par inclinaison. Le même bloc à deux inclinaisons fait deux entrées.
 model PlaylistBoulder {
-  boulder    Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  boulderId  Int      @map("boulder_id")
-  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
-  playlistId Int      @map("playlist_id")
-  position   Int? // Ordre d'affichage dans la playlist, null = non ordonné
-  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  playlist     Playlist     @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  playlistId   Int          @map("playlist_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  angleId      Int          @map("angle_id")
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  position     Int? // Ordre d'affichage dans la playlist, null = non ordonné
+  addedAt      DateTime     @default(now()) @map("added_at") @db.Timestamptz
 
-  @@id([boulderId, playlistId])
+  @@id([boulderId, playlistId, angleId])
   @@map("playlist_boulders")
+}
+
+// Favori : un utilisateur like un bloc.
+// Clé composite (userId, boulderId, angleId) : un user like un bloc une fois par
+// inclinaison. Le même bloc liké à deux inclinaisons fait deux favoris.
+// `createdAt` sert à trier les blocs likés, du plus récent au plus ancien.
+model BoulderLike {
+  userId       Int          @map("user_id")
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, boulderId, angleId])
+  @@map("boulder_likes")
 }
 
 // Stockage du refresh token

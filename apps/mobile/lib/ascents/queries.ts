@@ -14,6 +14,7 @@ import {
 } from './types';
 import { api } from '../api/client';
 import { boulderKeys } from '../boulders/keys';
+import { sessionKeys } from '../sessions/keys';
 import { ascentKeys } from './keys';
 
 export function useLogAscent() {
@@ -44,6 +45,9 @@ export function useLogAscent() {
       queryClient.invalidateQueries({
         queryKey: ascentKeys.myProjects(),
       });
+      // Le serveur rattache l'ascension à la session active : la liste des
+      // blocs de l'écran Session est périmée.
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });
 }
@@ -75,7 +79,11 @@ export function useUpdateAscent() {
       }
       return updated;
     },
-    onSuccess: (_data, variables) => {
+    // onSettled et non onSuccess : après un échec aussi, l'écran relit l'état.
+    // Un 409 dit que l'ascension n'est plus un projet (complétion renvoyée
+    // après une réponse perdue) : relire montre l'envoi déjà enregistré au
+    // lieu de laisser un bouton qui échoue. Même règle que Start et End.
+    onSettled: (_data, _error, variables) => {
       // Le détail du bloc porte le compteur d'ascensions et les commentaires
       // publics ; la liste, le statut ; myProjects, la ligne du projet — qui
       // en sort quand on le clôt.
@@ -87,6 +95,8 @@ export function useUpdateAscent() {
         queryKey: ascentKeys.byBoulder(variables.boulderId),
       });
       queryClient.invalidateQueries({ queryKey: ascentKeys.myProjects() });
+      // Une séance ou une complétion rattache le projet à la session active.
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
   });
 }

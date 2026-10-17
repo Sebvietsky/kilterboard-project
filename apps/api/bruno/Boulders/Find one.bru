@@ -1,0 +1,15 @@
+meta {
+  name: Find one
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/boulders/{{boulderId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Détail : résumé + `description`, `holds` et `publicNotes`.
+}
