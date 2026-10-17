@@ -28,6 +28,21 @@ describe('CreateAscentDto', () => {
     ).resolves.toEqual(['status']);
   });
 
+  // REPEAT n'est pas utilisé dans le MVP : un second envoi est un SENT
+  // (décision du 2026-10-15). Sans ce refus, un REPEAT se créait même sans
+  // envoi préalable.
+  it('refuse REPEAT', async () => {
+    await expect(
+      rejectedFields(CreateAscentDto, { ...valid, status: 'REPEAT' }),
+    ).resolves.toEqual(['status']);
+  });
+
+  it.each(['FLASH', 'SENT', 'PROJECT'])('accepte %s', async (status) => {
+    await expect(
+      rejectedFields(CreateAscentDto, { ...valid, status }),
+    ).resolves.toEqual([]);
+  });
+
   it.each([0, 6])('refuse une note de %i étoile(s)', async (rating) => {
     await expect(
       rejectedFields(CreateAscentDto, { ...valid, rating }),

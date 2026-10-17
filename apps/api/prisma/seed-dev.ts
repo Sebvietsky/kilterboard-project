@@ -123,7 +123,13 @@ async function main() {
   // ── Ascents + Notes ───────────────────────────────────────
   console.log('Seeding fake ascents and notes...');
   const allBoulders = [...existingBoulders, ...fakeBoulders];
-  const statuses = ['SENT', 'FLASH', 'PROJECT', 'REPEAT'] as const;
+  // Le seed écrit sans passer par l'API : il doit respecter lui-même les
+  // règles d'ascension, sinon la base contient ce que l'API refuserait.
+  // - Premier contact à une inclinaison : FLASH (1 essai), SENT ou PROJECT.
+  // - Grade ressenti, note et commentaire public au premier envoi seulement.
+  // - Après un envoi : des SENT de repeat (le statut REPEAT n'est pas utilisé
+  //   dans le MVP), sans grade ni note, avec une note privée au plus.
+  const firstStatuses = ['FLASH', 'SENT', 'PROJECT'] as const;
   let ascentCount = 0;
   let noteCount = 0;
 
@@ -134,43 +140,74 @@ async function main() {
     });
 
     for (const boulder of bouldersToClimb) {
-      const status = faker.helpers.arrayElement(statuses);
-      const feltGrade = faker.helpers.arrayElement(grades);
+      const status = faker.helpers.arrayElement(firstStatuses);
+      const isSend = status !== 'PROJECT';
+      const sendDate = isSend ? faker.date.recent({ days: 90 }) : null;
 
-      const ascent = await prisma.ascent.create({
+      const first = await prisma.ascent.create({
         data: {
           userId: user.id,
           boulderId: boulder.id,
           angleId: boulder.angleId,
           status,
-          attemptsCount: faker.number.int({ min: 1, max: 20 }),
-          sendDate:
-            status !== 'PROJECT' ? faker.date.recent({ days: 90 }) : null,
-          // Grade ressenti au premier envoi seulement (SENT ou FLASH) : un
-          // REPEAT n'en porte pas. Chaque grimpeur ne passe qu'une fois sur
-          // un bloc ici, cette ascension est donc bien la première.
-          feltGradeId:
-            status === 'SENT' || status === 'FLASH' ? feltGrade.id : null,
-          rating:
-            status !== 'PROJECT' ? faker.number.int({ min: 1, max: 5 }) : null,
-          wasProject: faker.datatype.boolean(0.3),
+          attemptsCount:
+            status === 'FLASH' ? 1 : faker.number.int({ min: 2, max: 20 }),
+          sendDate,
+          feltGradeId: isSend ? faker.helpers.arrayElement(grades).id : null,
+          rating: isSend ? faker.number.int({ min: 1, max: 5 }) : null,
+          // Seul un SENT peut être un projet terminé : un FLASH est réussi au
+          // premier essai, et un projet ouvert n'est pas encore terminé.
+          wasProject: status === 'SENT' && faker.datatype.boolean(0.3),
         },
       });
       ascentCount++;
 
-      // Note publique uniquement sur SENT ou FLASH
-      if (status === 'SENT' || status === 'FLASH') {
-        const isPublic = faker.datatype.boolean(0.6);
+      if (isSend) {
         await prisma.ascentNote.create({
           data: {
-            ascentId: ascent.id,
+            ascentId: first.id,
             userId: user.id,
             boulderId: boulder.id,
             content: faker.lorem.sentences({ min: 1, max: 3 }),
-            visibility: isPublic ? 'PUBLIC' : 'PRIVATE',
+            visibility: faker.datatype.boolean(0.6) ? 'PUBLIC' : 'PRIVATE',
           },
         });
         noteCount++;
+      }
+
+      // Repeats : seulement après un envoi, et datés après lui.
+      if (!sendDate) continue;
+      const repeats = faker.helpers.weightedArrayElement([
+        { weight: 6, value: 0 },
+        { weight: 3, value: 1 },
+        { weight: 1, value: 2 },
+      ]);
+      for (let i = 0; i < repeats; i++) {
+        const repeat = await prisma.ascent.create({
+          data: {
+            userId: user.id,
+            boulderId: boulder.id,
+            angleId: boulder.angleId,
+            status: 'SENT',
+            attemptsCount: faker.number.int({ min: 1, max: 5 }),
+            sendDate: faker.date.between({ from: sendDate, to: new Date() }),
+            wasProject: false,
+          },
+        });
+        ascentCount++;
+
+        if (faker.datatype.boolean(0.3)) {
+          await prisma.ascentNote.create({
+            data: {
+              ascentId: repeat.id,
+              userId: user.id,
+              boulderId: boulder.id,
+              content: faker.lorem.sentences({ min: 1, max: 2 }),
+              visibility: 'PRIVATE',
+            },
+          });
+          noteCount++;
+        }
       }
     }
   }

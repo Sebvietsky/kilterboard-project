@@ -262,14 +262,5 @@ describe('AuthService', () => {
         'refresh',
       );
     });
-
-    it('déconnecte tous les appareils quand aucun token est fourni', async () => {
-      await service.logoutUser(1);
-
-      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(
-        1,
-        undefined,
-      );
-    });
   });
 });

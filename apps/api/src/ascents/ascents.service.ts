@@ -84,10 +84,15 @@ export class AscentsService {
         'A flash is a first-attempt send: attempts must be 1.',
       );
     }
-    // Un seul projet actif par bloc et par inclinaison.
-    if (dto.status === AscentStatus.PROJECT && hasActiveProject) {
+    // Un projet se travaille sur un bloc jamais fait : il naît au premier
+    // contact, comme le flash. Après un envoi, c'est un repeat (SENT) ; et un
+    // projet déjà ouvert se poursuit par PATCH. Sa complétion est donc
+    // toujours le premier envoi, celui qui porte le vote.
+    if (dto.status === AscentStatus.PROJECT && hasAnyAscent) {
       throw new BadRequestException(
-        'You already have an active project on this boulder at this angle.',
+        hasActiveProject
+          ? 'You already have an active project on this boulder at this angle.'
+          : 'A project can only be opened on your first ascent at this angle.',
       );
     }
     // Tant qu'un projet est actif, on le termine par PATCH sur l'ascension
@@ -117,6 +122,14 @@ export class AscentsService {
     if (!isFirstSend && dto.feltGradeRank) {
       throw new BadRequestException(
         'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+    // La note (étoiles) suit la même règle, facultative en plus : une par
+    // grimpeur, au premier envoi. Sinon chaque repeat pèserait dans la
+    // moyenne du bloc.
+    if (!isFirstSend && dto.rating !== undefined && dto.rating !== null) {
+      throw new BadRequestException(
+        'A rating can only be given on your first send at this angle.',
       );
     }
 
@@ -279,6 +292,13 @@ export class AscentsService {
     if (dto.feltGradeRank && !completesProject) {
       throw new BadRequestException(
         'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+    // Même règle pour la note (étoiles), comme dans create : elle se donne à
+    // la complétion, jamais après.
+    if (dto.rating !== undefined && dto.rating !== null && !completesProject) {
+      throw new BadRequestException(
+        'A rating can only be given on your first send at this angle.',
       );
     }
 

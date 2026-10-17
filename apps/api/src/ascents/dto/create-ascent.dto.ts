@@ -1,6 +1,15 @@
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AscentStatus } from '../../generated/prisma/client';
+
+// Statuts qu'on peut créer dans le MVP. REPEAT reste dans l'enum mais n'est
+// pas utilisé : un second envoi est un SENT (décision du 2026-10-15). Le
+// réactiver, c'est l'ajouter ici et écrire ses règles dans le service.
+export const CREATABLE_STATUSES = [
+  AscentStatus.FLASH,
+  AscentStatus.SENT,
+  AscentStatus.PROJECT,
+] as const;
 
 export class CreateAscentDto {
   @IsInt()
@@ -14,7 +23,7 @@ export class CreateAscentDto {
   @Type(() => Number)
   angleDegrees!: number;
 
-  @IsEnum(AscentStatus)
+  @IsIn(CREATABLE_STATUSES)
   status!: AscentStatus;
 
   @IsOptional()

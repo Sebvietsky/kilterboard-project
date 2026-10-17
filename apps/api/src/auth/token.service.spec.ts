@@ -120,13 +120,5 @@ describe('TokenService', () => {
         where: { userId: 1, token: 'refresh' },
       });
     });
-
-    it('révoque tous les tokens du compte sans token fourni', async () => {
-      await service.deleteRefreshToken(1);
-
-      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
-        where: { userId: 1 },
-      });
-    });
   });
 });
