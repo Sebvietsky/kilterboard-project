@@ -92,7 +92,7 @@ export default function SessionDetailScreen() {
       refreshControl={
         <RefreshControl
           refreshing={session.isRefetching}
-          onRefresh={session.refetch}
+          onRefresh={() => void session.refetch()}
           tintColor={colors.primary}
         />
       }

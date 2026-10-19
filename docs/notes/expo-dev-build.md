@@ -22,6 +22,16 @@ Machine : Xcode 27.1 (iOS SDK 27.1), iPhone 15 sous iOS 27. CocoaPods 1.17.0 ins
 - **Signature** : `ios.appleTeamId` dans `app.json` (Personal Team), sinon perdue à chaque `prebuild --clean`. Au premier build, autoriser `codesign` dans le trousseau (« Toujours autoriser »).
 - **L'app compile et s'installe, puis plante au lancement** (SIGTRAP, `UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`) : iOS 27 exige le cycle de vie UIScene des apps compilées avec son SDK. Le modèle iOS du SDK 55 crée la fenêtre dans l'`AppDelegate` ; celui du SDK 58 a un `SceneDelegate` (vérifié dans `expo-template-bare-minimum` 58.0.25). Décision : monter en SDK 58 (`chore/expo-sdk-58`).
 
+## SDK 58, 2026-10-19 : l'app démarre sur iOS 27
+
+- Expo 58.0.16, React Native 0.88, React 19.3, expo-router 58, TypeScript 6.0. Le modèle iOS a un `SceneDelegate` : plus de crash au lancement.
+- Cible iOS 16.4 (défaut du SDK 58), toujours fixée par `expo-build-properties`. Le plugin des Pods reste.
+- `@expo/cli` 58.1.13 reconnaît DeviceHub : `pnpm --filter mobile exec expo run:ios --device` devrait refonctionner (non testé ; le build a été fait par `xcodebuild`).
+- Adaptations du code : `baseUrl` retiré du `tsconfig` (déprécié en TS 6) ; `onRefresh={() => void x.refetch()}` (RN 0.88 type `onRefresh` en `() => void | Promise<void>`) ; `undefined` et non `null` dans `ListFooterComponent` ; `redirectTo="/login"` sur le `Stack.Protected` authentifié (expo-router 58 redirige une route gardée vers le premier enfant accessible, `(auth)`, dont l'URL est `/`).
+- pnpm 11 refuse les paquets publiés depuis trop peu de temps : `minimumReleaseAgeExclude` dans `pnpm-workspace.yaml` liste les paquets Expo 58 concernés, chacun à sa version exacte.
+- Après une mise à jour des dépendances : redémarrer Metro avec `--clear`.
+- Signature gratuite : l'app expire au bout de 7 jours, il faut alors recompiler.
+
 ## Build iOS sur iPhone physique — reporté le 2026-07-30
 
 - `brew install cocoapods` (absent de la machine).

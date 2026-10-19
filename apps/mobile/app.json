@@ -45,11 +45,12 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "16.0"
+            "deploymentTarget": "16.4"
           }
         }
       ],
-      "./plugins/with-pods-deployment-target"
+      "./plugins/with-pods-deployment-target",
+      "expo-splash-screen"
     ]
   }
 }
