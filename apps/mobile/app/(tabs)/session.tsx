@@ -50,16 +50,11 @@ const CHEVRON_SIZE = spacing.xl - spacing.xs;
 // state local pour cette raison : la session vit côté serveur, l'écran la lit.
 export default function SessionScreen() {
   const activeSession = useActiveSession();
-  const router = useRouter();
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Session</Text>
-        {/* Accès temporaire à l'essai BLE, à supprimer avec l'écran. */}
-        <Pressable onPress={() => router.push('/ble-spike')}>
-          <Text style={styles.sectionLink}>BLE test</Text>
-        </Pressable>
       </View>
       <SessionBody query={activeSession} />
     </View>
@@ -382,9 +377,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     marginBottom: spacing.md,

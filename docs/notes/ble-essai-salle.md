@@ -1,6 +1,6 @@
 # Essai BLE en salle — marche à suivre
 
-Préparé le 2026-10-20 sur `feature/ble-spike`. Écran : `apps/mobile/app/ble-spike.tsx`, accessible par le lien « BLE test » de l'onglet Session. Protocole : `docs/ble-protocol.md`.
+Préparé le 2026-10-20 sur `feature/ble-spike`. Écran : `apps/mobile/app/ble-spike.tsx`, accessible par le lien « BLE test » sous la carte Board de Home. Protocole : `docs/ble-protocol.md`.
 
 Déjà vérifié à la maison (2026-10-20) : ble-plx 3.5.1 tourne sous React Native 0.88, l'autorisation Bluetooth est demandée, le scan démarre et s'arrête après 10 s.
 
@@ -22,7 +22,7 @@ L'app de développement charge son code depuis Metro, et l'écran BLE est derri�
 ## Sur place : l'essai
 
 1. Fermer l'app Kilter officielle (la sienne, et demander autour) : la board n'accepte qu'une connexion à la fois.
-2. Session → « BLE test » → **Scan**.
+2. Home → « BLE test » → **Scan**.
    - Noter le nom de la board. Il doit finir par `#3` (niveau d'API 3). S'il finit par `#2` : **ne rien envoyer**, le format API 2 n'est pas implémenté.
    - Rien trouvé : **Scan all**, chercher un nom qui ressemble à la board, noter les services affichés.
 3. Taper sur la board : le journal doit afficher `Connected (MTU n)`. Noter n.
