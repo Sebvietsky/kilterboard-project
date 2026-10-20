@@ -187,7 +187,7 @@ couleurs LED pour « faire pareil ».
 
 | Rôle (notre `HoldRole`) | Rôle Aurora | Couleur | Hex |
 | --- | --- | --- | --- |
-| `START` | start | vert | `#00DD00` |
+| `START` | start | vert | `#00FF00` |
 | `HAND` | middle | cyan | `#00FFFF` |
 | `FINISH` | finish | magenta | `#FF00FF` |
 | `FOOT` | foot | orange | `#FFA500` |
@@ -202,11 +202,17 @@ n'ont pas la même palette). Notre implémentation doit :
 2. ne pas supposer que les 4 rôles de notre enum `HoldRole` couvrent tous les
    rôles Aurora (certains layouts en ont davantage).
 
+La table a deux colonnes de couleur : `led_color` (envoyée aux LED, la seule
+qui compte ici) et `screen_color` (le dessin du bloc dans l'app Kilter). Elles
+ne diffèrent que pour start : `00FF00` sur les LED, `00DD00` à l'écran.
+Vérifié dans le catalogue boardsesh le 2026-10-20 (`docs/notes/kilter-data.md`).
+Ce document donnait `#00DD00`, la couleur d'écran, jusqu'au 2026-10-20.
+
 Après quantification en API 3, ces couleurs deviennent :
 
 | Hex | R8,G8,B8 | R3,G3,B2 | Octet couleur |
 | --- | --- | --- | --- |
-| `#00DD00` | 0, 221, 0 | 0, 6, 0 | `0b000_110_00` = `0x18` |
+| `#00FF00` | 0, 255, 0 | 0, 7, 0 | `0b000_111_00` = `0x1C` |
 | `#00FFFF` | 0, 255, 255 | 0, 7, 3 | `0b000_111_11` = `0x1F` |
 | `#FF00FF` | 255, 0, 255 | 7, 0, 3 | `0b111_000_11` = `0xE3` |
 | `#FFA500` | 255, 165, 0 | 7, 5, 0 | `0b111_101_00` = `0xF4` |
