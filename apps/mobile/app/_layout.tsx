@@ -122,7 +122,11 @@ function RootNavigation() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={status === 'authenticated'}>
+      {/* `redirectTo` obligatoire depuis expo-router 58 : une route gardée
+          redirige vers le premier enfant accessible, ici le groupe `(auth)`,
+          dont l'URL est `/`… elle-même gardée. Sans cible explicite, un
+          utilisateur déconnecté tombe sur « Unmatched route ». */}
+      <Stack.Protected guard={status === 'authenticated'} redirectTo="/login">
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="search" />
         {/* Écrans de détail : la barre native (flèche et geste de retour) est

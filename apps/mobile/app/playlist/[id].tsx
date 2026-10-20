@@ -151,7 +151,7 @@ export default function PlaylistDetailScreen() {
         refreshControl={
           <RefreshControl
             refreshing={playlist.isRefetching}
-            onRefresh={playlist.refetch}
+            onRefresh={() => void playlist.refetch()}
             tintColor={colors.primary}
           />
         }
@@ -206,7 +206,7 @@ export default function PlaylistDetailScreen() {
             >
               <Text style={styles.deleteText}>Delete playlist</Text>
             </Pressable>
-          ) : null
+          ) : undefined
         }
       />
       <PlaylistFormSheet

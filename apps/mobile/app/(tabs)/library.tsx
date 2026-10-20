@@ -94,7 +94,7 @@ function ProjectsList() {
         refreshControl={
           <RefreshControl
             refreshing={projects.isRefetching}
-            onRefresh={projects.refetch}
+            onRefresh={() => void projects.refetch()}
             tintColor={colors.primary}
           />
         }
@@ -130,7 +130,7 @@ function PlaylistsList() {
           refreshControl={
             <RefreshControl
               refreshing={playlists.isRefetching}
-              onRefresh={playlists.refetch}
+              onRefresh={() => void playlists.refetch()}
               tintColor={colors.primary}
             />
           }
@@ -186,7 +186,7 @@ function LikedList() {
         refreshControl={
           <RefreshControl
             refreshing={liked.isRefetching}
-            onRefresh={liked.refetch}
+            onRefresh={() => void liked.refetch()}
             tintColor={colors.primary}
           />
         }

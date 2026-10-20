@@ -99,7 +99,7 @@ function SessionBody({
     <RunningSession
       session={query.data}
       isRefetching={query.isRefetching}
-      onRefresh={query.refetch}
+      onRefresh={() => void query.refetch()}
     />
   );
 }
@@ -127,7 +127,7 @@ function NoSession() {
       refreshControl={
         <RefreshControl
           refreshing={history.isRefetching}
-          onRefresh={history.refetch}
+          onRefresh={() => void history.refetch()}
           tintColor={colors.primary}
         />
       }

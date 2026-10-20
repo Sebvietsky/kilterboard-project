@@ -209,7 +209,7 @@ export default function ExploreScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={refetch}
+            onRefresh={() => void refetch()}
             tintColor={colors.primary}
           />
         }
@@ -226,7 +226,7 @@ export default function ExploreScreen() {
             />
           ) : !hasNextPage && boulders && boulders.length > 0 ? (
             <Text style={styles.endText}>You&apos;ve reached the end.</Text>
-          ) : null
+          ) : undefined
         }
       />
     </View>
