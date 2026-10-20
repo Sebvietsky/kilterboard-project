@@ -135,6 +135,11 @@ function RootNavigation() {
         <Stack.Screen name="boulder/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="session/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="playlist/[id]" options={DETAIL_HEADER} />
+        {/* Essai BLE jetable, à supprimer avec l'écran. */}
+        <Stack.Screen
+          name="ble-spike"
+          options={{ ...DETAIL_HEADER, title: 'BLE test' }}
+        />
       </Stack.Protected>
 
       <Stack.Protected guard={status === 'unauthenticated'}>
