@@ -9,6 +9,11 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+# Les bibliothèques React Native (react-native-svg, React Navigation) importent
+# `react` sans dépendre de `@types/react` : TypeScript ne trouve ses types que
+# s'il est remonté à la racine. pnpm 11 ignore `shamefully-hoist` de `.npmrc`.
+publicHoistPattern:
+  - '@types/react'
 minimumReleaseAgeExclude:
   - '@expo/cli@58.1.13'
   - '@expo/metro-config@58.0.15'
