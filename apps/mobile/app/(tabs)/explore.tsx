@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { boulderHref } from '@/lib/boulders/href';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
@@ -20,6 +21,8 @@ import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 import { ActiveFilters } from '@/components/filters/ActiveFilters';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
+  const formatGrade = useGradeLabel();
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -27,7 +30,7 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
           {item.name}
         </Text>
         <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{item.gradeLabel}</Text>
+          <Text style={styles.gradeText}>{formatGrade(item.gradeRank)}</Text>
         </View>
       </View>
 

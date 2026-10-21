@@ -22,6 +22,7 @@ import {
   useMySessions,
   useStartSession,
 } from '@/lib/sessions/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import {
   formatDuration,
   formatElapsed,
@@ -353,11 +354,12 @@ function ContinueProjects() {
 
 function ProjectCard({ project }: { project: MyProject }) {
   const { boulder, boulderAngle, attemptsCount, sessionsCount } = project;
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.projectCard}>
       <View style={styles.projectCardTop}>
-        <GradeCircle label={boulderAngle.grade?.vScale ?? null} muted />
+        <GradeCircle label={formatGrade(boulderAngle.grade?.rank)} muted />
         <StatusBadge tone="project" label="Proj." />
       </View>
       <Text style={styles.projectName} numberOfLines={1}>

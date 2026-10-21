@@ -178,11 +178,16 @@ model Angle {
 // Table de référence des cotations, double-indexée V-scale et Fontainebleau.
 // `rank` permet d'ordonner les grades sans dépendre du format texte.
 // Utilisée à deux endroits : cotation officielle d'un bloc + grade ressenti d'une ascension.
+//
+// Une ligne par cotation Font, l'échelle la plus fine : 6a et 6a+ sont deux
+// lignes, toutes deux V3. Le V n'est donc pas unique. `rank` reprend le
+// `difficulty` de Kilter (`board_difficulty_grades`), ce qui rend l'import
+// direct. Seules les cotations listées par Kilter (4a à 8c+) existent ici.
 model Grade {
   id        Int    @id @default(autoincrement())
-  vScale    String @unique @db.VarChar(5) // ex. "V5"
-  fontScale String @unique @db.VarChar(5) // ex. "7A"
-  rank      Int    @unique // ordre de difficulté croissante
+  vScale    String @db.VarChar(5) // ex. "V5"
+  fontScale String @unique @db.VarChar(5) // ex. "6c+"
+  rank      Int    @unique // `difficulty` Kilter, croissant avec la difficulté
 
   boulders      Boulder[]      @relation("BoulderGrade")
   boulderAngles BoulderAngle[] @relation("BoulderAngleGrade")

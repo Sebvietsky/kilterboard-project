@@ -52,7 +52,7 @@ export class PlaylistsService {
             // Cotation effective du bloc à l'inclinaison de l'entrée.
             boulderAngle: {
               select: {
-                grade: { select: { vScale: true, fontScale: true } },
+                grade: { select: { rank: true } },
               },
             },
           },
@@ -80,8 +80,7 @@ export class PlaylistsService {
         boulder: {
           id: pb.boulderId,
           name: pb.boulder.name,
-          vScale: pb.boulderAngle.grade?.vScale ?? null,
-          fontScale: pb.boulderAngle.grade?.fontScale ?? null,
+          gradeRank: pb.boulderAngle.grade?.rank ?? null,
           angleDegrees: pb.angle.valueDegrees,
         },
       })),

@@ -108,7 +108,7 @@ describe('PlaylistsService', () => {
             boulderId: 10,
             angle: { valueDegrees: 40 },
             boulder: { name: 'Crimpy' },
-            boulderAngle: { grade: { vScale: 'V4', fontScale: '6b' } },
+            boulderAngle: { grade: { rank: 18 } },
           },
           {
             boulderId: 10,
@@ -125,15 +125,13 @@ describe('PlaylistsService', () => {
         {
           id: 10,
           name: 'Crimpy',
-          vScale: 'V4',
-          fontScale: '6b',
+          gradeRank: 18,
           angleDegrees: 40,
         },
         {
           id: 10,
           name: 'Crimpy',
-          vScale: null,
-          fontScale: null,
+          gradeRank: null,
           angleDegrees: 50,
         },
       ]);
