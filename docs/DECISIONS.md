@@ -5,15 +5,15 @@ En fin de session, l'agent propose un diff de ce fichier et Seb le valide avant 
 Garder le fichier court : une ligne par fait, avec une date pour chaque décision.
 Le détail de conception vit dans `docs/notes/` (non importé) : lire la note du sujet avant d'y travailler.
 
-Dernière mise à jour : 2026-10-19
+Dernière mise à jour : 2026-10-20
 
 ## Chantier en cours
 
-**Prochaine action :** sur le téléphone, logger un bloc puis démarrer et terminer une session ; si tout passe, fusionner #77. Ensuite, essai BLE jetable : répondre d'abord à la question de l'encodeur (Questions ouvertes).
+**Prochaine action :** essai BLE en salle avec le Mac, en suivant `docs/notes/ble-essai-salle.md` (branche `feature/ble-spike`, pas encore de PR). L'app installée expire vers le 2026-10-27 : recompiler avant si besoin.
 
-- Fusionnés le 2026-10-15 : cotation communautaire (#70), protocole et audit des tests (#72), correctifs B1, B2, B3, B5, B7 (#73, arrivés dans `develop` avec #72), suite de l'audit (#74), favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
-- Ouverte : #77, development build iOS et Expo SDK 58 (regroupe #76, fermée). Navigation, connexion et déconnexion validées sur iPhone 15 / iOS 27.
-- Chantier BLE, dans l'ordre : essai jetable (ble-plx, une LED codée en dur), import des prises réelles (`docs/notes/kilter-data.md`), architecture `BoardConnection`, timeout des `fetch`, test en salle.
+- Fusionnés le 2026-10-20 : development build iOS et Expo SDK 58 (#77), décisions du 2026-10-19 (#78). Le 2026-10-15 : cotation communautaire (#70), protocole et audit des tests (#72), correctifs B1, B2, B3, B5, B7 (#73, arrivés dans `develop` avec #72), suite de l'audit (#74), favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
+- `feature/ble-spike`, poussée, sans PR : ble-plx installé, écran d'essai jetable (`app/ble-spike.tsx`, lien « BLE test » sur Home), carte Board sur Home avec connexion simulée (étiquette « Demo »). Vérifié sur iPhone : ble-plx tourne sous React Native 0.88, autorisation Bluetooth et scan OK (sans board). PR après l'essai en salle.
+- Chantier BLE, dans l'ordre : essai en salle (taille de la board, couleurs), vraie connexion à la place de la simulée, migration du schéma des prises (choix B ci-dessous) et import du catalogue, réécriture de `seed.ts`, timeout des `fetch`.
 - Audit des tests du 2026-10-15 : 10 écarts (B1 à B10), tous corrigés (#73, #74). Matrice règle → tests : `docs/notes/api-tests-matrice.md`, à tenir à jour dans chaque PR qui touche une règle.
 - Base locale reseedée le 2026-10-15 avec le seed de #74, vérifiée en lecture seule : 0 donnée hors règle, votes 102/102.
 - Mis de côté le temps du BLE (2026-10-17) : inclinaison dans le compte rendu de session, étape 3 (Explore, conception : `docs/notes/boulder-angle.md`), pagination, stats du bloc, `refresh` en 200, « déconnecter tous les appareils », historique des ascensions du profil (`GET /ascents/me` existe), e2e.
@@ -41,6 +41,7 @@ Sessions
 - **2026-10-12 · `GET /sessions/:id`** : même forme que la session active. 403 sur la session d'un autre, comme `endSession`.
 - **2026-10-09 · L'historique mobile masque les sessions vides ou en cours.** Filtre côté mobile (`select` de `useMySessions`), la route renvoie tout.
 - **2026-10-17 · BLE dégelé, priorité du moment** : se connecter à la board et utiliser l'app en conditions réelles. Remplace « BLE gelé » (2026-07-31). Lib et architecture : `docs/notes/ble-reprise.md`.
+- **2026-10-20 · Connexion à une board : carte « Board » sur Home**, en Bluetooth seulement. Remplace l'encart prévu sur l'onglet Session. Boards par emplacement (géolocalisation, carte des salles) : V2, comme dans le cahier des charges.
 
 API
 - **2026-09-29 · Rate limiting de l'auth** : `ThrottlerGuard` sur `AuthController`, `register` 3/min, `login` 5/min, `refresh` et `logout` exclus. Consigné au CHANGELOG (Unreleased).
@@ -66,6 +67,9 @@ Mobile
 - **2026-09-29 · Client API (corps vide)** : `get/post/put/patch` lèvent sur un corps vide, `api.getOrNull` est réservé aux vides légitimes, `delete` renvoie `void`.
 - **2026-10-19 · Expo SDK 58 et development build** (#77). Remplace « SDK 55 » (2026-07-30) : avec Xcode 27, iOS 27 ne lance plus une app sans cycle de vie UIScene, que seul le modèle du SDK 58 adopte. Cible iOS 16.4 (`expo-build-properties`) ; plugin `with-pods-deployment-target` pour les Pods. Détail : `docs/notes/expo-dev-build.md`.
 - **2026-10-19 · `redirectTo="/login"` sur le `Stack.Protected` authentifié** : obligatoire depuis expo-router 58.
+- **2026-10-20 · `BoardConnection` : interface, version simulée d'abord** (`lib/board/`). L'état est une union discriminée sur `status`, gardée dans un store zustand global : la connexion survit à l'écran qui l'ouvre.
+- **2026-10-20 · `BleManager` dans un `useState`**, comme `QueryClient` : une seule instance, qui survit au rechargement à chaud.
+- **2026-10-20 · `publicHoistPattern: ['@types/react']`** dans `pnpm-workspace.yaml` : pnpm 11 ignore `shamefully-hoist` de `.npmrc`, et react-native-svg comme React Navigation ne trouvaient les types de React que par hasard.
 - **2026-07-30 · `logout()` vide le cache TanStack dans `AuthContext`**, pas dans un écran.
 - **2026-07-29 · Explore** : seul le grand titre se replie au scroll. Recherche, Filters et chips restent fixes.
 - **2026-07-30 · Pastille de statut sur les cartes Explore : hors MVP.** Conception conservée : `docs/notes/explore.md`.
@@ -111,6 +115,10 @@ Général
 - **2026-10-15 · Deux agents en parallèle : un worktree chacun.** Un contrôle par mutation ne touche qu'un fichier sans modification en cours. (Le 2026-10-15, une restauration par `git checkout` a effacé le travail non commité de l'autre agent.)
 - **2026-10-15 · Les tests partent des règles métier, pas du code** : protocole dans `docs/notes/api-tests.md` (#72), contrôle par mutation, matrice `docs/notes/api-tests-matrice.md`. Une règle portée par un DTO se teste dans une spec de DTO.
 - **2026-10-19 · Données Kilter : snapshots publics de boardsesh**, BoardLib ne fonctionnant plus depuis la fermeture du backend Aurora (mars 2026). Usage personnel ; aucune base commitée (script de téléchargement par le manifeste) ; pas de photo de la board, le plan des prises est dessiné par l'app. Détail : `docs/notes/kilter-data.md`.
+- **2026-10-20 · Schéma des prises : choix B.** `Hold` reste la prise posée, avec l'id Kilter du placement, son set et ses vraies coordonnées. Nouvelles tables `BoardSize` et `HoldLed(holdId, sizeId, position)`, plus une taille sur `Board`. `boulder_holds` ne change pas. Écarté : recopier les 4 tables Kilter (trous, placements, tailles, LED).
+- **2026-10-20 · Les deux sets dans le modèle** (Bolt Ons et Screw Ons) : la board de Seb a les deux.
+- **2026-10-20 · Catalogue Kilter : filtrer toujours sur `board_type = 'kilter'`.** Les ids (trous, tailles) se répètent d'une marque à l'autre.
+- **2026-10-20 · Couleur LED du start : `00FF00`** (`led_color`), et non `00DD00` (`screen_color`). `docs/ble-protocol.md` corrigé.
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
@@ -138,16 +146,17 @@ Général
 
 - Modules API existants : `auth`, `users`, `boulders`, `ascents`, `sessions`, `playlists`, `grades`, `admin`.
 - Modules API prévus : `boards`, `feed`, `challenges`.
-- Écrans mobiles placeholder : Home (échantillon de polices avec de fausses données).
+- Écrans mobiles placeholder : aucun. Home n'a que la carte Board pour l'instant.
 - Tests : unitaires sur `apps/api` seulement (Prisma mocké), services et DTO ; aucun e2e, aucun test mobile. Dette e2e listée dans la matrice.
 - Outillage : collection Bruno dans `apps/api/bruno/`. Comptes de test dans `prisma/seed.ts` (`kilter_admin`) et `prisma/seed-dev.ts` (`test_user_N`). Recalcul des cotations : `db:recompute-grades`.
 - Pièges Jest du monorepo et conventions de spec : `docs/notes/api-tests.md`.
 
 ## Questions ouvertes
 
-- Taille de la board : hypothèse 12 x 12 with kickboard (product size 10). À confirmer (hauteur 3,66 m, ou une LED connue au premier essai BLE) : la position LED d'une prise dépend de la taille.
-- Question pour Seb, avant l'essai BLE : pour allumer une prise en vert (start), de quelles informations l'encodeur a-t-il besoin, et d'où vient chacune dans le catalogue ? (`docs/ble-protocol.md`, format de paquet)
-- `react-native-ble-plx` 3.5.1 (février 2026) avec React Native 0.88 : compatibilité à vérifier au premier build.
+- Taille de la board : hypothèse 12 x 12 with kickboard (product size 10). L'essai en salle la tranche, avec un test par taille candidate (4 coins et centre).
+- Deux `BleManager` quand la vraie connexion arrivera : celui de l'écran d'essai et celui du store. Supprimer l'écran d'essai, ou le faire passer par le store ; et décider où vit l'instance réelle (une constante de module se recrée au rechargement à chaud).
+- Nom diffusé avec un seul `#` : série ou niveau d'API ? `parseBoardName` le lit comme un niveau s'il vaut 2 ou 3. À vérifier sur la board.
+- `.npmrc` : `shamefully-hoist=true` n'a plus d'effet sous pnpm 11. Le supprimer ?
 - `pnpm-workspace.yaml` : exclusions de `minimumReleaseAge` pour les paquets Expo 58 (versions exactes). À retirer quand ces versions auront l'âge requis ?
 
 - Dates en base : celles écrites par Prisma sont décalées de 2 h par rapport à `now()` en SQL (PostgreSQL en `Europe/Paris`). L'API est cohérente avec elle-même ; toute requête SQL à la main qui compare avec `now()` est fausse. Cause et impact à vérifier.
