@@ -40,25 +40,34 @@ async function main() {
 
   console.log('Seeding grades...');
 
+  // Table `board_difficulty_grades` de Kilter (board_type 'kilter'), lignes
+  // listées seulement : `rank` = `difficulty`, et `boulder_name` « 6a/V3 »
+  // donne le Font et le V.
   const grades = [
-    { rank: 1, vScale: 'VB', fontScale: '4' },
-    { rank: 2, vScale: 'V0', fontScale: '4+' },
-    { rank: 3, vScale: 'V1', fontScale: '5' },
-    { rank: 4, vScale: 'V2', fontScale: '5+' },
-    { rank: 5, vScale: 'V3', fontScale: '6a/+' },
-    { rank: 6, vScale: 'V4', fontScale: '6b' },
-    { rank: 7, vScale: 'V5', fontScale: '6c/+' },
-    { rank: 8, vScale: 'V6', fontScale: '7a' },
-    { rank: 9, vScale: 'V7', fontScale: '7a+' },
-    { rank: 10, vScale: 'V8', fontScale: '7b/+' },
-    { rank: 11, vScale: 'V9', fontScale: '7c' },
-    { rank: 12, vScale: 'V10', fontScale: '7c+' },
-    { rank: 13, vScale: 'V11', fontScale: '8a' },
-    { rank: 14, vScale: 'V12', fontScale: '8a+' },
-    { rank: 15, vScale: 'V13', fontScale: '8b' },
-    { rank: 16, vScale: 'V14', fontScale: '8b+' },
-    { rank: 17, vScale: 'V15', fontScale: '8c' },
-    { rank: 18, vScale: 'V16', fontScale: '8c+' },
+    { rank: 10, fontScale: '4a', vScale: 'V0' },
+    { rank: 11, fontScale: '4b', vScale: 'V0' },
+    { rank: 12, fontScale: '4c', vScale: 'V0' },
+    { rank: 13, fontScale: '5a', vScale: 'V1' },
+    { rank: 14, fontScale: '5b', vScale: 'V1' },
+    { rank: 15, fontScale: '5c', vScale: 'V2' },
+    { rank: 16, fontScale: '6a', vScale: 'V3' },
+    { rank: 17, fontScale: '6a+', vScale: 'V3' },
+    { rank: 18, fontScale: '6b', vScale: 'V4' },
+    { rank: 19, fontScale: '6b+', vScale: 'V4' },
+    { rank: 20, fontScale: '6c', vScale: 'V5' },
+    { rank: 21, fontScale: '6c+', vScale: 'V5' },
+    { rank: 22, fontScale: '7a', vScale: 'V6' },
+    { rank: 23, fontScale: '7a+', vScale: 'V7' },
+    { rank: 24, fontScale: '7b', vScale: 'V8' },
+    { rank: 25, fontScale: '7b+', vScale: 'V8' },
+    { rank: 26, fontScale: '7c', vScale: 'V9' },
+    { rank: 27, fontScale: '7c+', vScale: 'V10' },
+    { rank: 28, fontScale: '8a', vScale: 'V11' },
+    { rank: 29, fontScale: '8a+', vScale: 'V12' },
+    { rank: 30, fontScale: '8b', vScale: 'V13' },
+    { rank: 31, fontScale: '8b+', vScale: 'V14' },
+    { rank: 32, fontScale: '8c', vScale: 'V15' },
+    { rank: 33, fontScale: '8c+', vScale: 'V16' },
   ];
 
   for (const grade of grades) {
@@ -155,9 +164,12 @@ async function main() {
   const angle30 = await prisma.angle.findUnique({
     where: { valueDegrees: 30 },
   });
-  const gradeV5 = await prisma.grade.findUnique({ where: { rank: 7 } });
-  const gradeV7 = await prisma.grade.findUnique({ where: { rank: 9 } });
-  const gradeV3 = await prisma.grade.findUnique({ where: { rank: 4 } });
+  // Par le libellé Font, unique, plutôt que par un rang à recopier.
+  const gradeV5 = await prisma.grade.findUnique({ where: { fontScale: '6c' } });
+  const gradeV7 = await prisma.grade.findUnique({
+    where: { fontScale: '7a+' },
+  });
+  const gradeV3 = await prisma.grade.findUnique({ where: { fontScale: '6a' } });
 
   const bouldersData = [
     {

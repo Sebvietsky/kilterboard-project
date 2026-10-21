@@ -11,7 +11,10 @@ import { useRouter } from 'expo-router';
 import { Avatar } from '@/components/Avatar';
 import { AscentHistoryRow } from '@/components/profile/AscentHistoryRow';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useUser } from '@/lib/users/queries';
+import { useUpdateGradeSystem, useUser } from '@/lib/users/queries';
+import { useGradeSystem } from '@/lib/grades/useGradeLabel';
+import { showToast } from '@/lib/toast/useToastStore';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { useMyRecentAscents } from '@/lib/ascents/queries';
 import type { MyAscentHistoryItem } from '@/lib/ascents/types';
 import { boulderHref } from '@/lib/boulders/href';
@@ -129,6 +132,8 @@ export function ProfileView({ username }: { username?: string }) {
         />
       )}
 
+      {isOwnProfile && <GradeScaleSetting />}
+
       {/* Emplacement des actions. Sur un profil tiers viendra ici un bouton
           Follow — non implémenté : aucun endpoint ne dit si on suit déjà la
           personne, le bouton n'aurait pas d'état initial. */}
@@ -158,6 +163,36 @@ export function ProfileView({ username }: { username?: string }) {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+// Réglage du compte, en attendant l'écran Edit profile. Chaque option porte
+// un exemple : « Font » ou « V » seuls ne disent rien à qui ne connaît qu'une
+// des deux échelles.
+const GRADE_SCALE_OPTIONS: { value: GradeSystem; label: string }[] = [
+  { value: 'FONT_SCALE', label: 'Font · 7a' },
+  { value: 'V_SCALE', label: 'V · V6' },
+];
+
+function GradeScaleSetting() {
+  const gradeSystem = useGradeSystem();
+  const update = useUpdateGradeSystem();
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Grade scale</Text>
+      <SegmentedControl
+        options={GRADE_SCALE_OPTIONS}
+        value={gradeSystem}
+        onChange={(value) => {
+          // Un second tap pendant l'envoi partirait en parallèle du premier.
+          if (value === gradeSystem || update.isPending) return;
+          update.mutate(value, {
+            onError: () => showToast('Couldn’t change the grade scale'),
+          });
+        }}
+      />
+    </View>
   );
 }
 

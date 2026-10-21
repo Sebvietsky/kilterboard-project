@@ -45,4 +45,6 @@ export type AuthContextValue = {
   logout: () => Promise<void>;
   // Relance le démarrage depuis l'état `offline`.
   retry: () => void;
+  // Remplace l'identité après une modification du compte (PATCH /users/me).
+  updateUser: (user: User) => void;
 };

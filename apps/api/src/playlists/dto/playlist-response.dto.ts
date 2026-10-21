@@ -34,8 +34,7 @@ export class PlaylistBoulderItemDto {
   id!: number;
   name!: string;
   // Cotation à l'inclinaison de l'entrée ; `null` quand elle n'est pas cotée.
-  vScale!: string | null;
-  fontScale!: string | null;
+  gradeRank!: number | null;
   // Inclinaison de l'entrée, pas celle du créateur : le même bloc peut
   // figurer deux fois dans une playlist, à deux inclinaisons.
   angleDegrees!: number;

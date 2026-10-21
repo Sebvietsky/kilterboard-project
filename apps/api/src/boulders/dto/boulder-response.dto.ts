@@ -15,7 +15,7 @@ export class PublicNoteDto {
   username!: string;
   avatarUrl!: string | null;
   content!: string;
-  feltGradeLabel!: string | null;
+  feltGradeRank!: number | null;
   likesCount!: number;
   createdAt!: Date;
 }
@@ -23,7 +23,8 @@ export class PublicNoteDto {
 export class BoulderSummaryDto {
   id!: number;
   name!: string;
-  gradeLabel!: string;
+  // Le rang seul : le client l'affiche dans l'échelle de l'utilisateur
+  // (Font ou V), que cette route publique ne connaît pas.
   gradeRank!: number;
   angleDegrees!: number;
   creatorUsername!: string;
@@ -42,7 +43,6 @@ export class LikedBoulderDto {
   id!: number;
   name!: string;
   // Cotation à l'inclinaison du like ; `null` quand elle n'est pas cotée.
-  gradeLabel!: string | null;
   gradeRank!: number | null;
   angleDegrees!: number;
   likedAt!: Date;
@@ -52,7 +52,6 @@ export class LikedBoulderDto {
 export class AngleGradeDto {
   angleDegrees!: number;
   // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
-  gradeLabel!: string | null;
   gradeRank!: number | null;
   votesCount!: number;
   // Peu de votes, hors inclinaison du créateur.
@@ -63,7 +62,7 @@ export class BoulderDetailDto extends BoulderSummaryDto {
   description!: string | null;
   holds!: HoldDto[];
   publicNotes!: PublicNoteDto[];
-  // Une entrée par inclinaison, dans l'ordre croissant. `gradeLabel` et
+  // Une entrée par inclinaison, dans l'ordre croissant. `gradeRank` et
   // `angleDegrees` au premier niveau restent la référence du créateur.
   angleGrades!: AngleGradeDto[];
 }

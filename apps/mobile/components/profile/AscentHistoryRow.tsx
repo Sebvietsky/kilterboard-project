@@ -3,6 +3,7 @@ import type { MyAscentHistoryItem } from '@/lib/ascents/types';
 import { GradeCircle, StatusBadge } from '@/components/session/EntryRow';
 import { plural } from '@/lib/format/plural';
 import { relativeTime } from '@/lib/format/relativeTime';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 
 // Une ascension de l'historique. Un second envoi étant un nouveau SENT, le
@@ -12,11 +13,12 @@ import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 export function AscentHistoryRow({ ascent }: { ascent: MyAscentHistoryItem }) {
   // Date de l'envoi s'il a eu lieu, sinon celle de l'ouverture du projet.
   const date = relativeTime(ascent.sendDate ?? ascent.createdAt);
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.row}>
       <GradeCircle
-        label={ascent.boulderAngle.grade?.vScale ?? null}
+        label={formatGrade(ascent.boulderAngle.grade?.rank)}
         muted={ascent.status === 'PROJECT'}
       />
       <View style={styles.rowText}>

@@ -13,6 +13,7 @@ import { Plus } from 'lucide-react-native';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { PlaylistFormSheet } from '@/components/playlists/PlaylistFormSheet';
 import { useMyProjects } from '@/lib/ascents/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { useMyPlaylists } from '@/lib/playlists/queries';
 import { useMyLikedBoulders } from '@/lib/boulders/queries';
 import { boulderHref } from '@/lib/boulders/href';
@@ -263,6 +264,7 @@ function ListState({
 // projet ne parle pas de la communauté mais de TES essais.
 function ProjectCard({ project }: { project: MyProject }) {
   const { boulder, boulderAngle, attemptsCount } = project;
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.card}>
@@ -273,7 +275,9 @@ function ProjectCard({ project }: { project: MyProject }) {
         {/* Cotation à l'inclinaison du projet, comme pour les favoris. */}
         {boulderAngle.grade ? (
           <View style={styles.gradeBadge}>
-            <Text style={styles.gradeText}>{boulderAngle.grade.vScale}</Text>
+            <Text style={styles.gradeText}>
+              {formatGrade(boulderAngle.grade.rank)}
+            </Text>
           </View>
         ) : (
           <View style={styles.ungradedBadge}>
@@ -297,15 +301,19 @@ function ProjectCard({ project }: { project: MyProject }) {
 // seulement « ce bloc m'intéresse ». La cotation est celle de l'inclinaison
 // du like ; non cotée, la carte le dit plutôt que d'afficher celle du créateur.
 function LikedCard({ boulder }: { boulder: BoulderLiked }) {
+  const formatGrade = useGradeLabel();
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {boulder.name}
         </Text>
-        {boulder.gradeLabel !== null ? (
+        {boulder.gradeRank !== null ? (
           <View style={styles.gradeBadge}>
-            <Text style={styles.gradeText}>{boulder.gradeLabel}</Text>
+            <Text style={styles.gradeText}>
+              {formatGrade(boulder.gradeRank)}
+            </Text>
           </View>
         ) : (
           <View style={styles.ungradedBadge}>

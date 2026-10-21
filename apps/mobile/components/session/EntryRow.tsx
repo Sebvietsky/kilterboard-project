@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { SessionEntry } from '@/lib/sessions/types';
 import { formatClockTime } from '@/lib/format/clockTime';
 import { plural } from '@/lib/format/plural';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import {
   colors,
   radii,
@@ -18,12 +19,13 @@ const GRADE_CIRCLE_SIZE = spacing.xxl + spacing.sm;
 // passée, qui affichent exactement la même donnée.
 export function EntryRow({ entry }: { entry: SessionEntry }) {
   const { boulder, boulderAngle, angle } = entry.ascent;
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.row}>
       <Text style={styles.rowTime}>{formatClockTime(entry.createdAt)}</Text>
       <GradeCircle
-        label={boulderAngle.grade?.vScale ?? null}
+        label={formatGrade(boulderAngle.grade?.rank)}
         muted={entry.status === 'PROJECT'}
       />
       {/* L'inclinaison du passage distingue le même bloc fait à deux

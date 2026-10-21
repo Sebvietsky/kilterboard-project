@@ -92,7 +92,6 @@ export class BouldersService {
       data: boulders.map((boulder) => ({
         id: boulder.id,
         name: boulder.name,
-        gradeLabel: boulder.grade.vScale,
         gradeRank: boulder.grade.rank,
         angleDegrees: boulder.angle.valueDegrees,
         creatorUsername: boulder.creator.username,
@@ -147,7 +146,6 @@ export class BouldersService {
     return {
       id: boulder.id,
       name: boulder.name,
-      gradeLabel: boulder.grade.vScale,
       gradeRank: boulder.grade.rank,
       angleDegrees: boulder.angle.valueDegrees,
       creatorUsername: boulder.creator.username,
@@ -166,7 +164,6 @@ export class BouldersService {
       publicNotes,
       angleGrades: boulder.boulderAngles.map((ba) => ({
         angleDegrees: ba.angle.valueDegrees,
-        gradeLabel: ba.grade?.vScale ?? null,
         gradeRank: ba.grade?.rank ?? null,
         votesCount: ba.votesCount,
         isEstimated: isEstimatedGrade(
@@ -187,7 +184,7 @@ export class BouldersService {
         user: { select: { username: true, avatarUrl: true } },
         ascent: {
           select: {
-            feltGrade: { select: { vScale: true } },
+            feltGrade: { select: { rank: true } },
             angle: { select: { valueDegrees: true } },
           },
         },
@@ -202,7 +199,7 @@ export class BouldersService {
       username: note.user.username,
       avatarUrl: note.user.avatarUrl,
       content: note.content,
-      feltGradeLabel: note.ascent.feltGrade?.vScale ?? null,
+      feltGradeRank: note.ascent.feltGrade?.rank ?? null,
       likesCount: note._count.ascentNoteLikes,
       createdAt: note.createdAt,
     }));
@@ -301,7 +298,7 @@ export class BouldersService {
         boulder: { select: { id: true, name: true } },
         // Cotation effective du bloc à l'inclinaison du like.
         boulderAngle: {
-          select: { grade: { select: { vScale: true, rank: true } } },
+          select: { grade: { select: { rank: true } } },
         },
       },
     });
@@ -309,7 +306,6 @@ export class BouldersService {
     return likes.map((like) => ({
       id: like.boulder.id,
       name: like.boulder.name,
-      gradeLabel: like.boulderAngle.grade?.vScale ?? null,
       gradeRank: like.boulderAngle.grade?.rank ?? null,
       angleDegrees: like.angle.valueDegrees,
       likedAt: like.createdAt,

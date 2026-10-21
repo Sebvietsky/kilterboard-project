@@ -141,7 +141,6 @@ describe('BouldersService', () => {
       expect(data[0]).toMatchObject({
         id: 10,
         name: 'Crimpy',
-        gradeLabel: 'V4',
         gradeRank: 6,
         angleDegrees: 40,
         creatorUsername: 'seb',
@@ -253,21 +252,18 @@ describe('BouldersService', () => {
       expect(detail.angleGrades).toEqual([
         {
           angleDegrees: 40,
-          gradeLabel: 'V4',
           gradeRank: 6,
           votesCount: 2,
           isEstimated: false,
         },
         {
           angleDegrees: 50,
-          gradeLabel: 'V6',
           gradeRank: 8,
           votesCount: 1,
           isEstimated: true,
         },
         {
           angleDegrees: 60,
-          gradeLabel: null,
           gradeRank: null,
           votesCount: 0,
           isEstimated: false,
@@ -305,7 +301,7 @@ describe('BouldersService', () => {
 
       const [note] = await service.findComments(10);
 
-      expect(note).toMatchObject({ feltGradeLabel: null, likesCount: 2 });
+      expect(note).toMatchObject({ feltGradeRank: null, likesCount: 2 });
     });
 
     // L'id sert de clé de liste côté client ; l'inclinaison, de filtre. Elle
@@ -317,7 +313,7 @@ describe('BouldersService', () => {
           user: { username: 'seb', avatarUrl: null },
           content: 'Nice',
           ascent: {
-            feltGrade: { vScale: 'V5' },
+            feltGrade: { rank: 20 },
             angle: { valueDegrees: 50 },
           },
           _count: { ascentNoteLikes: 0 },
@@ -461,7 +457,7 @@ describe('BouldersService', () => {
           createdAt: likedAt,
           angle: { valueDegrees: 40 },
           boulder: { id: 10, name: 'Crimpy' },
-          boulderAngle: { grade: { vScale: 'V4', rank: 6 } },
+          boulderAngle: { grade: { rank: 6 } },
         },
       ]);
 
@@ -476,7 +472,6 @@ describe('BouldersService', () => {
         {
           id: 10,
           name: 'Crimpy',
-          gradeLabel: 'V4',
           gradeRank: 6,
           angleDegrees: 40,
           likedAt,
@@ -500,7 +495,6 @@ describe('BouldersService', () => {
 
       expect(like).toMatchObject({
         angleDegrees: 50,
-        gradeLabel: null,
         gradeRank: null,
       });
     });
