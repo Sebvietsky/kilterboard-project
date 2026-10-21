@@ -10,9 +10,9 @@ Côté mobile, `refreshTokens` traitait tout échec comme une session morte : er
 
 - `refresh` renvoie maintenant un `RefreshResult` à trois états (`lib/api/authBridge.ts`) : `refreshed`, `rejected` (401 ou 400 du serveur, seul cas qui déconnecte), `unavailable` (tout le reste, le token est conservé).
 - `lib/api/client.ts` : sur `unavailable`, la requête échoue avec un message réseau, sans logout.
-- Au lancement, `unavailable` est réessayé trois fois à 1,5 s d'intervalle, puis l'écran de connexion s'affiche sans effacer le token.
+- Au lancement, `unavailable` affiche l'écran hors ligne (statut `offline`, `components/OfflineScreen.tsx`) avec un Retry, sans effacer le token. Un seul essai, depuis le 2026-10-21 : les trois essais à 1,5 s d'intervalle faisaient 33 s de splash une fois le timeout en place.
 - **Non vérifié sur téléphone** : le cas « serveur injoignable ». Pour le reproduire : arrêter l'API, attendre 15 min que le token d'accès expire, utiliser l'app (une erreur doit s'afficher, sans retour à l'écran de connexion), relancer l'API, réessayer.
-- Limite : dans ce dernier cas l'utilisateur voit l'écran de connexion alors que sa session est peut-être bonne. Un état « hors ligne » dédié serait plus juste.
+- Limite levée le 2026-10-21 : l'utilisateur voyait l'écran de connexion alors que sa session était peut-être bonne. L'écran hors ligne le remplace.
 
 Côté API, `generateTokens` supprimait tous les refresh tokens du compte à chaque connexion et à chaque refresh : un seul appareil pouvait rester connecté, et une connexion depuis Bruno ou un script déconnectait le téléphone.
 
