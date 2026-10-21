@@ -65,5 +65,5 @@ Calculées dans `deriveSessionStats`, à partir des passages : nombre de passage
 
 ## Reste à faire
 
-- Encart de connexion à une board quand aucune session ne tourne (BLE gelé).
-- Afficher l'inclinaison des passages, une fois l'inclinaison par ascension en place : `docs/notes/boulder-angle.md`.
+- Encart de connexion à une board : abandonné le 2026-10-20, remplacé par la carte « Board » sur Home.
+- Inclinaison des passages : faite le 2026-10-21, sous le nom du bloc dans `EntryRow` (session en cours et détail d'une session passée).
