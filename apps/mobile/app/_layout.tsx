@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import SplashScreenComponent from '@/components/SplashScreen';
+import OfflineScreen from '@/components/OfflineScreen';
 import { ToastHost } from '@/components/Toast';
 import { SessionHeaderPill } from '@/components/SessionIndicator';
 import * as SplashScreen from 'expo-splash-screen';
@@ -91,7 +92,7 @@ export default function RootLayout() {
 }
 
 function RootNavigation() {
-  const { status } = useAuth(); // OK, on est dans AuthProvider
+  const { status, retry } = useAuth(); // OK, on est dans AuthProvider
   const [fontsLoaded, fontError] = useFonts({
     BricolageGrotesque_700Bold,
     BricolageGrotesque_800ExtraBold,
@@ -119,6 +120,7 @@ function RootNavigation() {
   // qui rend ainsi toujours avec les vraies polices).
   if (!fontsLoaded && !fontError) return null;
   if (status === 'loading') return <SplashScreenComponent />;
+  if (status === 'offline') return <OfflineScreen onRetry={retry} />;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

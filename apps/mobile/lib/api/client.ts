@@ -1,6 +1,6 @@
 import { getAuthBridge, type RefreshResult } from './authBridge';
-import { config } from './config';
-import { ApiError, extractApiErrorMessage } from './errors';
+import { ApiError, extractApiErrorMessage, NetworkError } from './errors';
+import { request } from './request';
 
 let refreshPromise: Promise<RefreshResult> | null = null;
 
@@ -33,7 +33,7 @@ async function apiFetch<T>(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(`${config.API_URL}${path}`, { ...options, headers });
+  const res = await request(path, { ...options, headers });
 
   if (res.status === 401 && !isRetry) {
     const refresh = await deduplicatedRefresh();
@@ -48,7 +48,7 @@ async function apiFetch<T>(
     // L'écran affiche son état d'erreur et son Retry, comme pour toute panne
     // réseau — au lieu de renvoyer l'utilisateur à l'écran de connexion.
     if (refresh.status === 'unavailable') {
-      throw new Error('Couldn’t reach the server. Please try again.');
+      throw new NetworkError();
     }
 
     return apiFetch<T>(path, options, true);

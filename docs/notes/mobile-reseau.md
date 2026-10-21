@@ -1,6 +1,6 @@
 # Mobile — refresh et robustesse réseau
 
-Relevé le 2026-09-29. Le refresh est corrigé ; le timeout et l'IP de dev restent à traiter.
+Relevé le 2026-09-29. Le refresh et le timeout sont corrigés ; l'IP de dev reste à traiter.
 
 ## Le refresh déconnectait sur n'importe quel échec — corrigé le 2026-10-12 (`fix/auth-refresh`)
 
@@ -10,9 +10,9 @@ Côté mobile, `refreshTokens` traitait tout échec comme une session morte : er
 
 - `refresh` renvoie maintenant un `RefreshResult` à trois états (`lib/api/authBridge.ts`) : `refreshed`, `rejected` (401 ou 400 du serveur, seul cas qui déconnecte), `unavailable` (tout le reste, le token est conservé).
 - `lib/api/client.ts` : sur `unavailable`, la requête échoue avec un message réseau, sans logout.
-- Au lancement, `unavailable` est réessayé trois fois à 1,5 s d'intervalle, puis l'écran de connexion s'affiche sans effacer le token.
+- Au lancement, `unavailable` affiche l'écran hors ligne (statut `offline`, `components/OfflineScreen.tsx`) avec un Retry, sans effacer le token. Un seul essai, depuis le 2026-10-21 : les trois essais à 1,5 s d'intervalle faisaient 33 s de splash une fois le timeout en place.
 - **Non vérifié sur téléphone** : le cas « serveur injoignable ». Pour le reproduire : arrêter l'API, attendre 15 min que le token d'accès expire, utiliser l'app (une erreur doit s'afficher, sans retour à l'écran de connexion), relancer l'API, réessayer.
-- Limite : dans ce dernier cas l'utilisateur voit l'écran de connexion alors que sa session est peut-être bonne. Un état « hors ligne » dédié serait plus juste.
+- Limite levée le 2026-10-21 : l'utilisateur voyait l'écran de connexion alors que sa session était peut-être bonne. L'écran hors ligne le remplace.
 
 Côté API, `generateTokens` supprimait tous les refresh tokens du compte à chaque connexion et à chaque refresh : un seul appareil pouvait rester connecté, et une connexion depuis Bruno ou un script déconnectait le téléphone.
 
@@ -21,11 +21,13 @@ Côté API, `generateTokens` supprimait tous les refresh tokens du compte à cha
 - `POST /auth/logout` accepte `refreshToken` dans le corps et ne révoque que celui-là ; sans lui, tous les appareils du compte.
 - Non fait : détection de réutilisation d'un token hors délai de grâce (signe de vol), qui révoquerait toute la famille de tokens.
 
-## Aucun timeout sur `fetch`
+## Aucun timeout sur `fetch` — corrigé le 2026-10-21 (`fix/fetch-timeout`)
 
-- Concerne `lib/api/client.ts` et `AuthContext.login`.
-- Un hôte injoignable donne un spinner infini (« Signing in… ») au lieu d'une erreur.
-- Piste : `AbortSignal.timeout(...)`.
+- Un hôte injoignable donnait un spinner infini (« Signing in… ») au lieu d'une erreur.
+- Tous les appels passent par `request` (`lib/api/request.ts`) : `AbortSignal.timeout(10 s)`, et toute requête sans réponse lève une `NetworkError` lisible. Le client `api` et `AuthContext` s'en servent ; plus aucun `fetch` direct.
+- Au refresh, un timeout donne `unavailable` : la session est conservée.
+- Limite : le timeout coupe l'attente, pas le traitement serveur. Un `POST` coupé a pu être enregistré ; le renvoyer à la main peut donner un 409 (projet déjà ouvert) ou un second envoi.
+- **Non vérifié sur téléphone.** Pour le reproduire : mettre une IP injoignable dans `EXPO_PUBLIC_API_URL` (par exemple `http://10.255.255.1:3000`), `start --clear`, tenter un login : erreur au bout de 10 s.
 
 ## IP de dev en dur
 
