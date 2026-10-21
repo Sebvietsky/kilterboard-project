@@ -137,6 +137,10 @@ function RootNavigation() {
         <Stack.Screen name="boulder/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="session/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="playlist/[id]" options={DETAIL_HEADER} />
+        <Stack.Screen
+          name="ascents"
+          options={{ ...DETAIL_HEADER, title: 'Ascents' }}
+        />
       </Stack.Protected>
 
       <Stack.Protected guard={status === 'unauthenticated'}>

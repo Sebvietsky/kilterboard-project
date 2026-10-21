@@ -30,6 +30,7 @@ Abréviations :
 | Suppression seulement en PROJECT | CdC | S | asc › remove | M14 tuée | — |
 | Propriété : update, remove, note | — | S | asc › rejette… d'un autre utilisateur (403) | M09, M17 tuées | — |
 | Mes ascensions = les miennes | implicite | S | asc › lecture de mes ascensions | M18 tuée | — |
+| Mes ascensions : cotation effective à l'inclinaison de l'ascension | DEC 10-15 | S | asc › lit la cotation à l'inclinaison de l'ascension | M49 tuée (2026-10-21) | — |
 | Rattachement : absent, `null`, id | DEC 07-31 | D + S | asc › transmet sessionId tel quel ; asc.dto › sessionId | D02 tuée | — |
 | Passage écrit au log, à la séance, à la complétion ; rien sur une note | DEC 10-09 | S | asc › passage dans la session ; update | — | écriture imbriquée atomique : e2e |
 | Commentaire public seulement au premier envoi à cette inclinaison (celui qui porte le vote) | CL, Seb 2026-10-15 | S | asc › createNote ; sur un envoi qui n'est pas le premier | M15, F05 tuées | — (B7 corrigé) |

@@ -201,13 +201,19 @@ export class AscentsService {
           boulder: {
             select: {
               name: true,
-              grade: { select: { vScale: true, fontScale: true, rank: true } },
               angle: { select: { valueDegrees: true } },
             },
           },
           // Inclinaison de l'ascension, à ne pas confondre avec
           // `boulder.angle`, celle de la création du bloc.
           angle: { select: { valueDegrees: true } },
+          // Cotation effective à l'inclinaison de l'ascension, et non celle du
+          // créateur : `boulder.grade` ne vaut qu'à son inclinaison.
+          boulderAngle: {
+            select: {
+              grade: { select: { vScale: true, fontScale: true, rank: true } },
+            },
+          },
           feltGrade: { select: { vScale: true, fontScale: true } },
           ascentNotes: {
             where: { userId },
@@ -215,7 +221,13 @@ export class AscentsService {
         },
         skip,
         take,
-        orderBy: { createdAt: 'desc' },
+        // Par date d'envoi, celle qu'affiche l'historique : la création d'un
+        // projet complété est bien plus ancienne. Les projets ouverts, sans
+        // envoi, passent en tête, du plus récent au plus ancien.
+        orderBy: [
+          { sendDate: { sort: 'desc', nulls: 'first' } },
+          { createdAt: 'desc' },
+        ],
       }),
       this.prisma.ascent.count({ where: { userId } }),
     ]);

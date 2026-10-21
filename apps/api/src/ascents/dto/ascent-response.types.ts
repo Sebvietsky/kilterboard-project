@@ -5,11 +5,15 @@ export type AscentWithDetails = Prisma.AscentGetPayload<{
     boulder: {
       select: {
         name: true;
-        grade: { select: { vScale: true; fontScale: true; rank: true } };
         angle: { select: { valueDegrees: true } };
       };
     };
     angle: { select: { valueDegrees: true } };
+    boulderAngle: {
+      select: {
+        grade: { select: { vScale: true; fontScale: true; rank: true } };
+      };
+    };
     feltGrade: { select: { vScale: true; fontScale: true } };
     ascentNotes: true;
   };
