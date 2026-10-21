@@ -1,6 +1,6 @@
 # Mobile — refresh et robustesse réseau
 
-Relevé le 2026-09-29. Le refresh est corrigé ; le timeout et l'IP de dev restent à traiter.
+Relevé le 2026-09-29. Le refresh et le timeout sont corrigés ; l'IP de dev reste à traiter.
 
 ## Le refresh déconnectait sur n'importe quel échec — corrigé le 2026-10-12 (`fix/auth-refresh`)
 
@@ -21,11 +21,13 @@ Côté API, `generateTokens` supprimait tous les refresh tokens du compte à cha
 - `POST /auth/logout` accepte `refreshToken` dans le corps et ne révoque que celui-là ; sans lui, tous les appareils du compte.
 - Non fait : détection de réutilisation d'un token hors délai de grâce (signe de vol), qui révoquerait toute la famille de tokens.
 
-## Aucun timeout sur `fetch`
+## Aucun timeout sur `fetch` — corrigé le 2026-10-21 (`fix/fetch-timeout`)
 
-- Concerne `lib/api/client.ts` et `AuthContext.login`.
-- Un hôte injoignable donne un spinner infini (« Signing in… ») au lieu d'une erreur.
-- Piste : `AbortSignal.timeout(...)`.
+- Un hôte injoignable donnait un spinner infini (« Signing in… ») au lieu d'une erreur.
+- Tous les appels passent par `request` (`lib/api/request.ts`) : `AbortSignal.timeout(10 s)`, et toute requête sans réponse lève une `NetworkError` lisible. Le client `api` et `AuthContext` s'en servent ; plus aucun `fetch` direct.
+- Au refresh, un timeout donne `unavailable` : la session est conservée.
+- Limite : le timeout coupe l'attente, pas le traitement serveur. Un `POST` coupé a pu être enregistré ; le renvoyer à la main peut donner un 409 (projet déjà ouvert) ou un second envoi.
+- **Non vérifié sur téléphone.** Pour le reproduire : mettre une IP injoignable dans `EXPO_PUBLIC_API_URL` (par exemple `http://10.255.255.1:3000`), `start --clear`, tenter un login : erreur au bout de 10 s.
 
 ## IP de dev en dur
 

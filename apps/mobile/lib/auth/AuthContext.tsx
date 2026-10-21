@@ -11,7 +11,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { authStorage } from './storage';
 import type { AuthContextValue, AuthStatus, AuthTokens, User } from './types';
-import { config } from '@/lib/api/config';
+import { request } from '../api/request';
 import { configureAuthBridge, type RefreshResult } from '../api/authBridge';
 import { extractApiErrorMessage } from '../api/errors';
 
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchAndSetUser(accessToken: string) {
-    const resUser = await fetch(`${config.API_URL}/users/me`, {
+    const resUser = await request('/users/me', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function login(identifier: string, password: string) {
-    const res = await fetch(`${config.API_URL}/auth/login`, {
+    const res = await request('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(email: string, password: string, username: string) {
-    const res = await fetch(`${config.API_URL}/auth/register`, {
+    const res = await request('/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, username }),
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const refreshToken = await authStorage.getRefreshToken();
     if (refreshToken) {
-      fetch(`${config.API_URL}/auth/logout`, {
+      request('/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,14 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let res: Response;
     try {
-      res = await fetch(`${config.API_URL}/auth/refresh`, {
+      res = await request('/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
     } catch {
-      // `fetch` ne lève que si la requête n'a pas abouti (pas de réseau,
-      // serveur éteint). Le serveur n'a rien refusé : le token reste.
+      // `request` ne lève que si la requête n'a pas abouti (pas de réseau,
+      // serveur éteint, timeout). Le serveur n'a rien refusé : le token reste.
       return { status: 'unavailable' };
     }
 
