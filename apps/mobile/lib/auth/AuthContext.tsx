@@ -11,34 +11,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { authStorage } from './storage';
 import type { AuthContextValue, AuthStatus, AuthTokens, User } from './types';
-import { config } from '@/lib/api/config';
+import { request } from '../api/request';
 import { configureAuthBridge, type RefreshResult } from '../api/authBridge';
-import { extractApiErrorMessage } from '../api/errors';
+import { extractApiErrorMessage, NetworkError } from '../api/errors';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const BOOTSTRAP_ATTEMPTS = 3;
-const BOOTSTRAP_RETRY_DELAY_MS = 1500;
-
-// Au lancement, un serveur injoignable est souvent un serveur qui redémarre :
-// on réessaie brièvement avant de renoncer. Seul `unavailable` se réessaie —
-// `rejected` est une réponse définitive du serveur.
-async function refreshWithRetry(
-  refresh: () => Promise<RefreshResult>,
-): Promise<RefreshResult> {
-  let result = await refresh();
-  for (
-    let attempt = 1;
-    attempt < BOOTSTRAP_ATTEMPTS && result.status === 'unavailable';
-    attempt++
-  ) {
-    await new Promise((resolve) =>
-      setTimeout(resolve, BOOTSTRAP_RETRY_DELAY_MS),
-    );
-    result = await refresh();
-  }
-  return result;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // AuthProvider est monté SOUS QueryClientProvider (cf. app/_layout.tsx),
@@ -62,8 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(token);
   }, []);
 
-  async function fetchAndSetUser(accessToken: string) {
-    const resUser = await fetch(`${config.API_URL}/users/me`, {
+  // En useCallback : `bootstrap` en dépend.
+  const fetchAndSetUser = useCallback(async (accessToken: string) => {
+    const resUser = await request('/users/me', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -77,10 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // d'IDENTITÉ, les statistiques appartiennent à la query de profil.
     const dataUser = (await resUser.json()) as User;
     setUser(dataUser);
-  }
+  }, []);
 
   async function login(identifier: string, password: string) {
-    const res = await fetch(`${config.API_URL}/auth/login`, {
+    const res = await request('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
@@ -102,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(email: string, password: string, username: string) {
-    const res = await fetch(`${config.API_URL}/auth/register`, {
+    const res = await request('/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, username }),
@@ -119,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const refreshToken = await authStorage.getRefreshToken();
     if (refreshToken) {
-      fetch(`${config.API_URL}/auth/logout`, {
+      request('/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,14 +128,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let res: Response;
     try {
-      res = await fetch(`${config.API_URL}/auth/refresh`, {
+      res = await request('/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
     } catch {
-      // `fetch` ne lève que si la requête n'a pas abouti (pas de réseau,
-      // serveur éteint). Le serveur n'a rien refusé : le token reste.
+      // `request` ne lève que si la requête n'a pas abouti (pas de réseau,
+      // serveur éteint, timeout). Le serveur n'a rien refusé : le token reste.
       return { status: 'unavailable' };
     }
 
@@ -178,35 +156,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { status: 'refreshed', accessToken: data.accessToken.token };
   }, [applyAccessToken]);
 
+  // Incrémenté par `retry` : relance l'effet de démarrage.
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
+
+  // Un seul essai, sans nouvelle tentative automatique : depuis le timeout,
+  // un hôte muet coûte 10 s par essai (trois essais faisaient 33 s de
+  // splash). C'est l'utilisateur qui relance, par le Retry de l'écran
+  // hors ligne.
   useEffect(() => {
     async function bootstrap() {
       // Tout le bootstrap est sous try/catch : quelle que soit l'erreur
       // (SecureStore indisponible, réseau, /users/me KO), on doit TOUJOURS
       // sortir de "loading" — sinon splash screen éternel.
       try {
-        const refresh = await refreshWithRetry(refreshTokens);
+        const refresh = await refreshTokens();
 
-        // `rejected` : pas de session. `unavailable` : serveur injoignable
-        // malgré les nouvelles tentatives — on affiche l'écran de connexion
-        // SANS effacer le refresh token, que le prochain lancement réessaiera.
-        if (refresh.status !== 'refreshed') {
+        if (refresh.status === 'rejected') {
           setStatus('unauthenticated');
+          return;
+        }
+
+        // Serveur injoignable : le refresh token est conservé, et on
+        // n'affiche pas l'écran de connexion — la session est peut-être bonne.
+        if (refresh.status === 'unavailable') {
+          setStatus('offline');
           return;
         }
 
         await fetchAndSetUser(refresh.accessToken);
         setStatus('authenticated');
-      } catch {
+      } catch (error) {
         // Pas de clearRefreshToken ici : une erreur de ce bloc est une panne
         // (réseau, stockage), pas un refus du serveur. Effacer le token
         // transformerait une coupure passagère en déconnexion.
         applyAccessToken(null);
-        setStatus('unauthenticated');
+        setStatus(
+          error instanceof NetworkError ? 'offline' : 'unauthenticated',
+        );
       }
     }
 
-    bootstrap();
-  }, [refreshTokens, applyAccessToken]);
+    void bootstrap();
+  }, [refreshTokens, fetchAndSetUser, applyAccessToken, bootstrapAttempt]);
+
+  const retry = useCallback(() => {
+    setStatus('loading');
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }, []);
 
   useEffect(() => {
     configureAuthBridge({
@@ -220,7 +216,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ status, user, accessToken, login, logout, register }}
+      value={{
+        status,
+        user,
+        accessToken,
+        login,
+        logout,
+        register,
+        retry,
+        updateUser: setUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

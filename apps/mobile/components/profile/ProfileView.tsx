@@ -4,11 +4,20 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Avatar } from '@/components/Avatar';
+import { AscentHistoryRow } from '@/components/profile/AscentHistoryRow';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useUser } from '@/lib/users/queries';
+import { useUpdateGradeSystem, useUser } from '@/lib/users/queries';
+import { useGradeSystem } from '@/lib/grades/useGradeLabel';
+import { showToast } from '@/lib/toast/useToastStore';
+import { SegmentedControl } from '@/components/SegmentedControl';
+import { useMyRecentAscents } from '@/lib/ascents/queries';
+import type { MyAscentHistoryItem } from '@/lib/ascents/types';
+import { boulderHref } from '@/lib/boulders/href';
 import type { GradeSystem } from '@/lib/auth/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
@@ -32,6 +41,9 @@ export function ProfileView({ username }: { username?: string }) {
   // Vrai aussi quand on atteint son propre profil par son username — le cas
   // arrivera avec les liens profonds et la recherche.
   const isOwnProfile = !username || username === currentUser?.username;
+  // L'historique n'existe que pour soi : GET /ascents/me. Un profil tiers
+  // attendra une route publique.
+  const recent = useMyRecentAscents(isOwnProfile);
 
   if (profile.isLoading) {
     return (
@@ -61,11 +73,23 @@ export function ProfileView({ username }: { username?: string }) {
   const { username: name, avatarUrl, bio, country, gradeSystem } = profile.data;
   const counts = profile.data._count;
 
+  const onRefresh = () => {
+    void profile.refetch();
+    if (isOwnProfile) void recent.refetch();
+  };
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={profile.isRefetching || recent.isRefetching}
+          onRefresh={onRefresh}
+          tintColor={colors.primary}
+        />
+      }
     >
       <View style={styles.headerCard}>
         <Avatar uri={avatarUrl} name={name} />
@@ -97,6 +121,19 @@ export function ProfileView({ username }: { username?: string }) {
         <Stat label="Following" value={counts.follows} />
       </View>
 
+      {/* L'historique n'existe que pour soi : GET /ascents/me. Un profil tiers
+          attendra une route publique. */}
+      {isOwnProfile && (
+        <RecentAscents
+          ascents={recent.data?.data}
+          total={recent.data?.meta.total ?? 0}
+          isError={recent.isError}
+          onRetry={() => void recent.refetch()}
+        />
+      )}
+
+      {isOwnProfile && <GradeScaleSetting />}
+
       {/* Emplacement des actions. Sur un profil tiers viendra ici un bouton
           Follow — non implémenté : aucun endpoint ne dit si on suit déjà la
           personne, le bouton n'aurait pas d'état initial. */}
@@ -126,6 +163,131 @@ export function ProfileView({ username }: { username?: string }) {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+// Réglage du compte, en attendant l'écran Edit profile. Chaque option porte
+// un exemple : « Font » ou « V » seuls ne disent rien à qui ne connaît qu'une
+// des deux échelles.
+const GRADE_SCALE_OPTIONS: { value: GradeSystem; label: string }[] = [
+  { value: 'FONT_SCALE', label: 'Font · 7a' },
+  { value: 'V_SCALE', label: 'V · V6' },
+];
+
+function GradeScaleSetting() {
+  const gradeSystem = useGradeSystem();
+  const update = useUpdateGradeSystem();
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Grade scale</Text>
+      <SegmentedControl
+        options={GRADE_SCALE_OPTIONS}
+        value={gradeSystem}
+        onChange={(value) => {
+          // Un second tap pendant l'envoi partirait en parallèle du premier.
+          if (value === gradeSystem || update.isPending) return;
+          update.mutate(value, {
+            onError: () => showToast('Couldn’t change the grade scale'),
+          });
+        }}
+      />
+    </View>
+  );
+}
+
+// Les dernières ascensions, et un lien vers l'historique complet quand il y
+// en a davantage.
+function RecentAscents({
+  ascents,
+  total,
+  isError,
+  onRetry,
+}: {
+  ascents: MyAscentHistoryItem[] | undefined;
+  total: number;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const router = useRouter();
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Ascents</Text>
+        {ascents && total > ascents.length ? (
+          <Pressable
+            onPress={() => router.push('/ascents')}
+            hitSlop={spacing.sm}
+          >
+            <Text style={styles.sectionLink}>See all</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {ascents && ascents.length > 0 ? (
+        ascents.map((ascent) => (
+          <Pressable
+            key={ascent.id}
+            onPress={() =>
+              router.push(
+                boulderHref(ascent.boulderId, ascent.angle.valueDegrees),
+              )
+            }
+          >
+            <AscentHistoryRow ascent={ascent} />
+          </Pressable>
+        ))
+      ) : (
+        <AscentsEmptyState
+          isPending={!ascents && !isError}
+          isError={isError}
+          onRetry={onRetry}
+        />
+      )}
+    </View>
+  );
+}
+
+// La liste est vide pour trois raisons distinctes : premier chargement,
+// échec, ou aucune ascension. Seule la dernière est un vrai « vide ».
+// Partagé avec l'écran de l'historique complet.
+export function AscentsEmptyState({
+  isPending,
+  isError,
+  onRetry,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  if (isError) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.stateTitle}>Couldn&apos;t load your ascents</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.retryButton,
+            pressed && styles.retryButtonPressed,
+          ]}
+          onPress={onRetry}
+        >
+          <Text style={styles.retryText}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (isPending) {
+    return (
+      <View style={styles.emptyState}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.stateTitle}>No ascents yet</Text>
+    </View>
   );
 }
 
@@ -178,6 +340,11 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.bodySemibold,
     fontSize: typography.size.md,
     color: colors.textOnPrimary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.md,
   },
   // ── Header ──────────────────────────────────────────────
   headerCard: {
@@ -290,5 +457,24 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: colors.danger,
+  },
+  // ── Ascents ─────────────────────────────────────────────
+  section: {
+    gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  sectionLink: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.primary,
+  },
+  sectionTitle: {
+    fontFamily: typography.family.heading,
+    fontSize: typography.size.lg,
+    color: colors.text,
   },
 });

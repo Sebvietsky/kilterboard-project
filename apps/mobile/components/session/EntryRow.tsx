@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { SessionEntry } from '@/lib/sessions/types';
 import { formatClockTime } from '@/lib/format/clockTime';
 import { plural } from '@/lib/format/plural';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import {
   colors,
   radii,
@@ -17,18 +18,24 @@ const GRADE_CIRCLE_SIZE = spacing.xxl + spacing.sm;
 // passage. Partagée par la session en cours et par le détail d'une session
 // passée, qui affichent exactement la même donnée.
 export function EntryRow({ entry }: { entry: SessionEntry }) {
-  const { boulder, boulderAngle } = entry.ascent;
+  const { boulder, boulderAngle, angle } = entry.ascent;
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.row}>
       <Text style={styles.rowTime}>{formatClockTime(entry.createdAt)}</Text>
       <GradeCircle
-        label={boulderAngle.grade?.vScale ?? null}
+        label={formatGrade(boulderAngle.grade?.rank)}
         muted={entry.status === 'PROJECT'}
       />
-      <Text style={styles.rowName} numberOfLines={1}>
-        {boulder.name}
-      </Text>
+      {/* L'inclinaison du passage distingue le même bloc fait à deux
+          inclinaisons dans la séance, sans ouvrir la fiche. */}
+      <View style={styles.rowText}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {boulder.name}
+        </Text>
+        <Text style={styles.rowMeta}>{angle.valueDegrees}°</Text>
+      </View>
       <EntryBadge entry={entry} />
     </View>
   );
@@ -103,11 +110,19 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     color: colors.textSubtle,
   },
-  rowName: {
+  rowText: {
     flex: 1,
+    gap: spacing.xs,
+  },
+  rowName: {
     fontFamily: typography.family.heading,
     fontSize: typography.size.md,
     color: colors.text,
+  },
+  rowMeta: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
   gradeCircle: {
     width: GRADE_CIRCLE_SIZE,

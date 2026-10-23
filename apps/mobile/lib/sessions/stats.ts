@@ -6,7 +6,7 @@ export type SessionStats = {
   climbs: number;
   // Cotation la plus dure ENVOYÉE : un projet qui résiste encore n'est pas un
   // « hardest ». `null` tant qu'aucun bloc n'est tombé dans la session.
-  hardest: string | null;
+  hardestRank: number | null;
   flashes: number;
   projectsSent: number;
 };
@@ -29,7 +29,7 @@ export function deriveSessionStats(entries: SessionEntry[]): SessionStats {
 
   return {
     climbs: entries.length,
-    hardest: hardest?.vScale ?? null,
+    hardestRank: hardest?.rank ?? null,
     flashes: entries.filter((entry) => entry.status === 'FLASH').length,
     // Un projet n'a qu'un seul passage SENT : celui de sa complétion.
     projectsSent: sends.filter(

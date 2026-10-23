@@ -35,8 +35,8 @@ import {
   useUpdateAscent,
 } from '@/lib/ascents/queries';
 import { AscentStatus } from '@/lib/ascents/types';
-import { useGrades } from '@/lib/grades/queries';
-import { Grade } from '@/lib/grades/types';
+import { GRADES } from '@/lib/grades/scale';
+import { useGradeLabel, useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
 import { plural } from '@/lib/format/plural';
@@ -76,7 +76,7 @@ export default function BoulderDetailScreen() {
   const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const myAscents = useMyAscentsOnBoulder(boulderId);
-  const grades = useGrades();
+  const formatGrade = useGradeLabel();
   const logAscent = useLogAscent();
   const updateAscent = useUpdateAscent();
   const toggleLike = useToggleBoulderLike();
@@ -273,17 +273,15 @@ export default function BoulderDetailScreen() {
   // cotation du créateur à son inclinaison est connue.
   const isSetAngle = angle === detail.angleDegrees;
   const angleGrade = detail.angleGrades.find((g) => g.angleDegrees === angle);
-  const gradeLabel = angleGrade
-    ? angleGrade.gradeLabel
-    : isSetAngle
-      ? detail.gradeLabel
-      : null;
+  const gradeLabel = formatGrade(
+    angleGrade ? angleGrade.gradeRank : isSetAngle ? detail.gradeRank : null,
+  );
   // La cotation du créateur, en petit, seulement quand la communauté l'a
   // remplacée par une autre à son inclinaison.
   const creatorGradeReplaced =
     isSetAngle &&
-    angleGrade?.gradeLabel != null &&
-    angleGrade.gradeLabel !== detail.gradeLabel;
+    angleGrade?.gradeRank != null &&
+    angleGrade.gradeRank !== detail.gradeRank;
   const notesAtAngle = detail.publicNotes.filter(
     (note) => note.angleDegrees === angle,
   );
@@ -320,7 +318,7 @@ export default function BoulderDetailScreen() {
           )}
           {creatorGradeReplaced && angleGrade && (
             <Text style={styles.gradeNote}>
-              Set as {detail.gradeLabel} ·{' '}
+              Set as {formatGrade(detail.gradeRank)} ·{' '}
               {plural(angleGrade.votesCount, 'vote')}
             </Text>
           )}
@@ -443,7 +441,6 @@ export default function BoulderDetailScreen() {
                 </Text>
               </View>
               <GradePicker
-                grades={grades.data ?? []}
                 selected={feltGradeRank}
                 onSelect={setFeltGradeRank}
               />
@@ -581,10 +578,10 @@ export default function BoulderDetailScreen() {
                   {note.username}
                 </Text>
                 <View style={styles.noteMeta}>
-                  {note.feltGradeLabel !== null && (
+                  {note.feltGradeRank !== null && (
                     <View style={styles.noteGrade}>
                       <Text style={styles.noteGradeText}>
-                        {note.feltGradeLabel}
+                        {formatGrade(note.feltGradeRank)}
                       </Text>
                     </View>
                   )}
@@ -694,22 +691,25 @@ function StarRating({
   );
 }
 
+// Toujours en Font, l'échelle la plus fine : un vote en V ne dirait pas si
+// c'est 6a ou 6a+, et fausserait la médiane. Un grimpeur en V lit son V en
+// rappel sous chaque cotation.
 function GradePicker({
-  grades,
   selected,
   onSelect,
 }: {
-  grades: Grade[];
   selected: number | undefined;
   onSelect: (rank: number) => void;
 }) {
+  const showV = useGradeSystem() === 'V_SCALE';
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.gradeRow}
     >
-      {grades.map((g) => {
+      {GRADES.map((g) => {
         const active = selected === g.rank;
         return (
           <Pressable
@@ -723,8 +723,18 @@ function GradePicker({
                 active && styles.gradeChipTextActive,
               ]}
             >
-              {g.vScale}
+              {g.font}
             </Text>
+            {showV ? (
+              <Text
+                style={[
+                  styles.gradeChipSubtext,
+                  active && styles.gradeChipTextActive,
+                ]}
+              >
+                {g.v}
+              </Text>
+            ) : null}
           </Pressable>
         );
       })}
@@ -1157,6 +1167,12 @@ const styles = StyleSheet.create({
   },
   gradeChipTextActive: {
     color: colors.textOnInk,
+  },
+  gradeChipSubtext: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   toggleRow: {
     flexDirection: 'row',

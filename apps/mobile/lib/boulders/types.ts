@@ -1,7 +1,8 @@
 export interface BoulderSummary {
   id: number;
   name: string;
-  gradeLabel: string;
+  // Le serveur n'envoie que le rang : `useGradeLabel` le traduit dans
+  // l'échelle de l'utilisateur.
   gradeRank: number;
   angleDegrees: number;
   creatorUsername: string;
@@ -41,7 +42,7 @@ export interface PublicNote {
   username: string;
   avatarUrl: string | null;
   content: string;
-  feltGradeLabel: string | null;
+  feltGradeRank: number | null;
   likesCount: number;
   createdAt: string;
 }
@@ -49,14 +50,13 @@ export interface PublicNote {
 export interface AngleGrade {
   angleDegrees: number;
   // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
-  gradeLabel: string | null;
   gradeRank: number | null;
   votesCount: number;
   // Peu de votes, hors inclinaison du créateur.
   isEstimated: boolean;
 }
 
-// `gradeLabel` et `angleDegrees` hérités de BoulderSummary restent la
+// `gradeRank` et `angleDegrees` hérités de BoulderSummary restent la
 // référence du créateur ; la cotation à afficher est dans `angleGrades`.
 export interface BoulderDetail extends BoulderSummary {
   description: string | null;
@@ -75,7 +75,6 @@ export interface BoulderLikeStatus {
 export interface BoulderLiked {
   id: number;
   name: string;
-  gradeLabel: string | null;
   gradeRank: number | null;
   angleDegrees: number;
   likedAt: string;

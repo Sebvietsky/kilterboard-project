@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { deriveSessionStats } from '@/lib/sessions/stats';
 import type { SessionEntry } from '@/lib/sessions/types';
 import { plural } from '@/lib/format/plural';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 /**
@@ -27,6 +28,7 @@ export function SessionHero({
   entries: SessionEntry[];
 }) {
   const stats = deriveSessionStats(entries);
+  const hardest = useGradeLabel()(stats.hardestRank);
 
   return (
     <View style={styles.card}>
@@ -40,7 +42,7 @@ export function SessionHero({
 
       <View style={styles.statsRow}>
         <StatChip label={plural(stats.climbs, 'climb')} />
-        {stats.hardest ? <StatChip label={`${stats.hardest} hardest`} /> : null}
+        {hardest ? <StatChip label={`${hardest} hardest`} /> : null}
         {stats.flashes > 0 ? (
           <StatChip
             label={plural(stats.flashes, 'flash', 'flashes')}

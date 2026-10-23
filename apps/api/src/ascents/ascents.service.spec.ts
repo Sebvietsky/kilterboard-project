@@ -889,6 +889,38 @@ describe('AscentsService', () => {
       expect(count.where).toEqual({ userId: user.userId });
     });
 
+    // Le même bloc n'a pas la même cotation à deux inclinaisons : celle du
+    // créateur ne vaut qu'à la sienne. Prisma étant mocké, seule la forme de
+    // la requête dit quelle cotation part au client.
+    it("lit la cotation à l'inclinaison de l'ascension, pas celle du créateur", async () => {
+      await service.findMyAscents(user.userId, {});
+
+      const [list] = prismaMock.ascent.findMany.mock.calls[0] as [
+        {
+          include: {
+            boulder: { select: Record<string, unknown> };
+            boulderAngle?: { select: { grade?: unknown } };
+          };
+        },
+      ];
+      expect(list.include.boulderAngle?.select.grade).toBeDefined();
+      expect(list.include.boulder.select).not.toHaveProperty('grade');
+    });
+
+    // L'historique affiche la date d'envoi : trier par création mélangerait
+    // les projets complétés (créés bien avant leur envoi) avec le reste.
+    it("trie par date d'envoi, projets ouverts en tête", async () => {
+      await service.findMyAscents(user.userId, {});
+
+      const [list] = prismaMock.ascent.findMany.mock.calls[0] as [
+        { orderBy: unknown },
+      ];
+      expect(list.orderBy).toEqual([
+        { sendDate: { sort: 'desc', nulls: 'first' } },
+        { createdAt: 'desc' },
+      ]);
+    });
+
     it("ne lit sur un bloc que les ascensions de l'utilisateur", async () => {
       await service.findMyAscentOnBoulder(user.userId, 10);
 

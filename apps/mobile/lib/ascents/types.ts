@@ -44,6 +44,17 @@ export type MyAscent = {
   createdAt: string;
 };
 
+// Élément de GET /ascents/me : l'historique, toutes inclinaisons confondues.
+export type MyAscentHistoryItem = MyAscent & {
+  boulderId: number;
+  boulder: { name: string };
+  // Cotation effective à l'inclinaison de l'ascension, `null` si personne n'y
+  // a encore envoyé le bloc. Celle du créateur n'est pas exposée.
+  boulderAngle: {
+    grade: { vScale: string; fontScale: string; rank: number } | null;
+  };
+};
+
 /**
  * Entrée de PATCH /ascents/:id — enregistrer une séance sur un projet, ou le
  * clore.

@@ -27,6 +27,12 @@ Relevé le 2026-10-19 sur le catalogue boardsesh du 2026-10-17. Remplace BoardLi
 - **La position LED d'un trou dépend de la taille** (`board_leds` : `product_size_id`, `hole_id`, `position`). Entre 12 x 12 avec et sans kickboard, aucun trou commun n'a la même position. Une mauvaise taille allume les mauvaises prises : la taille exacte de la board est un prérequis du BLE.
 - Rôles (`board_placement_roles`, product 1) : start `00FF00`, middle `00FFFF`, finish `FF00FF`, foot `FFA500`.
 
+## Cotations (`board_difficulty_grades`)
+
+- Une ligne par cotation Font, filtrer sur `board_type = 'kilter'`. `boulder_name` vaut « 6a/V3 » : Font puis V. Le V est plus grossier (6a et 6a+ sont V3, 7b et 7b+ sont V8).
+- Lignes listées (`is_listed = 1`) : `difficulty` 10 (4a/V0) à 33 (8c+/V16). Les autres (1a à 3c, 9a et plus) ne s'affichent pas dans l'app Kilter.
+- Notre table `grades` les reprend telles quelles depuis le 2026-10-21 : `rank` = `difficulty`, une ligne par Font, V non unique (`prisma/seed.ts`, `apps/mobile/lib/grades/scale.ts`). À l'import, la cotation d'un bloc (`display_difficulty`, décimale) s'arrondit au rang le plus proche.
+
 ## Schéma utile
 
 - `board_holes` : id, product_id, name, x, y, mirrored_hole_id

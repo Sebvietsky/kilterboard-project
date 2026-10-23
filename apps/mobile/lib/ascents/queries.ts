@@ -1,4 +1,6 @@
 import {
+  useInfiniteQuery,
+  UseInfiniteQueryResult,
   useMutation,
   useQuery,
   useQueryClient,
@@ -9,11 +11,13 @@ import {
   AscentStatus,
   LogAscentInput,
   MyAscent,
+  MyAscentHistoryItem,
   MyProject,
   UpdateAscentInput,
 } from './types';
 import { api } from '../api/client';
 import { boulderKeys } from '../boulders/keys';
+import type { PaginatedResponse } from '../boulders/types';
 import { sessionKeys } from '../sessions/keys';
 import { ascentKeys } from './keys';
 
@@ -45,6 +49,7 @@ export function useLogAscent() {
       queryClient.invalidateQueries({
         queryKey: ascentKeys.myProjects(),
       });
+      queryClient.invalidateQueries({ queryKey: ascentKeys.myHistory() });
       // Le serveur rattache l'ascension à la session active : la liste des
       // blocs de l'écran Session est périmée.
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
@@ -95,6 +100,8 @@ export function useUpdateAscent() {
         queryKey: ascentKeys.byBoulder(variables.boulderId),
       });
       queryClient.invalidateQueries({ queryKey: ascentKeys.myProjects() });
+      // La complétion change le statut de la ligne dans l'historique.
+      queryClient.invalidateQueries({ queryKey: ascentKeys.myHistory() });
       // Une séance ou une complétion rattache le projet à la session active.
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     },
@@ -129,6 +136,48 @@ export function useMyProjects(): UseQueryResult<MyProject[], Error> {
   return useQuery({
     queryKey: ascentKeys.myProjects(),
     queryFn: fetchMyProjects,
+  });
+}
+
+export function fetchMyAscents(
+  page: number,
+  limit: number,
+): Promise<PaginatedResponse<MyAscentHistoryItem>> {
+  return api.get<PaginatedResponse<MyAscentHistoryItem>>(
+    `/ascents/me?page=${page}&limit=${limit}`,
+  );
+}
+
+export const RECENT_ASCENTS_COUNT = 5;
+
+// Aperçu du profil : la première page seulement, sans pagination. `total`
+// est gardé pour savoir s'il y a plus à voir.
+// `enabled` : la route ne sert que le profil courant. Un profil tiers monte le
+// même composant, le hook doit donc pouvoir rester inactif.
+export function useMyRecentAscents(
+  enabled: boolean,
+): UseQueryResult<PaginatedResponse<MyAscentHistoryItem>, Error> {
+  return useQuery({
+    enabled,
+    queryKey: ascentKeys.myHistoryRecent(),
+    queryFn: () => fetchMyAscents(1, RECENT_ASCENTS_COUNT),
+  });
+}
+
+// Historique complet, chargé par pages au scroll.
+export function useMyAscentsInfinite(): UseInfiniteQueryResult<
+  MyAscentHistoryItem[],
+  Error
+> {
+  return useInfiniteQuery({
+    queryKey: ascentKeys.myHistoryList(),
+    queryFn: ({ pageParam }) => fetchMyAscents(pageParam, 20),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
+    select: (data) => data.pages.flatMap((p) => p.data),
   });
 }
 

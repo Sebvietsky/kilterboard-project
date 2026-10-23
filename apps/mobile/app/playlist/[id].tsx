@@ -17,6 +17,7 @@ import {
   usePlaylist,
   useTogglePlaylistBoulder,
 } from '@/lib/playlists/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import type { PlaylistDetail } from '@/lib/playlists/types';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { boulderHref } from '@/lib/boulders/href';
@@ -227,6 +228,7 @@ function BoulderRow({
   onRemove?: () => void;
 }) {
   const { boulder } = item;
+  const formatGrade = useGradeLabel();
 
   // Croix à gauche, puis la même disposition que les cartes de Liked et
   // d'Explore : nom et inclinaison à gauche, cotation au bord droit.
@@ -250,9 +252,9 @@ function BoulderRow({
       </View>
       {/* Cotation à l'inclinaison de l'entrée : non cotée, la ligne le dit
           plutôt que d'afficher celle du créateur. */}
-      {boulder.vScale !== null ? (
+      {boulder.gradeRank !== null ? (
         <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{boulder.vScale}</Text>
+          <Text style={styles.gradeText}>{formatGrade(boulder.gradeRank)}</Text>
         </View>
       ) : (
         <View style={styles.ungradedBadge}>
