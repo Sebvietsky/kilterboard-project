@@ -42,8 +42,9 @@ contrainte de 20 octets ci-dessous.
 
 ### Nom du board et niveau d'API
 
-Le nom advertisé suit le format `alphanumérique[#série][#niveauAPI]`.
-Le dernier segment donne le **niveau d'API** : `2` ou `3`. C'est ce niveau qui
+Le nom advertisé suit le format `alphanumérique[#série][@niveauAPI]`, relevé
+sur une vraie board le 2026-10-23 : `Kilter Board#75804@3`. Le segment après
+`@` donne le **niveau d'API** : `2` ou `3`. C'est ce niveau qui
 détermine l'encodage des prises (section 4). **3 est le standard actuel.**
 
 Si le nom ne porte pas de niveau, on suppose `3`.

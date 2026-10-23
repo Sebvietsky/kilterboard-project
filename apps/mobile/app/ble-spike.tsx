@@ -179,7 +179,7 @@ export default function BleSpikeScreen() {
         if (!device || found.has(device.id)) return;
         if (!filtered && !device.name && !device.localName) return;
         found.add(device.id);
-        // Le nom porte le niveau d'API en dernier segment (`…#3`).
+        // Le nom porte le niveau d'API après un `@` (`…#75804@3`).
         const services = device.serviceUUIDs?.join(', ') ?? 'none';
         log(`Found: ${deviceLabel(device)} (services: ${services})`);
         setDevices((prev) => [...prev, device]);

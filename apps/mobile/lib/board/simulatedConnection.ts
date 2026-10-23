@@ -2,10 +2,10 @@ import { parseBoardName } from './parseBoardName';
 import type { BoardConnection, DiscoveredBoard } from './types';
 
 // Deux boards fictives, découvertes l'une après l'autre comme dans un vrai
-// scan. Noms au format diffusé par une board (`nom#série#niveauAPI`).
+// scan. Noms au format diffusé par une board (`nom#série@niveauAPI`).
 const FAKE_BOARDS = [
-  { id: 'sim-1', advertisedName: 'Kilter Board#12345#3', rssi: -58 },
-  { id: 'sim-2', advertisedName: 'Kilter Board#67890#3', rssi: -81 },
+  { id: 'sim-1', advertisedName: 'Kilter Board#12345@3', rssi: -58 },
+  { id: 'sim-2', advertisedName: 'Kilter Board#67890@3', rssi: -81 },
 ];
 const DISCOVERY_DELAY_MS = 900;
 const CONNECT_DELAY_MS = 800;

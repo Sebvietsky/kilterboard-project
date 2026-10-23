@@ -44,6 +44,6 @@ Relevé le 2026-10-19 sur le catalogue boardsesh du 2026-10-17. Remplace BoardLi
 
 ## Encore à faire
 
-- Identifier la taille exacte de la board de Seb. Hypothèse forte : **12 x 12 with kickboard (id 10)**. La fiche de la salle dans l'app Kilter indique « Kilter Board Original with kickboard, adjustable », et le catalogue n'a de libellé « with kickboard » que pour la 12 x 12. Reste à exclure la 12 x 14 (`edge_bottom` 0 elle aussi) : hauteur de 3,66 m contre 4,27 m, ou test d'une LED connue au premier essai BLE.
+- ~~Identifier la taille exacte de la board de Seb.~~ **Confirmée le 2026-10-23 : 12 x 12 with kickboard (id 10, 476 LED)**, par l'essai BLE en salle (motif des 4 coins et du centre, `docs/notes/ble-essai-salle.md`).
 - Lire le format de `frames` sur des blocs réels (fichier des blocs pas encore téléchargé).
 - Concevoir la correspondance avec notre modèle (`Hold`, `boulder_holds`, cotations) : conception de Seb.

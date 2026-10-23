@@ -37,14 +37,18 @@ Chaque test envoie 21 octets, donc 2 chunks : le découpage est testé du même 
 
 ## À noter
 
+Essai fait le 2026-10-23.
+
 | Point | Résultat |
 | --- | --- |
-| Nom de la board (niveau d'API) | |
-| MTU | |
-| Test qui dessine le motif | |
-| Couleurs conformes aux 4 rôles | |
-| Turn off éteint la board | |
-| Erreurs du journal (capture d'écran) | |
+| Nom de la board (niveau d'API) | `Kilter Board#75804@3` : niveau 3, après un `@` et non un `#`. `parseBoardName` corrigé. |
+| MTU | 23 (20 octets utiles) : le paquet de 21 octets part en 2 morceaux, sans erreur. |
+| Test qui dessine le motif | **12 x 12 with kickboard** (taille id 10), du premier coup. Exactement 5 LED allumées. |
+| Couleurs conformes aux 4 rôles | Oui. Le pied (`#FFA500`) paraît jaune : quantifié en R7 G5 B0, soit `#FFB600`. Attendu, pas une erreur d'ordre des bits (cyan et magenta justes). |
+| Turn off éteint la board | Oui, tout s'éteint. |
+| Erreurs du journal (capture d'écran) | Aucune. Paquet décodé : somme de contrôle juste (`0x36`), LED 33, 0, 68, 476 et 260. Une déconnexion venait d'un autre téléphone. |
+
+- La board apparaissait deux fois au premier scan ; un seul appareil au second. Pas de second contrôleur.
 
 ## Ce que chaque résultat décide
 
