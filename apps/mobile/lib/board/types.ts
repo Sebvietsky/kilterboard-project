@@ -1,8 +1,14 @@
 // Une board vue au scan Bluetooth.
 export type DiscoveredBoard = {
-  // Identifiant BLE. Sur iOS, il est propre au téléphone : il ne désigne pas
-  // la board d'un appareil à l'autre. Le numéro de série, lui, si.
-  id: string;
+  // Clé de la board dans l'app : son numéro de série, ou à défaut son
+  // identifiant BLE. Une ligne par clé dans la liste du scan.
+  key: string;
+  // Identifiants BLE sous lesquels elle s'est annoncée, dans l'ordre où le
+  // scan les a vus. Une même board en montre plusieurs à la fois autour d'une
+  // connexion, la sienne ou celle d'un autre grimpeur ; ceux de passage
+  // disparaissent en moins de 2 minutes (relevé en salle le 2026-10-23). Sur
+  // iOS, ils sont propres au téléphone.
+  deviceIds: string[];
   // Partie du nom diffusé avant le premier `#`.
   name: string;
   serial: string | null;
@@ -46,8 +52,9 @@ export interface BoardConnection {
     durationMs: number,
   ): Promise<void>;
   stopScan(): Promise<void>;
-  // `onDisconnect` : coupure qui ne vient pas de l'app (board éteinte,
-  // hors de portée).
+  // Essaie les identifiants de la board dans l'ordre, jusqu'au premier qui
+  // répond. `onDisconnect` : coupure qui ne vient pas de l'app (board
+  // éteinte, hors de portée, autre téléphone).
   connect(board: DiscoveredBoard, onDisconnect: () => void): Promise<void>;
   disconnect(): Promise<void>;
   write(packet: number[]): Promise<void>;
