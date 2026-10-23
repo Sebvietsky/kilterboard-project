@@ -50,7 +50,15 @@
         }
       ],
       "./plugins/with-pods-deployment-target",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "KilterBoard uses Bluetooth to light up boulders on your board."
+        }
+      ]
     ]
   }
 }

@@ -141,6 +141,11 @@ function RootNavigation() {
           name="ascents"
           options={{ ...DETAIL_HEADER, title: 'Ascents' }}
         />
+        {/* Essai BLE jetable, à supprimer avec l'écran. */}
+        <Stack.Screen
+          name="ble-spike"
+          options={{ ...DETAIL_HEADER, title: 'BLE test' }}
+        />
       </Stack.Protected>
 
       <Stack.Protected guard={status === 'unauthenticated'}>
