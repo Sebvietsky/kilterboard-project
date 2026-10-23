@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import RangeSlider from '@/lib/vendor/RangeSlider';
+import { RangeSlider } from '@/components/RangeSlider';
 import { ANGLES, TAGS } from '@/lib/filters/const';
 import { gradeSteps, type GradeStep } from '@/lib/grades/scale';
 import { useGradeSystem } from '@/lib/grades/useGradeLabel';
@@ -76,14 +76,6 @@ export default function SearchScreen() {
     router.back();
   }
 
-  // ── Render functions du slider (présentation) ────────────────────
-  const renderThumb = useCallback(() => <View style={styles.thumb} />, []);
-  const renderRail = useCallback(() => <View style={styles.rail} />, []);
-  const renderRailSelected = useCallback(
-    () => <View style={styles.railSelected} />,
-    [],
-  );
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -123,16 +115,11 @@ export default function SearchScreen() {
             {steps[low].label} — {steps[high].label}
           </Text>
           <RangeSlider
-            style={styles.slider}
-            min={0}
             max={lastStep}
-            step={1}
             low={low}
             high={high}
-            renderThumb={renderThumb}
-            renderRail={renderRail}
-            renderRailSelected={renderRailSelected}
-            onValueChanged={handleGradeChange}
+            onChange={handleGradeChange}
+            formatValue={(index) => steps[index].label}
           />
           <View style={styles.scaleRow}>
             {Array.from({ length: SCALE_MARK_COUNT }, (_, i) => {
@@ -278,30 +265,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.heading,
     fontSize: typography.size.xl,
     color: colors.text,
-  },
-  slider: {
-    height: 40,
-    justifyContent: 'center',
-  },
-  thumb: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.full,
-    backgroundColor: colors.text,
-    borderWidth: 3,
-    borderColor: colors.surface,
-    ...shadows.card,
-  },
-  rail: {
-    flex: 1,
-    height: 4,
-    borderRadius: radii.full,
-    backgroundColor: colors.border,
-  },
-  railSelected: {
-    height: 4,
-    borderRadius: radii.full,
-    backgroundColor: colors.primary,
   },
   scaleRow: {
     flexDirection: 'row',
