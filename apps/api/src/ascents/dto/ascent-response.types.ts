@@ -5,8 +5,13 @@ export type AscentWithDetails = Prisma.AscentGetPayload<{
     boulder: {
       select: {
         name: true;
-        grade: { select: { vScale: true; fontScale: true; rank: true } };
         angle: { select: { valueDegrees: true } };
+      };
+    };
+    angle: { select: { valueDegrees: true } };
+    boulderAngle: {
+      select: {
+        grade: { select: { vScale: true; fontScale: true; rank: true } };
       };
     };
     feltGrade: { select: { vScale: true; fontScale: true } };
@@ -16,6 +21,7 @@ export type AscentWithDetails = Prisma.AscentGetPayload<{
 
 export type AscentWithBoulderDetails = Prisma.AscentGetPayload<{
   include: {
+    angle: { select: { valueDegrees: true } };
     feltGrade: { select: { vScale: true; fontScale: true } };
     ascentNotes: true;
   };

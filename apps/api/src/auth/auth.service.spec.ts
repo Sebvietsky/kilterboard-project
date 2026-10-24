@@ -100,6 +100,23 @@ describe('AuthService', () => {
 
       expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
+
+    it('ne nomme ni l’email ni le username dans le refus', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(existingUser);
+
+      const error = await service
+        .register({
+          username: 'seb',
+          email: 'seb@example.com',
+          password: 'plaintext',
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).message).not.toMatch(
+        /email|username/i,
+      );
+    });
   });
 
   describe('login', () => {
@@ -150,6 +167,27 @@ describe('AuthService', () => {
 
       expect(tokenServiceMock.generateTokens).not.toHaveBeenCalled();
     });
+
+    // Le type ne suffit pas : deux messages différents diraient lequel des
+    // deux cas s'est produit, donc quels comptes existent.
+    it('donne le même message pour un compte inconnu et un mauvais mot de passe', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null);
+      const unknown = await service
+        .login({ identifier: 'ghost', password: 'pw' })
+        .catch((e: unknown) => e);
+
+      prismaMock.user.findFirst.mockResolvedValue(existingUser);
+      bcryptMock.compare.mockResolvedValue(false);
+      const wrongPassword = await service
+        .login({ identifier: 'seb', password: 'wrong' })
+        .catch((e: unknown) => e);
+
+      expect(unknown).toBeInstanceOf(UnauthorizedException);
+      expect(wrongPassword).toBeInstanceOf(UnauthorizedException);
+      expect((unknown as UnauthorizedException).message).toBe(
+        (wrongPassword as UnauthorizedException).message,
+      );
+    });
   });
 
   describe('refreshToken', () => {
@@ -167,8 +205,11 @@ describe('AuthService', () => {
       await expect(
         service.refreshToken({ refreshToken: 'refresh' }),
       ).resolves.toEqual(issuedTokens);
+      // Le token présenté est transmis : c'est lui, et lui seul, que
+      // generateTokens fait tourner. Les autres appareils gardent le leur.
       expect(tokenServiceMock.generateTokens).toHaveBeenCalledWith(
         existingUser,
+        storedToken,
       );
     });
 
@@ -213,10 +254,13 @@ describe('AuthService', () => {
   });
 
   describe('logoutUser', () => {
-    it('supprime le refresh token stocké', async () => {
-      await service.logoutUser(1);
+    it("ne déconnecte que l'appareil qui présente son token", async () => {
+      await service.logoutUser(1, 'refresh');
 
-      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(1);
+      expect(tokenServiceMock.deleteRefreshToken).toHaveBeenCalledWith(
+        1,
+        'refresh',
+      );
     });
   });
 });

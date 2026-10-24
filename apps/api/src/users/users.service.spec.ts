@@ -102,7 +102,9 @@ describe('UsersService', () => {
     // La route est atteignable par n'importe quel compte authentifié à partir
     // du seul username. Sans ces omissions, elle sert un annuaire d'adresses
     // doublé de la liste des comptes ADMIN.
-    it("n'expose ni l'email ni le rôle", async () => {
+    // Le hash en plus : `toMatchObject` ne vérifiait que l'email et le rôle,
+    // et retirer l'omission du hash ne faisait échouer aucun test.
+    it("n'expose ni l'email, ni le rôle, ni le hash du mot de passe", async () => {
       prismaMock.user.findUnique.mockResolvedValue(target);
 
       await service.getPublicProfile('alice', me);
@@ -110,7 +112,11 @@ describe('UsersService', () => {
       const [arg] = prismaMock.user.findUnique.mock.calls[0] as [
         { omit: Record<string, boolean> },
       ];
-      expect(arg.omit).toMatchObject({ email: true, role: true });
+      expect(arg.omit).toMatchObject({
+        ...hiddenFields,
+        email: true,
+        role: true,
+      });
     });
 
     // Un profil privé existe mais n'est pas consultable. Le 403 le dit — c'est

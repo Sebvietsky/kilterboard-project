@@ -10,7 +10,6 @@ import * as bcrypt from 'bcrypt';
 import { TokenService } from './token.service';
 import { AuthTokens } from '../common/interfaces/auth-tokens.interface';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { Throttle } from '@nestjs/throttler';
 import { User } from '../generated/prisma/client';
 
 @Injectable()
@@ -20,7 +19,6 @@ export class AuthService {
     private tokenService: TokenService,
   ) {}
 
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async register(
     dto: RegisterDto,
   ): Promise<{ success: true; message: string }> {
@@ -48,7 +46,6 @@ export class AuthService {
     return { success: true, message: 'Account created successfully' };
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async login(dto: LoginDto): Promise<AuthTokens> {
     const identifier: boolean = dto.identifier.includes('@');
 
@@ -85,8 +82,8 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async logoutUser(userId: number): Promise<void> {
-    await this.tokenService.deleteRefreshToken(userId);
+  async logoutUser(userId: number, refreshToken: string): Promise<void> {
+    await this.tokenService.deleteRefreshToken(userId, refreshToken);
   }
 
   async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<AuthTokens> {
@@ -112,7 +109,7 @@ export class AuthService {
     }
 
     const { accessToken, refreshToken } =
-      await this.tokenService.generateTokens(existingToken.user);
+      await this.tokenService.generateTokens(existingToken.user, existingToken);
 
     return { accessToken, refreshToken };
   }

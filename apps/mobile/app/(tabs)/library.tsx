@@ -9,26 +9,42 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { PlaylistFormSheet } from '@/components/playlists/PlaylistFormSheet';
 import { useMyProjects } from '@/lib/ascents/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { useMyPlaylists } from '@/lib/playlists/queries';
+import { useMyLikedBoulders } from '@/lib/boulders/queries';
+import { boulderHref } from '@/lib/boulders/href';
 import type { MyProject } from '@/lib/ascents/types';
 import type { PlaylistSummary } from '@/lib/playlists/types';
+import type { BoulderLiked } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
-type Segment = 'projects' | 'playlists';
+type Segment = 'projects' | 'playlists' | 'liked';
 
-// Liked ne figure pas ici : aucun concept de favori n'existe côté backend
-// (AscentNoteLike porte sur un COMMENTAIRE, pas sur un bloc). Un troisième
-// segment vide ou désactivé se lirait comme une panne — on l'ajoutera avec la
-// fonctionnalité, pas avant.
+// Bouton de création : rond de 56 pt, la taille d'usage d'un bouton flottant.
+const FAB_SIZE = spacing.xxxl + spacing.sm;
+const FAB_ICON_SIZE = spacing.xl + spacing.xs;
+
 const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'projects', label: 'Projects' },
+  { value: 'liked', label: 'Liked' },
   { value: 'playlists', label: 'Playlists' },
 ];
 
+// Un Record plutôt qu'une chaîne de ternaires : ajouter un segment au type
+// sans sa liste devient une erreur de compilation.
+const SEGMENT_LISTS: Record<Segment, () => React.JSX.Element> = {
+  projects: ProjectsList,
+  playlists: PlaylistsList,
+  liked: LikedList,
+};
+
 export default function LibraryScreen() {
   const [segment, setSegment] = useState<Segment>('projects');
+  const List = SEGMENT_LISTS[segment];
 
   return (
     <View style={styles.screen}>
@@ -41,10 +57,11 @@ export default function LibraryScreen() {
         />
       </View>
 
-      {/* Rendu conditionnel et non deux listes masquées : le composant
-          démonté, sa query ne s'abonne plus. Deux listes montées lanceraient
-          deux requêtes et les garderaient fraîches pour rien. */}
-      {segment === 'projects' ? <ProjectsList /> : <PlaylistsList />}
+      {/* Une seule liste montée, et non toutes masquées sauf une : le
+          composant démonté, sa query ne s'abonne plus. Des listes montées en
+          parallèle lanceraient chacune sa requête et la garderaient fraîche
+          pour rien. */}
+      <List />
     </View>
   );
 }
@@ -66,7 +83,11 @@ function ProjectsList() {
           // boulderId et non boulder.id : la réponse n'expose pas l'id du
           // bloc dans la relation imbriquée, seulement au niveau de
           // l'ascension.
-          <Pressable onPress={() => router.push(`/boulder/${item.boulderId}`)}>
+          <Pressable
+            onPress={() =>
+              router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+            }
+          >
             <ProjectCard project={item} />
           </Pressable>
         )}
@@ -74,7 +95,7 @@ function ProjectsList() {
         refreshControl={
           <RefreshControl
             refreshing={projects.isRefetching}
-            onRefresh={projects.refetch}
+            onRefresh={() => void projects.refetch()}
             tintColor={colors.primary}
           />
         }
@@ -84,26 +105,89 @@ function ProjectsList() {
 }
 
 function PlaylistsList() {
+  const router = useRouter();
   const playlists = useMyPlaylists();
+  // Compteur et non booléen : il sert aussi de `key` à la feuille, qui repart
+  // ainsi d'un formulaire vide à chaque ouverture.
+  const [createOpenCount, setCreateOpenCount] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  return (
+    <View style={styles.fill}>
+      <ListState
+        query={playlists}
+        emptyLabel="No playlists yet."
+        emptyHint="Tap + to create your first playlist."
+      >
+        <FlatList
+          data={playlists.data}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <Pressable onPress={() => router.push(`/playlist/${item.id}`)}>
+              <PlaylistRow playlist={item} />
+            </Pressable>
+          )}
+          contentContainerStyle={[styles.listContent, styles.listContentFab]}
+          refreshControl={
+            <RefreshControl
+              refreshing={playlists.isRefetching}
+              onRefresh={() => void playlists.refetch()}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      </ListState>
+
+      {/* Hors de ListState : le bouton reste là quand la liste est vide,
+          c'est même là qu'il sert le plus. */}
+      <Pressable
+        onPress={() => {
+          setCreateOpenCount((count) => count + 1);
+          setCreateOpen(true);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="New playlist"
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+      >
+        <Plus size={FAB_ICON_SIZE} color={colors.textOnPrimary} />
+      </Pressable>
+
+      <PlaylistFormSheet
+        key={createOpenCount}
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
+    </View>
+  );
+}
+
+function LikedList() {
+  const router = useRouter();
+  const liked = useMyLikedBoulders();
 
   return (
     <ListState
-      query={playlists}
-      emptyLabel="No playlists yet."
-      emptyHint="Playlists you create will show up here."
+      query={liked}
+      emptyLabel="No liked boulders yet."
+      emptyHint="Tap the heart on a boulder to save it here."
     >
       <FlatList
-        data={playlists.data}
-        keyExtractor={(item) => String(item.id)}
-        // Pas de Pressable : l'écran de détail n'existe pas encore. Une ligne
-        // qui s'enfonce sous le doigt sans rien ouvrir se lit comme un bug ;
-        // inerte, elle se lit comme une information.
-        renderItem={({ item }) => <PlaylistRow playlist={item} />}
+        data={liked.data}
+        // Le même bloc peut être liké à deux inclinaisons : la clé reprend
+        // celle du like en base, et la carte rouvre le bloc à son inclinaison.
+        keyExtractor={(item) => `${item.id}-${item.angleDegrees}`}
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+          >
+            <LikedCard boulder={item} />
+          </Pressable>
+        )}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
-            refreshing={playlists.isRefetching}
-            onRefresh={playlists.refetch}
+            refreshing={liked.isRefetching}
+            onRefresh={() => void liked.refetch()}
             tintColor={colors.primary}
           />
         }
@@ -113,7 +197,7 @@ function PlaylistsList() {
 }
 
 /**
- * Chargement / erreur / vide, mutualisés entre les deux listes.
+ * Chargement / erreur / vide, mutualisés entre les listes.
  *
  * Le type d'entrée est structurel plutôt qu'un UseQueryResult<T> : les deux
  * queries portent des données différentes, et seuls ces quatre champs
@@ -179,7 +263,8 @@ function ListState({
 // ne renvoie ni ascentCount, ni averageRating, ni creatorUsername. Surtout, un
 // projet ne parle pas de la communauté mais de TES essais.
 function ProjectCard({ project }: { project: MyProject }) {
-  const { boulder, attemptsCount } = project;
+  const { boulder, boulderAngle, attemptsCount } = project;
+  const formatGrade = useGradeLabel();
 
   return (
     <View style={styles.card}>
@@ -187,18 +272,57 @@ function ProjectCard({ project }: { project: MyProject }) {
         <Text style={styles.cardTitle} numberOfLines={1}>
           {boulder.name}
         </Text>
-        <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{boulder.grade.vScale}</Text>
-        </View>
+        {/* Cotation à l'inclinaison du projet, comme pour les favoris. */}
+        {boulderAngle.grade ? (
+          <View style={styles.gradeBadge}>
+            <Text style={styles.gradeText}>
+              {formatGrade(boulderAngle.grade.rank)}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.ungradedBadge}>
+            <Text style={styles.ungradedText}>Not graded</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaData}>{boulder.angle.valueDegrees}°</Text>
+        <Text style={styles.metaData}>{project.angle.valueDegrees}°</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.metaData}>
           {attemptsCount} {attemptsCount === 1 ? 'attempt' : 'attempts'}
         </Text>
       </View>
+    </View>
+  );
+}
+
+// Même recette que ProjectCard, sans le compteur d'essais : un favori dit
+// seulement « ce bloc m'intéresse ». La cotation est celle de l'inclinaison
+// du like ; non cotée, la carte le dit plutôt que d'afficher celle du créateur.
+function LikedCard({ boulder }: { boulder: BoulderLiked }) {
+  const formatGrade = useGradeLabel();
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {boulder.name}
+        </Text>
+        {boulder.gradeRank !== null ? (
+          <View style={styles.gradeBadge}>
+            <Text style={styles.gradeText}>
+              {formatGrade(boulder.gradeRank)}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.ungradedBadge}>
+            <Text style={styles.ungradedText}>Not graded</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.metaData}>{boulder.angleDegrees}°</Text>
     </View>
   );
 }
@@ -252,6 +376,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  fill: {
+    flex: 1,
+  },
+  // Place pour le bouton flottant : la dernière carte doit pouvoir remonter
+  // au-dessus de lui, sinon il en masque le bas.
+  listContentFab: {
+    paddingBottom: FAB_SIZE + spacing.xxl,
+  },
+  fab: {
+    position: 'absolute',
+    right: spacing.lg,
+    bottom: spacing.lg,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.card,
+  },
+  fabPressed: {
+    backgroundColor: colors.primaryPressed,
   },
   centered: {
     flex: 1,
@@ -318,6 +465,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.heading,
     fontSize: typography.size.sm,
     color: colors.primary,
+  },
+  // Neutre, comme « Not graded yet » du détail : une absence d'information,
+  // pas une alerte.
+  ungradedBadge: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  ungradedText: {
+    fontFamily: typography.family.data,
+    fontSize: typography.size.xs,
+    color: colors.textSubtle,
   },
   metaRow: {
     flexDirection: 'row',

@@ -7,7 +7,7 @@ module.exports = defineConfig([
   expoConfig,
   eslintPluginPrettierRecommended,
   {
-    ignores: ['dist/*', 'expo-env.d.ts', 'lib/vendor/*'],
+    ignores: ['dist/*', 'expo-env.d.ts'],
   },
   {
     rules: {

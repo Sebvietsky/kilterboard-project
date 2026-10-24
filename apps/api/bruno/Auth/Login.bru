@@ -1,0 +1,33 @@
+meta {
+  name: Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "identifier": "{{identifier}}",
+    "password": "{{password}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("accessToken", res.body.accessToken.token);
+    bru.setEnvVar("refreshToken", res.body.refreshToken.token);
+  }
+}
+
+tests {
+  test("200 et deux tokens", () => {
+    expect(res.status).to.equal(200);
+    expect(res.body.accessToken.token).to.be.a("string");
+    expect(res.body.refreshToken.token).to.be.a("string");
+  });
+}

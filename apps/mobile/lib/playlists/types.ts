@@ -11,3 +11,38 @@ export interface PlaylistSummary {
   boulderCount: number;
   createdAt: string; // string JSON, PAS Date
 }
+
+// Playlist vue depuis un bloc (GET /playlists/me?boulderId=…) : le serveur
+// ajoute `containsBoulder`. Type distinct plutôt qu'un champ optionnel sur
+// PlaylistSummary : ici il est toujours présent, et l'écran n'a pas à traiter
+// un `undefined` qui ne peut pas arriver.
+export type PlaylistForBoulder = PlaylistSummary & {
+  containsBoulder: boolean;
+};
+
+// Réponse de POST /playlists.
+export type CreatedPlaylist = {
+  id: number;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  createdAt: string;
+};
+
+// Aligné sur PlaylistDetailDto (GET /playlists/:id). Le bloc y est aplati :
+// `gradeRank` et `angleDegrees` sont au premier niveau, pas sous `grade`/`angle`
+// comme dans les réponses d'ascension. `angleDegrees` est celle de l'entrée :
+// le même bloc peut figurer deux fois, à deux inclinaisons.
+export type PlaylistDetail = PlaylistSummary & {
+  boulders: {
+    position: number | null;
+    addedAt: string;
+    boulder: {
+      id: number;
+      name: string;
+      // Cotation à l'inclinaison de l'entrée, `null` quand elle n'est pas cotée.
+      gradeRank: number | null;
+      angleDegrees: number;
+    };
+  }[];
+};

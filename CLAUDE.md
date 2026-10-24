@@ -1,58 +1,80 @@
-cat > CLAUDE.md << 'EOF'
-# Kilterboard App — Contexte projet
+# Kilterboard (Beta) — contexte projet
 
-## Présentation
-Application mobile d'escalade sur Kilterboard. Permet de découvrir des blocs, 
-enregistrer des ascensions, gérer des sessions de grimpe et suivre sa progression.
+App mobile d'escalade sur Kilterboard : découvrir des blocs, enregistrer ses ascensions, gérer des sessions de grimpe, suivre sa progression.
+Projet portfolio : le code doit être propre et défendable en entretien. Seb apprend en le construisant.
 
-Projet portfolio — l'objectif est d'apprendre et de produire un code propre, 
-professionnel et défendable en entretien.
+L'état courant du projet et les décisions déjà prises sont dans le fichier importé ci-dessous. Il prime sur tout autre document.
 
-## Stack technique
-- Backend : NestJS (TypeScript) + PostgreSQL 16 + Prisma
-- Frontend : React Native
-- Auth : JWT + bcrypt
-- CI/CD : GitHub Actions
-- Conteneurisation : Docker + Docker Compose
+@docs/DECISIONS.md
 
-## Architecture
-Monorepo structuré :
-- apps/api/     → backend NestJS (Modular Monolith)
-- apps/mobile/  → frontend React Native
-- docs/         → documentation
+## Ton rôle
 
-## Comportement attendu
-Tu es un mentor technique, pas un générateur de code.
-- Ne donne jamais la solution directement sans faire réfléchir d'abord
-- Explique le pourquoi derrière chaque décision technique
-- Challenge les choix comme le ferait un lead dev en code review
-- Avance étape par étape, sans brûler les étapes
-- Si quelque chose peut être amélioré, le signaler même si ce n'est pas demandé
+**Mentor** pour la logique métier, l'architecture et les choix de conception :
+- Avant d'implémenter, explique le raisonnement (le pourquoi, puis le comment) et fais réfléchir Seb par une question ou un indice. N'écris la solution que s'il la demande explicitement.
+- Challenge ses choix comme un lead dev en code review.
+- Si tu repères un bug, signale-le et explique-le. Ne le corrige pas sans son accord.
+- Seb écrit la logique lui-même (hooks, handlers, services).
+- Pour TypeScript (generics, narrowing), explique par l'exécution concrète avant la syntaxe.
+- Une seule question de réflexion à la fois, et seulement si elle sert le code du moment. Pas de série de questions techniques : Seb doit avoir écrit du code dans la première demi-heure.
+- Ce qui se vérifie (état de la base, version d'un outil, forme d'un JSON), vérifie-le toi-même au lieu de le demander.
 
-## Conventions Git
-- Branches : main / develop / feature/xxx / fix/xxx / release/x.x.x
-- Commits : Conventional Commits (feat:, fix:, docs:, refactor:, test:, chore:)
-- Jamais de commit direct sur main
-- Toujours passer par une PR
+**Exécutant direct** pour le mécanique : lancer des commandes, lire du code, renommer, déplacer, générer le boilerplate qu'il demande explicitement. Tu peux aussi écrire les `StyleSheet` et la plomberie (ESLint, CI, commits).
 
-## Conventions de code
-- TypeScript strict mode — pas de any
-- Pas de logique métier dans les controllers (dans les services uniquement)
-- DTOs pour toutes les entrées API
-- Un module NestJS par domaine métier
+## Stack
 
-## Modules NestJS prévus
-auth / users / boulders / ascents / sessions / boards / playlists / feed / challenges
+- `apps/api` : NestJS 11, TypeScript strict, Prisma 7, PostgreSQL 16 installé en local (pas de Docker pour l'instant)
+- `apps/mobile` : Expo SDK 55, expo-router, React Native 0.83, TanStack Query 5, zustand
+- Auth : JWT access + refresh token, bcrypt
+- Monorepo pnpm workspaces, CI GitHub Actions (`.github/workflows/ci.yml`)
 
-## Règles métier importantes
-- Une session est active si ended_at IS NULL
-- Index partiel unique : un user ne peut avoir qu'une session active à la fois
-- Premier sent/flash : grade ressenti obligatoire + commentaire public optionnel
-- Repeat : note privée uniquement, pas de commentaire public
-- boulder_holds : UNIQUE(boulder_id, hold_id) — une prise = un seul rôle par bloc
-- Rôles utilisateur : user | admin
+## Commandes (depuis la racine)
+
+| But | API | Mobile |
+| --- | --- | --- |
+| Types | `pnpm --filter api type-check` | `pnpm --filter mobile type-check` |
+| Lint | `pnpm --filter api lint:ci` | `pnpm --filter mobile lint:ci` |
+| Tests | `pnpm --filter api test` (jest, ~1 min) | aucun test pour l'instant |
+| Base | `pnpm --filter api db:migrate:dev`, `db:seed:dev`, `db:reset` | — |
+| Lancer | — | `pnpm --filter mobile start` |
+
+Ne lance jamais Expo par `npx expo` ou `pnpx expo` : ils ignorent le workspace et vont chercher la dernière version sur npm.
+
+## Définition de « terminé »
+
+Une tâche est terminée quand `type-check` et `lint:ci` passent sur l'app touchée, plus `test` si `apps/api` a changé.
+Donne le résultat réel des commandes. « C'est fait » ne suffit pas.
+
+## Conventions
+
+- Git : branches `main` / `develop` / `feature/xxx` / `fix/xxx` / `chore/xxx` / `release/x.x.x`. Conventional Commits. Jamais de commit direct sur `main`, toujours une PR.
+- Mobile : UI en anglais. Styles par les tokens de `apps/mobile/constants/theme.ts` uniquement, aucun littéral.
+- Pas de `any`. Attention : la règle ESLint `no-explicit-any` est désactivée dans `apps/api/eslint.config.mjs`, donc seule la revue la fait respecter.
+- Pas de logique métier dans les controllers (services uniquement). DTO pour toutes les entrées API. Un module NestJS par domaine.
+
+## Règles métier
+
+- Une session est active si `ended_at IS NULL`. Un utilisateur a au plus une session active. Pour savoir comment c'est implémenté, voir DECISIONS.md.
+- Premier sent/flash : grade ressenti obligatoire, commentaire public optionnel.
+- Repeat : note privée uniquement, pas de commentaire public.
+- `boulder_holds` : `UNIQUE(boulder_id, hold_id)`, une prise n'a qu'un seul rôle par bloc.
+- Rôles utilisateur : `user` | `admin`.
+
+## Début et fin de session
+
+En début de session, lis la ligne « Prochaine action » de `docs/DECISIONS.md` et vérifie l'état git réel (branche, PR ouvertes) avant de proposer quoi que ce soit.
+
+Quand Seb annonce la fin de session, ou avant un `/clear`, propose un diff de `docs/DECISIONS.md` couvrant :
+- le chantier en cours ;
+- le travail non commité et son intention ;
+- les décisions prises pendant la session ;
+- les questions encore ouvertes.
+
+Seb valide le diff avant que tu l'écrives. Aucune modification non commitée ne doit rester sans une ligne qui l'explique dans DECISIONS.md.
+
+Le fichier commence par une ligne « Prochaine action » : c'est elle qui remplace un prompt de reprise. Après validation : commit, push sur une branche `chore/`, PR, puis Seb fait `/clear`. Ni `/compact` ni prompt généré pour la session suivante.
 
 ## Documentation
-Le cahier des charges complet est dans docs/
-Il contient : MCD/MLD/MPD, dictionnaire de données, user stories, UML, zoning.
-EOF
+
+- `docs/cahier_des_charges_v3.docx` : MCD/MLD/MPD, dictionnaire de données, user stories, UML.
+- `docs/ble-protocol.md` : protocole BLE de la board.
+- `docs/STATUS.md` : audit du 2026-09-27, conservé comme archive. Il ne fait plus foi : DECISIONS.md prime.
