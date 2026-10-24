@@ -118,6 +118,12 @@ d'API :
 
 Un message qui tient dans un seul paquet utilise donc `only`, pas `first`.
 
+**Vérifié sur une vraie board le 2026-10-23** (API 3) : `only` (5 prises), et
+un message de 97 prises en deux paquets `first` (84 prises) puis `last` (13),
+découpé en 16 morceaux de 20 octets : les 97 prises s'allument. `middle` n'a
+pas été essayé (il faut plus de 168 prises). Encodeur :
+`apps/mobile/lib/board/protocol.ts`.
+
 Suit une **suite de groupes de prises**, un groupe par LED à allumer.
 
 ### API level 2 — groupe de 2 octets

@@ -48,7 +48,14 @@ Essai fait le 2026-10-23.
 | Turn off éteint la board | Oui, tout s'éteint. |
 | Erreurs du journal (capture d'écran) | Aucune. Paquet décodé : somme de contrôle juste (`0x36`), LED 33, 0, 68, 476 et 260. Une déconnexion venait d'un autre téléphone. |
 
-- La board apparaissait deux fois au premier scan ; un seul appareil au second. Pas de second contrôleur.
+- La board apparaissait deux fois au premier scan ; un seul appareil au second. Expliqué par la suite (ci-dessous) : ce sont deux identités Bluetooth.
+
+## Suite du 2026-10-23 : vraie connexion (`feature/ble-connection`)
+
+- **Plusieurs identités Bluetooth.** Autour d'une connexion (la sienne ou celle d'un autre grimpeur), la board s'annonce sous un second identifiant, en même temps que le premier, avec un signal voisin (-77 et -83 dBm). Les identités de passage disparaissent en moins de 2 minutes ; il reste alors une identité stable. Réponse de l'app : une ligne par série, et Connect essaie chaque identifiant dans l'ordre du scan, 8 s chacun.
+- **Connexion pendant qu'un autre grimpeur est connecté : possible.** Hypothèse non vérifiée : une connexion par identité. Contredit « une seule connexion à la fois » (étape 1 ci-dessus), qui reste la consigne prudente pendant un essai.
+- **Plusieurs paquets validés** : logo de 97 prises, en deux paquets (`first`, `last`), entièrement allumé. Dessins de test : Element x Millet (39 prises), logo Element v1 (80) et v2 (97), dans l'écran d'essai.
+- **Non testé** : une identité qui accepterait la connexion sans rien allumer. À faire, board libre : se connecter à chaque identité tour à tour et envoyer un motif.
 
 ## Ce que chaque résultat décide
 
