@@ -25,6 +25,14 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import { useFonts } from 'expo-font';
 import { useEffect, useState } from 'react';
+import { BleManagerContext } from '@/lib/board/BleManagerContext';
+import { createBleConnection } from '@/lib/board/bleConnection';
+import { createLazyBleManager } from '@/lib/board/lazyBleManager';
+import { createSimulatedConnection } from '@/lib/board/simulatedConnection';
+import {
+  IS_SIMULATED_CONNECTION,
+  useBoardStore,
+} from '@/lib/board/useBoardStore';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -75,18 +83,41 @@ export default function RootLayout() {
   // invalidations partaient alors dans un cache vide et plus rien ne se
   // mettait à jour. Le state, lui, survit au rechargement.
   const [queryClient] = useState(createQueryClient);
+  // Même raison pour le BleManager, avec une contrainte de plus : ble-plx
+  // n'en accepte qu'un par app. Un second, recréé par un rechargement, se
+  // disputerait la radio avec le premier. Le state garde le conteneur, et le
+  // manager n'y démarre qu'au premier scan (sinon iOS alerte à chaque
+  // lancement quand le Bluetooth est coupé). Jamais détruit : RootLayout vit
+  // aussi longtemps que l'app.
+  const [bleManager] = useState(() =>
+    IS_SIMULATED_CONNECTION ? null : createLazyBleManager(),
+  );
+
+  // La connexion est remise au store, qui ne connaît que l'interface
+  // `BoardConnection` : réelle ou simulée, l'interface ne change pas.
+  useEffect(() => {
+    useBoardStore
+      .getState()
+      .setConnection(
+        bleManager
+          ? createBleConnection(bleManager)
+          : createSimulatedConnection(),
+      );
+  }, [bleManager]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SafeAreaProvider>
-          <StatusBar style="dark" />
-          <RootNavigation />
-          {/* Après la navigation : rendu en dernier, donc au-dessus de tous
+      <BleManagerContext value={bleManager}>
+        <AuthProvider>
+          <SafeAreaProvider>
+            <StatusBar style="dark" />
+            <RootNavigation />
+            {/* Après la navigation : rendu en dernier, donc au-dessus de tous
               les écrans, quel que soit celui qui déclenche le toast. */}
-          <ToastHost />
-        </SafeAreaProvider>
-      </AuthProvider>
+            <ToastHost />
+          </SafeAreaProvider>
+        </AuthProvider>
+      </BleManagerContext>
     </QueryClientProvider>
   );
 }

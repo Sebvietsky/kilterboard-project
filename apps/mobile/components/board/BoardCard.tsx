@@ -179,7 +179,7 @@ function BoardList({
   return (
     <View style={styles.list}>
       {boards.map((board) => (
-        <View key={board.id} style={styles.boardRow}>
+        <View key={board.key} style={styles.boardRow}>
           <BoardIdentity board={board} />
           <SignalIcon rssi={board.rssi} />
           <Pressable

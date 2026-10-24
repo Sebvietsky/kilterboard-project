@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createSimulatedConnection } from './simulatedConnection';
+import { mergeBoard } from './mergeBoard';
 import {
   BluetoothUnavailableError,
   type BoardConnection,
@@ -9,15 +9,18 @@ import {
 
 const SCAN_DURATION_MS = 10_000;
 
-// Simulée tant que l'essai en salle n'a pas validé le protocole
-// (docs/notes/ble-essai-salle.md). La vraie connexion remplacera cette ligne.
-const connection: BoardConnection = createSimulatedConnection();
-// Affiché sur la carte : les boards simulées ne doivent pas passer pour des
-// vraies.
-export const IS_SIMULATED_CONNECTION = true;
+// Connexion simulée avec `EXPO_PUBLIC_BOARD_SIMULATED=1` dans `.env` :
+// développer l'interface sans board. Affiché sur la carte (« Demo ») : les
+// boards simulées ne doivent pas passer pour des vraies.
+export const IS_SIMULATED_CONNECTION =
+  process.env.EXPO_PUBLIC_BOARD_SIMULATED === '1';
 
 type BoardStore = {
   state: BoardConnectionState;
+  // Injectée par RootLayout, qui possède le BleManager (un seul par app).
+  // `null` avant son premier effet : les actions ne font alors rien.
+  connection: BoardConnection | null;
+  setConnection: (connection: BoardConnection | null) => void;
   scan: () => Promise<void>;
   connect: (board: DiscoveredBoard) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -32,9 +35,13 @@ function errorMessage(error: unknown): string {
 // allumer ses prises.
 export const useBoardStore = create<BoardStore>((set, get) => ({
   state: { status: 'idle' },
+  connection: null,
+
+  setConnection: (connection) => set({ connection }),
 
   scan: async () => {
-    const { state } = get();
+    const { state, connection } = get();
+    if (!connection) return;
     if (state.status === 'scanning' || state.status === 'connected') return;
 
     set({ state: { status: 'scanning', boards: [] } });
@@ -44,10 +51,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         // Une board découverte après un Connect n'a plus d'écran où
         // s'afficher.
         if (current.status !== 'scanning') return;
-        if (current.boards.some(({ id }) => id === board.id)) return;
-        set({
-          state: { status: 'scanning', boards: [...current.boards, board] },
-        });
+        const boards = mergeBoard(current.boards, board);
+        if (boards === current.boards) return;
+        set({ state: { status: 'scanning', boards } });
       }, SCAN_DURATION_MS);
     } catch (error) {
       set({
@@ -68,6 +74,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
 
   connect: async (board) => {
+    const { connection } = get();
+    if (!connection) return;
     await connection.stopScan();
     set({ state: { status: 'connecting', board } });
     try {
@@ -81,7 +89,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
 
   disconnect: async () => {
-    await connection.disconnect();
+    await get().connection?.disconnect();
     set({ state: { status: 'idle' } });
   },
 }));

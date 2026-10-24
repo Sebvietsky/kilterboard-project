@@ -33,9 +33,11 @@ export function createSimulatedConnection(): BoardConnection {
       return new Promise((resolve) => {
         endScan = resolve;
         FAKE_BOARDS.forEach(({ id, advertisedName, rssi }, index) => {
+          const parsed = parseBoardName(advertisedName);
           const board: DiscoveredBoard = {
-            id,
-            ...parseBoardName(advertisedName),
+            key: parsed.serial ?? id,
+            deviceIds: [id],
+            ...parsed,
             rssi,
           };
           scanTimers.push(
