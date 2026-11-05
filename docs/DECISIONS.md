@@ -5,15 +5,16 @@ En fin de session, l'agent propose un diff de ce fichier et Seb le valide avant 
 Garder le fichier court : une ligne par fait, avec une date pour chaque décision.
 Le détail de conception vit dans `docs/notes/` (non importé) : lire la note du sujet avant d'y travailler.
 
-Dernière mise à jour : 2026-10-24
+Dernière mise à jour : 2026-11-05
 
 ## Chantier en cours
 
-**Prochaine action :** fusionner #86 (vraie connexion BLE) si la CI passe. Puis migration du schéma des prises (choix B, Seb écrit le schéma) et import du catalogue pour la taille 10. L'app installée expire vers le 2026-10-27 : recompiler avant (`docs/notes/expo-dev-build.md`).
+**Prochaine action :** migration du schéma des prises (choix B, Seb écrit le schéma) et import du catalogue pour la taille 10 (#86 fusionnée). Recompiler l'app avant de s'en servir (`docs/notes/expo-dev-build.md`).
 
-- Fusionnés du 2026-10-21 au 2026-10-23 : décisions du 2026-10-20 (#79), timeout et écran hors ligne (#80), inclinaison des passages (#81), historique des ascensions (#82), échelle de cotation (#83), curseur des filtres (#84), essai BLE en salle (#85). Ouverte : #86, vraie connexion BLE. Le 2026-10-20 : development build iOS et Expo SDK 58 (#77), décisions du 2026-10-19 (#78). Le 2026-10-15 : cotation communautaire (#70), protocole et audit des tests (#72), correctifs B1, B2, B3, B5, B7 (#73, arrivés dans `develop` avec #72), suite de l'audit (#74), favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
+- Fusionnée le 2026-10-24 : vraie connexion BLE (#86). Du 2026-10-21 au 2026-10-23 : décisions du 2026-10-20 (#79), timeout et écran hors ligne (#80), inclinaison des passages (#81), historique des ascensions (#82), échelle de cotation (#83), curseur des filtres (#84), essai BLE en salle (#85). Le 2026-10-20 : development build iOS et Expo SDK 58 (#77), décisions du 2026-10-19 (#78). Le 2026-10-15 : cotation communautaire (#70), protocole et audit des tests (#72), correctifs B1, B2, B3, B5, B7 (#73, arrivés dans `develop` avec #72), suite de l'audit (#74), favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
 - Chantier BLE : essai en salle fait (#85, `docs/notes/ble-essai-salle.md`), vraie connexion faite (#86). Reste, dans l'ordre : migration du schéma des prises (choix B ci-dessous) et import du catalogue (taille 10), réécriture de `seed.ts`, bouton ampoule, création de bloc, puis encart de signalement de bug.
 - Audit des tests du 2026-10-15 : 10 écarts (B1 à B10), tous corrigés (#73, #74). Matrice règle → tests : `docs/notes/api-tests-matrice.md`, à tenir à jour dans chaque PR qui touche une règle.
+- Nicolas teste l'app depuis le 2026-10-24 : build Release sur son iPhone, API du Mac exposée par ngrok. Marche à suivre et renouvellement : `docs/notes/partage-ami.md`. Installée le 2026-10-24, donc expirée depuis le 2026-10-31.
 - Base locale remise à zéro le 2026-10-21 pour la table des cotations (#83), puis reseedée, vérifiée en lecture seule : 24 cotations, votes 86/86.
 - Mis de côté le temps du BLE (2026-10-17) : étape 3 (Explore, conception : `docs/notes/boulder-angle.md`), pagination, stats du bloc, `refresh` en 200, « déconnecter tous les appareils », e2e, série sur le détail du profil.
 - Lancer l'app : `pnpm --filter api start:dev`, `pnpm --filter mobile start` (`--clear` après un changement de dépendances ou de `.env`), puis ouvrir KilterBoard sur l'iPhone. Sans board : `EXPO_PUBLIC_BOARD_SIMULATED=1` dans `apps/mobile/.env`. En salle : partage de connexion de l'iPhone, IP du Mac dans `.env`, à remettre à la maison. Mode développeur activé en permanence. Signature gratuite : l'app expire au bout de 7 jours, recompiler (`docs/notes/expo-dev-build.md`).
@@ -128,6 +129,7 @@ Général
 - **2026-10-20 · Les deux sets dans le modèle** (Bolt Ons et Screw Ons) : la board de Seb a les deux.
 - **2026-10-20 · Catalogue Kilter : filtrer toujours sur `board_type = 'kilter'`.** Les ids (trous, tailles) se répètent d'une marque à l'autre.
 - **2026-10-20 · Couleur LED du start : `00FF00`** (`led_color`), et non `00DD00` (`screen_color`). `docs/ble-protocol.md` corrigé.
+- **2026-10-24 · Partage à un ami : build Release et tunnel ngrok à domaine fixe**, l'API restant sur le Mac. Écartés pour l'instant : TestFlight (compte payant) et hébergement de l'API (une demi-journée).
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
@@ -170,6 +172,8 @@ Général
 - Compteur « Ascents » du profil : pas rafraîchi après un log (seulement en tirant l'écran). Pour la série sur le profil.
 - `.npmrc` : `shamefully-hoist=true` n'a plus d'effet sous pnpm 11. Le supprimer ?
 - `pnpm-workspace.yaml` : exclusions de `minimumReleaseAge` pour les paquets Expo 58 (versions exactes). À retirer quand ces versions auront l'âge requis ?
+- Héberger l'API et la base (Railway, Render, Neon…) pour ne plus dépendre du Mac allumé : à décider si d'autres testeurs arrivent.
+- Changer le mot de passe de `kilter_admin` et régénérer l'authtoken ngrok (exposition le 2026-10-24).
 
 - Dates en base : celles écrites par Prisma sont décalées de 2 h par rapport à `now()` en SQL (PostgreSQL en `Europe/Paris`). L'API est cohérente avec elle-même ; toute requête SQL à la main qui compare avec `now()` est fausse. Cause et impact à vérifier.
 - Explore sans filtre d'inclinaison : une carte par bloc, ou une carte par couple coté (bloc, inclinaison) ? La règle « envois seulement » ne tranche que le cas filtré.
