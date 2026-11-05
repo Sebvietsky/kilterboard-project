@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { HoldRole, PrismaClient } from '../src/generated/prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ensureBoulderAngles } from './seed-utils';
+import { KILTER_LAYOUT_NAME } from './import-catalog';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
@@ -80,45 +81,13 @@ async function main() {
 
   console.log(`✅ ${grades.length} grades seeded`);
 
-  console.log('Seeding board layout...');
-
-  const kilterboardLayout = await prisma.boardLayout.upsert({
-    where: { name: 'Kilterboard Original 12x12' },
-    update: {},
-    create: {
-      name: 'Kilterboard Original 12x12',
-      manufacturer: 'Kilter Grips',
-      width: 12,
-      height: 12,
-      description: 'Standard Kilterboard layout used worldwide',
-    },
+  // Le layout et ses prises viennent du catalogue Kilter (`db:import-catalog`).
+  const kilterboardLayout = await prisma.boardLayout.findUnique({
+    where: { name: KILTER_LAYOUT_NAME },
   });
-  console.log(`✅ Board layout seeded: ${kilterboardLayout.name}`);
-
-  console.log('Seeding holds...');
-
-  const COLUMNS = 'ABCDEFGHIJKL'; // 12 colonnes
-  const ROWS = 12;
-
-  const holdsData = [];
-  for (let col = 0; col < COLUMNS.length; col++) {
-    for (let row = 1; row <= ROWS; row++) {
-      const holdCode = `${COLUMNS[col]}${row}`;
-      holdsData.push({
-        layoutId: kilterboardLayout.id,
-        holdCode,
-        x: col + 1,
-        y: row,
-      });
-    }
+  if (!kilterboardLayout) {
+    throw new Error('Run pnpm --filter api db:import-catalog first');
   }
-
-  await prisma.hold.createMany({
-    data: holdsData,
-    skipDuplicates: true,
-  });
-
-  console.log(`✅ ${holdsData.length} holds seeded`);
 
   console.log('Seeding admin user...');
   const adminPassword = await bcrypt.hash('Admin123!@#1', 10);
@@ -157,7 +126,13 @@ async function main() {
   const holds = await prisma.hold.findMany({
     where: { layoutId: kilterboardLayout.id },
   });
-  const getHold = (code: string) => holds.find((h) => h.holdCode === code)!;
+  // Codes = noms Kilter des trous (« colonne,rangée », KB pour le kickboard),
+  // tous dans le cadre de la 12 x 12 with kickboard.
+  const getHold = (code: string) => {
+    const hold = holds.find((h) => h.holdCode === code);
+    if (!hold) throw new Error(`Hold ${code} not in catalog`);
+    return hold;
+  };
   const angle40 = await prisma.angle.findUnique({
     where: { valueDegrees: 40 },
   });
@@ -178,14 +153,14 @@ async function main() {
       gradeId: gradeV7!.id,
       angleId: angle40!.id,
       holds: [
-        { code: 'A1', role: 'START' },
-        { code: 'B3', role: 'START' },
-        { code: 'C5', role: 'HAND' },
-        { code: 'D6', role: 'HAND' },
-        { code: 'E8', role: 'HAND' },
-        { code: 'F10', role: 'FINISH' },
-        { code: 'A2', role: 'FOOT' },
-        { code: 'B4', role: 'FOOT' },
+        { code: '16,13', role: 'START' },
+        { code: '20,13', role: 'START' },
+        { code: '12,23', role: 'HAND' },
+        { code: '24,23', role: 'HAND' },
+        { code: '18,31', role: 'HAND' },
+        { code: '18,35', role: 'FINISH' },
+        { code: '14,KB2', role: 'FOOT' },
+        { code: '22,KB2', role: 'FOOT' },
       ],
       tags: ['dyno', 'power'],
     },
@@ -195,14 +170,14 @@ async function main() {
       gradeId: gradeV5!.id,
       angleId: angle30!.id,
       holds: [
-        { code: 'C2', role: 'START' },
-        { code: 'D2', role: 'START' },
-        { code: 'E4', role: 'HAND' },
-        { code: 'F6', role: 'HAND' },
-        { code: 'G8', role: 'HAND' },
-        { code: 'H9', role: 'FINISH' },
-        { code: 'C3', role: 'FOOT' },
-        { code: 'D5', role: 'FOOT' },
+        { code: '6,13', role: 'START' },
+        { code: '10,13', role: 'START' },
+        { code: '13,22', role: 'HAND' },
+        { code: '8,23', role: 'HAND' },
+        { code: '12,31', role: 'HAND' },
+        { code: '10,35', role: 'FINISH' },
+        { code: '5,KB1', role: 'FOOT' },
+        { code: '9,14', role: 'FOOT' },
       ],
       tags: ['technical', 'crimp'],
     },
@@ -212,12 +187,12 @@ async function main() {
       gradeId: gradeV3!.id,
       angleId: angle30!.id,
       holds: [
-        { code: 'B2', role: 'START' },
-        { code: 'C2', role: 'START' },
-        { code: 'D4', role: 'HAND' },
-        { code: 'E5', role: 'HAND' },
-        { code: 'F7', role: 'FINISH' },
-        { code: 'B3', role: 'FOOT' },
+        { code: '26,13', role: 'START' },
+        { code: '30,13', role: 'START' },
+        { code: '28,23', role: 'HAND' },
+        { code: '32,31', role: 'HAND' },
+        { code: '30,35', role: 'FINISH' },
+        { code: '27,KB1', role: 'FOOT' },
       ],
       tags: ['compression'],
     },
