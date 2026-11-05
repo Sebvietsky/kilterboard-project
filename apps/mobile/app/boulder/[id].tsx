@@ -19,6 +19,7 @@ import {
 } from '@/constants/theme';
 import { ChevronDown } from 'lucide-react-native';
 import { BoardLED } from '@/components/BoardLED';
+import { useDefaultBoardSize } from '@/lib/boardSizes/queries';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
 import { ANGLES } from '@/lib/filters/const';
@@ -75,6 +76,7 @@ export default function BoulderDetailScreen() {
   }>();
   const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
+  const boardSize = useDefaultBoardSize();
   const myAscents = useMyAscentsOnBoulder(boulderId);
   const formatGrade = useGradeLabel();
   const logAscent = useLogAscent();
@@ -338,7 +340,7 @@ export default function BoulderDetailScreen() {
         </View>
       </View>
 
-      <BoardLED holds={detail.holds} />
+      <BoardLED size={boardSize.data} holds={detail.holds} />
 
       <View style={styles.statsCard}>
         <View style={styles.statCol}>
