@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
-import { boulderHref } from '@/lib/boulders/href';
+import { boulderBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useRef, useState } from 'react';
@@ -65,6 +65,7 @@ const TITLE_HEIGHT_FALLBACK =
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
@@ -194,7 +195,12 @@ export default function ExploreScreen() {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+            onPress={() =>
+              openBoulder(
+                (boulders ?? []).map(boulderBrowseItem),
+                boulderBrowseItem(item),
+              )
+            }
           >
             <BoulderCard item={item} />
           </Pressable>

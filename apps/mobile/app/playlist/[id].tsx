@@ -20,7 +20,7 @@ import {
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import type { PlaylistDetail } from '@/lib/playlists/types';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { boulderHref } from '@/lib/boulders/href';
+import { useOpenBoulder } from '@/lib/boulders/browse';
 import { ApiError } from '@/lib/api/errors';
 import { plural } from '@/lib/format/plural';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
@@ -31,6 +31,7 @@ type PlaylistItem = PlaylistDetail['boulders'][number];
 
 export default function PlaylistDetailScreen() {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const playlistId = Number(id);
@@ -137,8 +138,15 @@ export default function PlaylistDetailScreen() {
         renderItem={({ item }) => (
           <Pressable
             onPress={() =>
-              router.push(
-                boulderHref(item.boulder.id, item.boulder.angleDegrees),
+              openBoulder(
+                data.boulders.map((entry) => ({
+                  boulderId: entry.boulder.id,
+                  angleDegrees: entry.boulder.angleDegrees,
+                })),
+                {
+                  boulderId: item.boulder.id,
+                  angleDegrees: item.boulder.angleDegrees,
+                },
               )
             }
           >

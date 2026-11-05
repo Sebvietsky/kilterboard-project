@@ -22,6 +22,7 @@ import { BoardLED } from '@/components/BoardLED';
 import { useDefaultBoardSize } from '@/lib/boardSizes/queries';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { BoulderPager } from '@/components/boulder/BoulderPager';
 import { ANGLES } from '@/lib/filters/const';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import {
@@ -61,7 +62,34 @@ const LOGGED_MESSAGE: Record<AscentStatus, string> = {
   PROJECT: 'Project started',
 };
 
-export default function BoulderDetailScreen() {
+// Une page par bloc de la liste d'où l'on vient : le swipe passe au voisin.
+// Chaque page a son propre état, le formulaire de log ne suit donc pas d'un
+// bloc à l'autre.
+export default function BoulderDetailRoute() {
+  const { id, angle } = useLocalSearchParams<{ id: string; angle?: string }>();
+  return (
+    <BoulderPager
+      opened={{ boulderId: Number(id), angleDegrees: Number(angle) }}
+      renderPage={(item) => (
+        <BoulderDetailScreen
+          boulderId={item.boulderId}
+          // Hors d'une liste, l'inclinaison reste celle du lien, même absente.
+          angleParam={
+            Number.isNaN(item.angleDegrees) ? angle : String(item.angleDegrees)
+          }
+        />
+      )}
+    />
+  );
+}
+
+function BoulderDetailScreen({
+  boulderId,
+  angleParam,
+}: {
+  boulderId: number;
+  angleParam: string | undefined;
+}) {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
   const [projectMode, setProjectMode] = useState<ProjectMode>('in-project');
   const [attempts, setAttempts] = useState(1);
@@ -70,11 +98,6 @@ export default function BoulderDetailScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [rating, setRating] = useState<number>();
 
-  const { id, angle: angleParam } = useLocalSearchParams<{
-    id: string;
-    angle?: string;
-  }>();
-  const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const boardSize = useDefaultBoardSize();
   const myAscents = useMyAscentsOnBoulder(boulderId);

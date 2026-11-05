@@ -16,7 +16,11 @@ import { useMyProjects } from '@/lib/ascents/queries';
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { useMyPlaylists } from '@/lib/playlists/queries';
 import { useMyLikedBoulders } from '@/lib/boulders/queries';
-import { boulderHref } from '@/lib/boulders/href';
+import {
+  ascentBrowseItem,
+  boulderBrowseItem,
+  useOpenBoulder,
+} from '@/lib/boulders/browse';
 import type { MyProject } from '@/lib/ascents/types';
 import type { PlaylistSummary } from '@/lib/playlists/types';
 import type { BoulderLiked } from '@/lib/boulders/types';
@@ -67,7 +71,7 @@ export default function LibraryScreen() {
 }
 
 function ProjectsList() {
-  const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const projects = useMyProjects();
 
   return (
@@ -85,7 +89,10 @@ function ProjectsList() {
           // l'ascension.
           <Pressable
             onPress={() =>
-              router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+              openBoulder(
+                (projects.data ?? []).map(ascentBrowseItem),
+                ascentBrowseItem(item),
+              )
             }
           >
             <ProjectCard project={item} />
@@ -162,7 +169,7 @@ function PlaylistsList() {
 }
 
 function LikedList() {
-  const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const liked = useMyLikedBoulders();
 
   return (
@@ -178,7 +185,12 @@ function LikedList() {
         keyExtractor={(item) => `${item.id}-${item.angleDegrees}`}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+            onPress={() =>
+              openBoulder(
+                (liked.data ?? []).map(boulderBrowseItem),
+                boulderBrowseItem(item),
+              )
+            }
           >
             <LikedCard boulder={item} />
           </Pressable>
