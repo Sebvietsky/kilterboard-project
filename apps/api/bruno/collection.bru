@@ -1,0 +1,30 @@
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Kilterboard API
+
+  Toutes les requêtes héritent de ce Bearer (`auth: inherit`), sauf celles
+  qui n'en ont pas besoin (`auth: none` : Register, Login, Refresh).
+
+  ## Démarrage
+  1. Environnement **Local** : renseigner `identifier` et `password`.
+  2. Lancer **Auth / Login** : son script écrit `accessToken` et
+     `refreshToken`.
+  3. Quand l'access token expire (15 min) : **Auth / Refresh**.
+
+  ## Identifiants
+  `boulderId`, `ascentId`, `playlistId`, `sessionId` et `targetUsername` ont
+  une valeur par défaut dans l'environnement. Les requêtes de création
+  (Ascents / Create, Playlists / Create, Sessions / Start) écrasent l'id
+  correspondant par celui de la ressource créée, pour enchaîner sans
+  copier-coller.
+
+  ## Rate limiting
+  Register : 3 requêtes/min. Login : 5/min. Au-delà : 429.
+}

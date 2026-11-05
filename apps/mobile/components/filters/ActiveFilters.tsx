@@ -1,6 +1,8 @@
 import { Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
-import { gradeLabel, tagLabel } from '@/lib/filters/const';
+import { tagLabel } from '@/lib/filters/const';
+import { gradeLabel } from '@/lib/grades/scale';
+import { useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { colors, spacing, typography, radii } from '@/constants/theme';
 
 // Récap des filtres actifs, sous la barre de recherche d'Explore.
@@ -16,6 +18,7 @@ export function ActiveFilters() {
   const tags = useFiltersStore((s) => s.tags);
   const setFilters = useFiltersStore((s) => s.setFilters);
   const reset = useFiltersStore((s) => s.reset);
+  const gradeSystem = useGradeSystem();
 
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
 
@@ -42,8 +45,8 @@ export function ActiveFilters() {
       key: 'grade',
       label:
         gradeMin === gradeMax
-          ? gradeLabel(gradeMin)
-          : `${gradeLabel(gradeMin)} — ${gradeLabel(gradeMax)}`,
+          ? gradeLabel(gradeMin, gradeSystem)
+          : `${gradeLabel(gradeMin, gradeSystem)} — ${gradeLabel(gradeMax, gradeSystem)}`,
       onRemove: () => setFilters({ gradeMin: undefined, gradeMax: undefined }),
     });
   }

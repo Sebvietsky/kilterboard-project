@@ -22,3 +22,13 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
+// La requête n'a pas abouti (pas de réseau, serveur éteint, timeout) : le
+// serveur n'a rien répondu, donc rien refusé. Pas de `status`, contrairement
+// à ApiError.
+export class NetworkError extends Error {
+  constructor(message = 'Couldn’t reach the server. Please try again.') {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}

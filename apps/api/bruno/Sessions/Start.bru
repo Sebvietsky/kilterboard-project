@@ -1,0 +1,28 @@
+meta {
+  name: Start
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/sessions
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Session de test"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("sessionId", res.body.id);
+  }
+}
+
+docs {
+  Champs optionnels : `boardId`, `title` (défaut : « Session du JJ/MM/AAAA »),
+  `note`. Relancer sans terminer la session : 409.
+}

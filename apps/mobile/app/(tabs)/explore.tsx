@@ -10,6 +10,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
+import { useGradeLabel } from '@/lib/grades/useGradeLabel';
+import { boulderBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useRef, useState } from 'react';
@@ -19,6 +21,8 @@ import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 import { ActiveFilters } from '@/components/filters/ActiveFilters';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
+  const formatGrade = useGradeLabel();
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -26,7 +30,7 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
           {item.name}
         </Text>
         <View style={styles.gradeBadge}>
-          <Text style={styles.gradeText}>{item.gradeLabel}</Text>
+          <Text style={styles.gradeText}>{formatGrade(item.gradeRank)}</Text>
         </View>
       </View>
 
@@ -61,6 +65,7 @@ const TITLE_HEIGHT_FALLBACK =
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
@@ -189,7 +194,14 @@ export default function ExploreScreen() {
         data={boulders}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/boulder/${item.id}`)}>
+          <Pressable
+            onPress={() =>
+              openBoulder(
+                (boulders ?? []).map(boulderBrowseItem),
+                boulderBrowseItem(item),
+              )
+            }
+          >
             <BoulderCard item={item} />
           </Pressable>
         )}
@@ -206,7 +218,7 @@ export default function ExploreScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={refetch}
+            onRefresh={() => void refetch()}
             tintColor={colors.primary}
           />
         }
@@ -223,7 +235,7 @@ export default function ExploreScreen() {
             />
           ) : !hasNextPage && boulders && boulders.length > 0 ? (
             <Text style={styles.endText}>You&apos;ve reached the end.</Text>
-          ) : null
+          ) : undefined
         }
       />
     </View>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,28 +8,41 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import RangeSlider from '@/lib/vendor/RangeSlider';
-import {
-  ANGLES,
-  TAGS,
-  GRADE_MIN_RANK,
-  GRADE_MAX_RANK,
-  gradeLabel,
-} from '@/lib/filters/const';
+import { RangeSlider } from '@/components/RangeSlider';
+import { ANGLES, TAGS } from '@/lib/filters/const';
+import { gradeSteps, type GradeStep } from '@/lib/grades/scale';
+import { useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 
+// Cran qui contient un rang du filtre enregistré. En V, un filtre posé en
+// Font (7b) retombe sur le cran qui le couvre (V8).
+function stepIndexOf(steps: GradeStep[], rank: number | undefined): number {
+  if (rank === undefined) return -1;
+  return steps.findIndex((s) => rank >= s.minRank && rank <= s.maxRank);
+}
+
+// Une demi-douzaine de repères sous le curseur, répartis sur l'échelle.
+const SCALE_MARK_COUNT = 6;
+
 export default function SearchScreen() {
   const router = useRouter();
+  // Le curseur parcourt les crans de l'échelle de l'utilisateur (24 en Font,
+  // 17 en V), et non les rangs : en V, deux rangs voisins (6a, 6a+) seraient
+  // deux positions affichées « V3 ».
+  const gradeSystem = useGradeSystem();
+  const steps = useMemo(() => gradeSteps(gradeSystem), [gradeSystem]);
+  const lastStep = steps.length - 1;
   const [creatorDraft, setCreatorDraft] = useState(
     () => useFiltersStore.getState().creator ?? '',
   );
-  const [low, setLow] = useState(
-    () => useFiltersStore.getState().gradeMin ?? GRADE_MIN_RANK,
+  const [low, setLow] = useState(() =>
+    Math.max(0, stepIndexOf(steps, useFiltersStore.getState().gradeMin)),
   );
-  const [high, setHigh] = useState(
-    () => useFiltersStore.getState().gradeMax ?? GRADE_MAX_RANK,
-  );
+  const [high, setHigh] = useState(() => {
+    const index = stepIndexOf(steps, useFiltersStore.getState().gradeMax);
+    return index === -1 ? lastStep : index;
+  });
   const [angleDraft, setAngleDraft] = useState<number | undefined>(
     () => useFiltersStore.getState().angle,
   );
@@ -49,25 +62,19 @@ export default function SearchScreen() {
   }
 
   function apply() {
-    const isFullRange = low === GRADE_MIN_RANK && high === GRADE_MAX_RANK;
+    const isFullRange = low === 0 && high === lastStep;
 
+    // Le serveur filtre par rangs : le cran bas donne son plus petit rang, le
+    // cran haut son plus grand (V3 à V5 = 6a à 6c+).
     useFiltersStore.getState().setFilters({
       creator: creatorDraft || undefined, // "" → undefined
-      gradeMin: isFullRange ? undefined : low,
-      gradeMax: isFullRange ? undefined : high,
+      gradeMin: isFullRange ? undefined : steps[low].minRank,
+      gradeMax: isFullRange ? undefined : steps[high].maxRank,
       angle: angleDraft,
       tags: tagsDraft,
     });
     router.back();
   }
-
-  // ── Render functions du slider (présentation) ────────────────────
-  const renderThumb = useCallback(() => <View style={styles.thumb} />, []);
-  const renderRail = useCallback(() => <View style={styles.rail} />, []);
-  const renderRailSelected = useCallback(
-    () => <View style={styles.railSelected} />,
-    [],
-  );
 
   return (
     <View style={styles.container}>
@@ -105,26 +112,25 @@ export default function SearchScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>GRADE RANGE</Text>
           <Text style={styles.rangeValue}>
-            {gradeLabel(low)} — {gradeLabel(high)}
+            {steps[low].label} — {steps[high].label}
           </Text>
           <RangeSlider
-            style={styles.slider}
-            min={GRADE_MIN_RANK}
-            max={GRADE_MAX_RANK}
-            step={1}
+            max={lastStep}
             low={low}
             high={high}
-            renderThumb={renderThumb}
-            renderRail={renderRail}
-            renderRailSelected={renderRailSelected}
-            onValueChanged={handleGradeChange}
+            onChange={handleGradeChange}
+            formatValue={(index) => steps[index].label}
           />
           <View style={styles.scaleRow}>
-            {['V0', 'V3', 'V6', 'V9', 'V12', 'V16'].map((l) => (
-              <Text key={l} style={styles.scaleLabel}>
-                {l}
-              </Text>
-            ))}
+            {Array.from({ length: SCALE_MARK_COUNT }, (_, i) => {
+              const step =
+                steps[Math.round((i * lastStep) / (SCALE_MARK_COUNT - 1))];
+              return (
+                <Text key={step.label} style={styles.scaleLabel}>
+                  {step.label}
+                </Text>
+              );
+            })}
           </View>
         </View>
 
@@ -259,30 +265,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.heading,
     fontSize: typography.size.xl,
     color: colors.text,
-  },
-  slider: {
-    height: 40,
-    justifyContent: 'center',
-  },
-  thumb: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.full,
-    backgroundColor: colors.text,
-    borderWidth: 3,
-    borderColor: colors.surface,
-    ...shadows.card,
-  },
-  rail: {
-    flex: 1,
-    height: 4,
-    borderRadius: radii.full,
-    backgroundColor: colors.border,
-  },
-  railSelected: {
-    height: 4,
-    borderRadius: radii.full,
-    backgroundColor: colors.primary,
   },
   scaleRow: {
     flexDirection: 'row',

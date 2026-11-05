@@ -1,0 +1,22 @@
+meta {
+  name: Find all
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/boulders?page=1&limit=20
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 20
+  ~angle: 40
+  ~gradeMin: 5
+  ~gradeMax: 10
+  ~tags: crimp
+  ~name:
+  ~creator:
+}

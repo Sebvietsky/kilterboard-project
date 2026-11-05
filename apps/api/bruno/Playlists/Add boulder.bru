@@ -1,0 +1,23 @@
+meta {
+  name: Add boulder
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/playlists/{{playlistId}}/boulders
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "boulderId": {{boulderId}},
+    "angleDegrees": 40
+  }
+}
+
+docs {
+  `angleDegrees` : obligatoire, l'entrée porte son inclinaison.
+  `position` : optionnel.
+}

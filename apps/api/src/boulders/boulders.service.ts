@@ -4,12 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
   BoulderDetailDto,
+  BoulderLikeStatusDto,
   BoulderSummaryDto,
+  LikedBoulderDto,
   PublicNoteDto,
 } from './dto/boulder-response.dto';
 import { Prisma } from '../generated/prisma/client';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
+import { isEstimatedGrade } from './community-grade';
 
 @Injectable()
 export class BouldersService {
@@ -88,7 +92,6 @@ export class BouldersService {
       data: boulders.map((boulder) => ({
         id: boulder.id,
         name: boulder.name,
-        gradeLabel: boulder.grade.vScale,
         gradeRank: boulder.grade.rank,
         angleDegrees: boulder.angle.valueDegrees,
         creatorUsername: boulder.creator.username,
@@ -119,6 +122,15 @@ export class BouldersService {
           },
         },
         _count: { select: { ascents: true } },
+        boulderAngles: {
+          select: {
+            angleId: true,
+            votesCount: true,
+            angle: { select: { valueDegrees: true } },
+            grade: { select: { vScale: true, rank: true } },
+          },
+          orderBy: { angle: { valueDegrees: 'asc' } },
+        },
       },
     });
 
@@ -134,7 +146,6 @@ export class BouldersService {
     return {
       id: boulder.id,
       name: boulder.name,
-      gradeLabel: boulder.grade.vScale,
       gradeRank: boulder.grade.rank,
       angleDegrees: boulder.angle.valueDegrees,
       creatorUsername: boulder.creator.username,
@@ -151,6 +162,15 @@ export class BouldersService {
         role: bh.role,
       })),
       publicNotes,
+      angleGrades: boulder.boulderAngles.map((ba) => ({
+        angleDegrees: ba.angle.valueDegrees,
+        gradeRank: ba.grade?.rank ?? null,
+        votesCount: ba.votesCount,
+        isEstimated: isEstimatedGrade(
+          ba.votesCount,
+          ba.angleId === boulder.angleId,
+        ),
+      })),
     };
   }
 
@@ -164,7 +184,8 @@ export class BouldersService {
         user: { select: { username: true, avatarUrl: true } },
         ascent: {
           select: {
-            feltGrade: { select: { vScale: true } },
+            feltGrade: { select: { rank: true } },
+            angle: { select: { valueDegrees: true } },
           },
         },
         _count: { select: { ascentNoteLikes: true } },
@@ -173,10 +194,12 @@ export class BouldersService {
     });
 
     return notes.map((note) => ({
+      id: note.id,
+      angleDegrees: note.ascent.angle.valueDegrees,
       username: note.user.username,
       avatarUrl: note.user.avatarUrl,
       content: note.content,
-      feltGradeLabel: note.ascent.feltGrade?.vScale ?? null,
+      feltGradeRank: note.ascent.feltGrade?.rank ?? null,
       likesCount: note._count.ascentNoteLikes,
       createdAt: note.createdAt,
     }));
@@ -193,5 +216,99 @@ export class BouldersService {
       where: { id },
       data: { isDraft: false, isPublic: true },
     });
+  }
+
+  /**
+   * Pose le like à une inclinaison. Le même bloc liké à deux inclinaisons fait
+   * deux favoris. Idempotent : liker un bloc déjà liké à cette inclinaison
+   * réussit sans rien changer, pour qu'un renvoi après une réponse perdue ne
+   * finisse pas en erreur.
+   */
+  async like(
+    userId: number,
+    boulderId: number,
+    angleDegrees: number,
+  ): Promise<BoulderLikeStatusDto> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id: boulderId, isPublic: true, isDraft: false },
+      select: { id: true },
+    });
+    assertFound(boulder, 'Boulder');
+    const angleId = await resolveAngleId(this.prisma, angleDegrees);
+
+    // `skipDuplicates` devient `ON CONFLICT DO NOTHING` : la base absorbe le
+    // doublon, y compris entre deux requêtes simultanées. Un `create` lèverait
+    // P2002, et un findUnique préalable laisserait passer la course.
+    // Le `createdAt` du premier like est conservé.
+    await this.prisma.boulderLike.createMany({
+      data: [{ userId, boulderId, angleId }],
+      skipDuplicates: true,
+    });
+
+    return { liked: true };
+  }
+
+  /**
+   * Retire le like à une inclinaison. Idempotent : retirer un like absent
+   * réussit aussi. `deleteMany` ne lève pas quand rien ne correspond,
+   * contrairement à `delete` (P2025). Ni contrôle d'existence du bloc, ni
+   * résolution de l'inclinaison (filtre sur la relation) : l'état demandé,
+   * « pas liké », est vrai dans tous les cas, même à une inclinaison inconnue.
+   */
+  async unlike(
+    userId: number,
+    boulderId: number,
+    angleDegrees: number,
+  ): Promise<void> {
+    await this.prisma.boulderLike.deleteMany({
+      where: { userId, boulderId, angle: { valueDegrees: angleDegrees } },
+    });
+  }
+
+  /**
+   * Même raisonnement que `unlike` : une inclinaison inconnue n'a pas de like,
+   * la réponse est `false` et non une erreur.
+   */
+  async isLiked(
+    userId: number,
+    boulderId: number,
+    angleDegrees: number,
+  ): Promise<BoulderLikeStatusDto> {
+    const like = await this.prisma.boulderLike.findFirst({
+      where: { userId, boulderId, angle: { valueDegrees: angleDegrees } },
+      select: { userId: true },
+    });
+
+    return { liked: like !== null };
+  }
+
+  /**
+   * Blocs likés par l'utilisateur, du plus récent like au plus ancien. Une
+   * entrée par (bloc, inclinaison) : `angleDegrees` est celle du like, pas
+   * celle du créateur, pour que la carte rouvre le bloc là où il a été liké.
+   * La cotation est celle de cette inclinaison, `null` si elle n'est pas cotée.
+   */
+  async findMyLikes(userId: number): Promise<LikedBoulderDto[]> {
+    const likes = await this.prisma.boulderLike.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        createdAt: true,
+        angle: { select: { valueDegrees: true } },
+        boulder: { select: { id: true, name: true } },
+        // Cotation effective du bloc à l'inclinaison du like.
+        boulderAngle: {
+          select: { grade: { select: { rank: true } } },
+        },
+      },
+    });
+
+    return likes.map((like) => ({
+      id: like.boulder.id,
+      name: like.boulder.name,
+      gradeRank: like.boulderAngle.grade?.rank ?? null,
+      angleDegrees: like.angle.valueDegrees,
+      likedAt: like.createdAt,
+    }));
   }
 }

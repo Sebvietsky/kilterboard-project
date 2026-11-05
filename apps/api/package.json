@@ -23,8 +23,10 @@
     "db:migrate": "npx prisma migrate",
     "db:migrate:dev": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
+    "db:import-catalog": "npx tsx prisma/import-catalog.ts",
     "db:seed": "npx prisma db seed",
     "db:seed:dev": "npx tsx prisma/seed-dev.ts",
+    "db:recompute-grades": "npx tsx prisma/recompute-angle-grades.ts",
     "db:reset": "npx prisma migrate reset --force"
   },
   "dependencies": {
