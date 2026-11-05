@@ -64,3 +64,46 @@ Essai fait le 2026-10-23.
 - **Aucun motif, mais des LED s'allument** : taille hors des trois candidates, ou position mal encodée. Noter quelles prises s'allument.
 - **Connecté, mais rien ne s'allume** : vérifier le nom (`#2` ?), puis le format du paquet.
 - **Board introuvable, même avec Scan all** : une autre app est connectée, ou la board ne diffuse pas le service attendu.
+
+## Prochain essai : l'ampoule (`feature/light-boulder`)
+
+Préparé le 2026-11-05. Bouton ampoule en bas à droite du plan de la board, sur le détail d'un bloc. Comportement retenu le 2026-11-05 : si deux téléphones sont connectés à la fois, le dernier envoi l'emporte, sans alerte (l'app ne peut pas savoir qu'un autre est connecté).
+
+### Avant de partir
+
+- L'app recompilée le 2026-11-05 expire le 2026-11-12 : au-delà, recompiler (`docs/notes/partage-ami.md`, commande `xcodebuild` en `Debug` pour l'iPhone de Seb).
+- Le Mac sur `feature/light-boulder`, base avec le catalogue importé (`db:import-catalog`, `db:seed`, `db:seed:dev`).
+- `EXPO_PUBLIC_BOARD_SIMULATED` absent ou à `0` dans `apps/mobile/.env`.
+- Sur place, relier le Mac et l'iPhone comme ci-dessus (« Sur place : relier le Mac et l'iPhone »).
+
+### Les tests
+
+Blocs du seed sur de vrais trous : « Midnight Sun » (8 prises), « Silent Sky » (8), « The Orbit » (6).
+
+1. **Board libre, cas nominal.** Home → se connecter. Ouvrir « Midnight Sun », taper l'ampoule (bleue). Attendu : exactement 8 LED ; 2 départs en vert à mi-hauteur basse, 3 mains en cyan, la fin en magenta en haut au centre, 2 pieds en jaune sur le kickboard ; toast « Shown on the board ».
+2. **Changer de bloc.** Ouvrir « The Orbit », taper l'ampoule. Attendu : les 8 prises précédentes s'éteignent, seules les 6 nouvelles restent.
+3. **Disconnect volontaire.** Home → Disconnect. Taper l'ampoule (neutre). Attendu : « No board connected », pas de proposition de reconnexion.
+4. **Un autre grimpeur se connecte pendant qu'on l'est** (lui demander de lancer l'app Kilter et d'afficher un bloc). Noter lequel des deux cas se produit :
+   - **Cas 1, coupure** : la carte Board de Home repasse « non connecté », l'ampoule devient neutre. Taper : alerte « Board disconnected », puis « Show ». Attendu : reconnexion, puis notre bloc remplace le sien. Chronométrer la reconnexion (plus de 8 s : un identifiant mort essayé en premier).
+   - **Cas 2, toujours connecté** : l'ampoule reste bleue. Taper : notre bloc remplace le sien sans alerte.
+   - Dans les deux cas, noter si **son** téléphone est déconnecté par notre envoi ou notre reconnexion.
+5. **Identité de passage** (board libre, question ouverte). Se connecter, faire se connecter un autre téléphone puis le déconnecter, et taper l'ampoule pendant les 2 minutes où la seconde identité existe. Attendu : le bloc s'allume. Si le toast s'affiche et que rien ne s'allume, c'est le risque connu (écriture sans réponse).
+6. **Bluetooth coupé** (question ouverte de la carte Board). Couper le Bluetooth, relancer l'app, ouvrir Home puis un bloc. Noter le message de la carte et celui de l'ampoule.
+
+### À noter
+
+| Test | Résultat |
+| --- | --- |
+| 1. 8 LED, couleurs et positions conformes | |
+| 2. Changement de bloc : les anciennes s'éteignent | |
+| 3. Disconnect : « No board connected » | |
+| 4. Autre grimpeur : cas 1 ou cas 2 ; durée de la reconnexion ; son téléphone déconnecté ? | |
+| 5. Identité de passage : allumé ou non | |
+| 6. Bluetooth coupé : messages | |
+
+### Ce que chaque résultat décide
+
+- **1 ou 2 faux** : une prise mal placée = `holdCode` ou LED de la taille (`hold_leds`) ; une couleur fausse = `LED_ROLE` dans `lib/board/litHolds.ts`.
+- **4, cas 1 lent** : essayer d'abord l'identifiant qui a servi à la dernière connexion (le garder dans `lastBoard`).
+- **4, son téléphone déconnecté par notre envoi** : le dernier envoi l'emporte bien ; décision confirmée. **Les deux restent connectés** : une connexion par identité, à reporter dans les questions ouvertes de `DECISIONS.md`.
+- **5, rien ne s'allume** : il faut une confirmation après envoi, ou éviter les identités de passage à la connexion.
