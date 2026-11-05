@@ -16,7 +16,10 @@ async function main() {
   const grades = await prisma.grade.findMany();
   const angles = await prisma.angle.findMany();
   const layout = await prisma.boardLayout.findFirst();
-  const holds = await prisma.hold.findMany({ where: { layoutId: layout!.id } });
+  // Seulement les prises d'une taille importée : les autres sont hors cadre.
+  const holds = await prisma.hold.findMany({
+    where: { layoutId: layout!.id, leds: { some: {} } },
+  });
   const tags = await prisma.tag.findMany();
   const existingBoulders = await prisma.boulder.findMany();
 

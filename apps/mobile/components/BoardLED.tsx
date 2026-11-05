@@ -1,15 +1,13 @@
 import { View, StyleSheet, type DimensionValue } from 'react-native';
 import { colors, radii, holds, boardDots } from '@/constants/theme';
 import { Hold, HoldRole } from '@/lib/boulders/types';
-
-// Grille du Kilterboard : 12 colonnes (A-L) × 12 lignes.
-// Depuis le seed : x = 1..12 (colonne), y = 1..12 (ligne, 1 = BAS).
-const COLS = 12;
-const ROWS = 12;
+import { BoardSize } from '@/lib/boardSizes/types';
 
 // Géométrie des points (pixels — pas des tokens de design, c'est du dessin).
-const HOLD_SIZE = 20;
-const DOT_SIZE = 5;
+// Deux prises voisines sont à environ 5,6 unités Kilter, soit 14 px sur un
+// iPhone : un anneau plus large mordrait sur la prise d'à côté.
+const HOLD_SIZE = 12;
+const DOT_SIZE = 4;
 
 // Rôle backend (START/HAND/FOOT/FINISH) -> couleur du theme (start/hands/feet/finish).
 // Map EXPLICITE : les noms ne correspondent pas (HAND != hands), pas de toLowerCase.
@@ -20,44 +18,59 @@ const HOLD_COLOR: Record<HoldRole, string> = {
   FINISH: holds.finish, // gold
 };
 
-// Position en % du CENTRE d'une cellule de la grille.
-// - x : de gauche à droite, on centre dans la cellule -> (x - 0.5) / COLS.
-// - y : INVERSÉ (y=1 est en bas, mais top=0 est en haut) -> (ROWS - y + 0.5) / ROWS.
-// Le +0.5 / -0.5 garde tous les points à l'intérieur (pas de rognage sur les bords).
+type Frame = Pick<
+  BoardSize,
+  'edgeLeft' | 'edgeRight' | 'edgeBottom' | 'edgeTop'
+>;
+
+// Position en % dans le cadre de la taille, en coordonnées Kilter.
+// - x : de gauche à droite depuis edgeLeft.
+// - y : INVERSÉ (y croît vers le haut, mais top=0 est en haut) -> depuis edgeTop.
 function toPosition(
+  frame: Frame,
   x: number,
   y: number,
 ): {
   left: DimensionValue;
   top: DimensionValue;
 } {
+  const width = frame.edgeRight - frame.edgeLeft;
+  const height = frame.edgeTop - frame.edgeBottom;
   return {
-    left: `${((x - 0.5) / COLS) * 100}%`,
-    top: `${((ROWS - y + 0.5) / ROWS) * 100}%`,
+    left: `${((x - frame.edgeLeft) / width) * 100}%`,
+    top: `${((frame.edgeTop - y) / height) * 100}%`,
   };
 }
 
-// Toutes les positions de la grille -> points de fond ("LED éteintes").
-const GRID_DOTS = Array.from({ length: COLS * ROWS }, (_, i) => ({
-  x: (i % COLS) + 1,
-  y: Math.floor(i / COLS) + 1,
-}));
+// `size` absent tant que la taille se charge : le fond seul, sans prises.
+export function BoardLED({
+  size,
+  holds: boulderHolds,
+}: {
+  size: BoardSize | undefined;
+  holds: Hold[];
+}) {
+  if (!size) {
+    return <View style={styles.board} />;
+  }
 
-export function BoardLED({ holds: boulderHolds }: { holds: Hold[] }) {
+  const aspectRatio =
+    (size.edgeRight - size.edgeLeft) / (size.edgeTop - size.edgeBottom);
+
   return (
-    <View style={styles.board}>
-      {/* Fond : la grille complète, points discrets. */}
-      {GRID_DOTS.map(({ x, y }) => (
-        <View key={`dot-${x}-${y}`} style={[styles.dot, toPosition(x, y)]} />
+    <View style={[styles.board, { aspectRatio }]}>
+      {/* Fond : toutes les prises de la taille, points discrets ("LED éteintes"). */}
+      {size.holds.map((h) => (
+        <View key={h.id} style={[styles.dot, toPosition(size, h.x, h.y)]} />
       ))}
 
-      {/* Prises du bloc : anneaux colorés par rôle, par-dessus la grille. */}
+      {/* Prises du bloc : anneaux colorés par rôle, par-dessus. */}
       {boulderHolds.map((h) => (
         <View
           key={h.holdCode}
           style={[
             styles.hold,
-            toPosition(h.x, h.y),
+            toPosition(size, h.x, h.y),
             { borderColor: HOLD_COLOR[h.role] },
           ]}
         />
@@ -69,7 +82,7 @@ export function BoardLED({ holds: boulderHolds }: { holds: Hold[] }) {
 const styles = StyleSheet.create({
   board: {
     width: '100%',
-    aspectRatio: 1, // carré : la grille est 12×12
+    aspectRatio: 1, // remplacé par le ratio du cadre une fois la taille chargée
     backgroundColor: colors.ink,
     borderRadius: radii.lg,
     overflow: 'hidden',
@@ -91,7 +104,7 @@ const styles = StyleSheet.create({
     width: HOLD_SIZE,
     height: HOLD_SIZE,
     borderRadius: radii.full,
-    borderWidth: 2.5,
+    borderWidth: 2,
     marginLeft: -HOLD_SIZE / 2,
     marginTop: -HOLD_SIZE / 2,
   },

@@ -44,6 +44,18 @@ versions selon [SemVer](https://semver.org/lang/fr/).
   privée), réservés au propriétaire. Les lignes de Library
   y mènent. `GET /playlists/:id` renvoie désormais les blocs dans un ordre
   stable (position, puis ajout le plus récent).
+- **Prises réelles de la Kilter Board Original** : le matériel (prises, tailles,
+  positions LED) est importé du catalogue public de boardsesh par
+  `pnpm --filter api db:import-catalog`, à lancer avant `db:seed`. Nouvelles
+  tables `board_sizes` et `hold_leds` ; `holds` reçoit l'id Kilter du
+  placement et son set ; `boards` reçoit une taille ; `board_layouts` perd
+  `width` et `height`. Taille importée : 12 x 12 with kickboard.
+  Changement cassant : une base existante est à remettre à zéro.
+- **`GET /board-sizes` et `GET /board-sizes/:id`** (module `boards`) : les
+  tailles importées, puis le cadre d'une taille et ses prises, chacune avec sa
+  position LED.
+- **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
+  la taille et toutes ses prises, au lieu d'une grille 12 × 12.
 
 ### Corrections
 

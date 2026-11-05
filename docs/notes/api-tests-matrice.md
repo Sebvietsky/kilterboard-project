@@ -100,6 +100,7 @@ Abréviations :
 | Nom de playlist non vide | code | D | playlists.dto › CreatePlaylistDto, UpdatePlaylistDto | F06 tuée | — (B5 corrigé) |
 | `/admin` réservé aux ADMIN | CdC | G | roles.guard.spec | M48 tuée | `@Roles` sur le contrôleur : e2e |
 | Tri admin par liste blanche | code | S | admin.service.spec, pagination.utils.spec | — | — |
+| Taille de board : seulement les prises de son cadre (celles qui ont une LED à cette taille), chacune avec sa position LED ; 404 sinon | DEC 10-20 (choix B) | S + B | boards › findSize | H01 (`ledPosition` faux), H02 (404 retiré) tuées, 2026-11-05 | une LED par prise et par taille en base (`UNIQUE(size_id, position)`) : e2e |
 
 ## Dette e2e
 

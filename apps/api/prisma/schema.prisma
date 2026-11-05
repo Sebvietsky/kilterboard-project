@@ -3,7 +3,7 @@
 //
 // Domaines principaux :
 //   - Utilisateurs & social    : User, UserFollow
-//   - Matériel                 : BoardLayout, Board, Hold, Angle
+//   - Matériel                 : BoardLayout, BoardSize, Board, Hold, HoldLed, Angle
 //   - Blocs                    : Boulder, BoulderHold, BoulderTag, Tag, Grade
 //   - Activité grimpe          : BoardSession, Ascent, AscentNote, AscentNoteLike
 //   - Collections              : Playlist, PlaylistBoulder
@@ -90,24 +90,47 @@ model UserFollow {
 // MATÉRIEL — BOARD & PRISES
 // ============================================================
 
-// Modèle de planche (ex. Kilter Board 12x12°).
-// Sert de référence partagée entre les prises (Hold), les blocs (Boulder)
-// et les installations physiques (Board).
+// Modèle de planche (ex. Kilter Board Original), toutes tailles confondues.
+// Sert de référence partagée entre les tailles (BoardSize), les prises (Hold),
+// les blocs (Boulder) et les installations physiques (Board).
 model BoardLayout {
   id           Int     @id @default(autoincrement())
   name         String  @unique @db.VarChar(100)
   manufacturer String? @db.VarChar(100)
 
-  // Dimensions en nombre de prises (pas en cm)
-  width       Int
-  height      Int
+  // Les dimensions dépendent de la taille (BoardSize), pas du layout
   description String?
 
   boulders Boulder[]
   holds    Hold[]
   boards   Board[]
+  sizes    BoardSize[]
 
   @@map("board_layouts")
+}
+
+// Taille d'une planche pour un layout (ex. "12 x 12 with kickboard").
+// Une taille est un rectangle (edge_*) sur la grille commune des prises du layout,
+// et fixe la position LED de chaque prise (HoldLed).
+// kilterSizeId : id Kilter de la taille (board_product_sizes), qui sert à l'import.
+model BoardSize {
+  id           Int         @id @default(autoincrement())
+  layout       BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  layoutId     Int         @map("layout_id")
+  kilterSizeId Int         @map("kilter_size_id")
+  name         String      @db.VarChar(100)
+
+  edgeLeft   Int @map("edge_left")
+  edgeRight  Int @map("edge_right")
+  edgeBottom Int @map("edge_bottom")
+  edgeTop    Int @map("edge_top")
+
+  leds   HoldLed[]
+  boards Board[]
+
+  @@unique([layoutId, kilterSizeId])
+  @@unique([layoutId, name])
+  @@map("board_sizes")
 }
 
 // Installation physique d'une planche dans une salle ou chez un particulier.
@@ -130,29 +153,55 @@ model Board {
   layoutId    Int         @map("layout_id")
   boardLayout BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Restrict)
 
+  // La taille fixe les positions LED : une mauvaise taille allume les mauvaises prises.
+  // Elle doit appartenir au même layout que la board (vérifié par le service, pas par la base).
+  sizeId Int       @map("size_id")
+  size   BoardSize @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+
   boardSessions BoardSession[]
 
   @@map("boards")
 }
 
-// Prise physique sur un layout, identifiée par un code (ex. "A3").
-// La position (x, y) est exprimée en coordonnées de grille.
-// Contrainte UNIQUE(layoutId, holdCode) : un code de prise est unique par layout.
+// Prise posée sur un layout : un placement Kilter (un trou + un set).
+// La position (x, y) reprend les coordonnées Kilter du trou, communes à toutes les tailles.
+// L'id reste le nôtre : boulder_holds n'en dépend pas, et l'id Kilter n'est unique que par marque.
 model Hold {
   id       Int         @id @default(autoincrement())
   layout   BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
   layoutId Int         @map("layout_id")
 
-  // Code alphanumérique identifiant la prise sur le layout (ex. "B7")
-  holdCode String @map("hold_code") @db.VarChar(20)
+  // Id Kilter du placement (board_placements), qui sert à l'import et à la lecture des blocs Kilter
+  kilterPlacementId Int @map("kilter_placement_id")
+
+  // Nom Kilter du trou (ex. "18,17", "1,KB1" pour le kickboard)
+  holdCode String  @map("hold_code") @db.VarChar(20)
+  set      HoldSet
 
   x Int
   y Int
 
   boulderHolds BoulderHold[]
+  leds         HoldLed[]
 
   @@unique([layoutId, holdCode])
+  @@unique([layoutId, kilterPlacementId])
   @@map("holds")
+}
+
+// Position LED d'une prise pour une taille de planche.
+// Une prise sans ligne pour une taille est hors du cadre de cette taille.
+// UNIQUE(sizeId, position) : une LED n'éclaire qu'une prise.
+model HoldLed {
+  hold     Hold      @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  holdId   Int       @map("hold_id")
+  size     BoardSize @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  sizeId   Int       @map("size_id")
+  position Int
+
+  @@id([holdId, sizeId])
+  @@unique([sizeId, position])
+  @@map("hold_leds")
 }
 
 // Angle d'inclinaison de la planche en degrés.
@@ -547,6 +596,12 @@ enum HoldRole {
   HAND // Prise de main intermédiaire
   FOOT // Prise de pied uniquement
   FINISH // Prise de finition (top)
+}
+
+// Jeu de prises Kilter auquel appartient une prise (board_sets)
+enum HoldSet {
+  BOLT_ONS // Set 1
+  SCREW_ONS // Set 20
 }
 
 // Statut d'une ascension
