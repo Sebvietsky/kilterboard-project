@@ -7,11 +7,11 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { EntryRow } from '@/components/session/EntryRow';
 import { SessionHero } from '@/components/session/SessionHero';
 import { useSession } from '@/lib/sessions/queries';
-import { boulderHref } from '@/lib/boulders/href';
+import { ascentBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import { formatDuration } from '@/lib/sessions/elapsed';
 import type { SessionDetail } from '@/lib/sessions/types';
 import { ApiError } from '@/lib/api/errors';
@@ -22,7 +22,7 @@ import { colors, radii, spacing, typography } from '@/constants/theme';
 // la session en cours, figées. Aucune action ici — une session terminée ne se
 // modifie pas.
 export default function SessionDetailScreen() {
-  const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = Number(id);
   const session = useSession(sessionId); // hook appelé inconditionnellement
@@ -77,11 +77,9 @@ export default function SessionDetailScreen() {
       renderItem={({ item }) => (
         <Pressable
           onPress={() =>
-            router.push(
-              boulderHref(
-                item.ascent.boulderId,
-                item.ascent.angle.valueDegrees,
-              ),
+            openBoulder(
+              data.entries.map((entry) => ascentBrowseItem(entry.ascent)),
+              ascentBrowseItem(item.ascent),
             )
           }
         >
