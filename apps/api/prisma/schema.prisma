@@ -324,7 +324,14 @@ model BoulderAngle {
   playlistBoulders PlaylistBoulder[]
   kilterStats      KilterAngleStat?
 
+  // Clé de tri d'Explore : nombre de grimpeurs Kilter à cette inclinaison,
+  // copie de `kilter_angle_stats.ascensionist_count` écrite par l'import.
+  // Non nulle, 0 pour un bloc créé dans l'app : Prisma ne sait pas trier une
+  // relation absente en dernier, et ces blocs doivent passer après.
+  kilterAscensionists Int @default(0) @map("kilter_ascensionists")
+
   @@id([boulderId, angleId])
+  @@index([angleId, kilterAscensionists(sort: Desc)])
   @@map("boulder_angles")
 }
 

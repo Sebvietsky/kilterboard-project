@@ -43,7 +43,7 @@ export default function SearchScreen() {
     const index = stepIndexOf(steps, useFiltersStore.getState().gradeMax);
     return index === -1 ? lastStep : index;
   });
-  const [angleDraft, setAngleDraft] = useState<number | undefined>(
+  const [angleDraft, setAngleDraft] = useState<number>(
     () => useFiltersStore.getState().angle,
   );
   const [tagsDraft, setTagsDraft] = useState<string[]>(
@@ -142,7 +142,9 @@ export default function SearchScreen() {
               return (
                 <Pressable
                   key={a}
-                  onPress={() => setAngleDraft(selected ? undefined : a)}
+                  // Une inclinaison est toujours choisie : un tap en choisit
+                  // une autre, il ne désélectionne pas.
+                  onPress={() => setAngleDraft(a)}
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
                   <Text

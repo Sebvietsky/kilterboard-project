@@ -88,6 +88,9 @@ Abréviations :
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
 | Catalogue et détail : publics et publiés seulement | code | S | bo › findAll, findOne | — | — |
+| Explore toujours à une inclinaison, un bloc n'y apparaît que s'il y est coté | DEC 10-15, 11-06 | D + S | boulders.dto › exige une inclinaison ; bo › ne garde que les blocs cotés à l'inclinaison demandée | E01, E05 tuées (2026-11-06) | — |
+| Carte d'Explore : cotation, ascensions et note de l'inclinaison demandée ; filtre de cotation à cette inclinaison | DEC 11-06 | S | bo › projette le bloc à l'inclinaison demandée ; ne moyenne que les notes données à l'inclinaison demandée ; filtre sur la cotation à l'inclinaison | E03, E04 tuées (2026-11-06) | — |
+| Tri d'Explore : popularité Kilter à l'inclinaison, puis nos ascensions, ordre stable | DEC 11-06 | S + B | bo › trie par popularité Kilter, puis par nos ascensions | E02 tuée (2026-11-06) | pagination réelle sans saut : e2e |
 | Bloc importé : le setter Kilter est exposé (`setterName`) et le filtre « creator » le cherche aussi | DEC 11-06 | S | bo › donne le setter Kilter d'un bloc importé ; cherche le nom et le créateur (compte ou setter Kilter) | S01, S02 tuées (2026-11-06) | — |
 | Commentaires : publics seulement | CdC | S | bo › findComments | M38 tuée | `/comments` d'un bloc privé non vérifié (faible) |
 | Bornes de pagination, tag seul en tableau | code | D | boulders.dto › FilterBoulderDto | D06, D07 tuées | — |

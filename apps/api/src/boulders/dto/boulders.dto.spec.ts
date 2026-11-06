@@ -4,8 +4,27 @@ import { FilterBoulderDto } from './filter-boulders.dto';
 import { AngleQueryDto } from '../../common/dto/angle-query.dto';
 
 describe('FilterBoulderDto', () => {
-  it('accepte une recherche sans filtre', async () => {
-    await expect(rejectedFields(FilterBoulderDto, {})).resolves.toEqual([]);
+  it('accepte une recherche avec seulement une inclinaison', async () => {
+    await expect(
+      rejectedFields(FilterBoulderDto, { angle: 40 }),
+    ).resolves.toEqual([]);
+  });
+
+  // Explore est toujours à une inclinaison (décision du 2026-11-06) : sans
+  // elle, la carte n'aurait ni cotation ni ascensions à afficher.
+  it('exige une inclinaison', async () => {
+    await expect(rejectedFields(FilterBoulderDto, {})).resolves.toEqual([
+      'angle',
+    ]);
+  });
+
+  it.each([
+    ['sous 20°', 15],
+    ['au-delà de 70°', 75],
+  ])('refuse une inclinaison %s', async (_label, angle) => {
+    await expect(rejectedFields(FilterBoulderDto, { angle })).resolves.toEqual([
+      'angle',
+    ]);
   });
 
   // Les bornes de pagination ne sont validées qu'ici : getPaginationParams
@@ -15,14 +34,14 @@ describe('FilterBoulderDto', () => {
     ['une limite de 0', { limit: 0 }, 'limit'],
     ['une limite au-delà de 100', { limit: 101 }, 'limit'],
   ])('refuse %s', async (_label, query, field) => {
-    await expect(rejectedFields(FilterBoulderDto, query)).resolves.toEqual([
-      field,
-    ]);
+    await expect(
+      rejectedFields(FilterBoulderDto, { angle: 40, ...query }),
+    ).resolves.toEqual([field]);
   });
 
   it('accepte une limite de 100', async () => {
     await expect(
-      rejectedFields(FilterBoulderDto, { limit: 100 }),
+      rejectedFields(FilterBoulderDto, { angle: 40, limit: 100 }),
     ).resolves.toEqual([]);
   });
 

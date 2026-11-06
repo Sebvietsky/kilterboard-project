@@ -64,6 +64,13 @@ versions selon [SemVer](https://semver.org/lang/fr/).
   et leurs statistiques Kilter (`kilter_angle_stats`). Ils appartiennent au
   compte système `kilter` ; le pseudo du setter est dans `setterName`,
   affiché sur les cartes et le détail, et cherché par le filtre « creator ».
+- **Explore toujours à une inclinaison** (changement de contrat) :
+  `GET /boulders` exige `angle`. Une carte est le bloc à cette inclinaison :
+  il n'apparaît que s'il y est coté, avec la cotation, les ascensions et la
+  note de cette inclinaison ; le filtre de cotation porte sur elle. Tri par
+  popularité Kilter à cette inclinaison (`boulder_angles.kilter_ascensionists`),
+  puis par nos ascensions. Mobile : 40° par défaut, bouton d'inclinaison dans
+  l'en-tête d'Explore, l'inclinaison ne s'efface plus avec les filtres.
 - **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
   la taille et toutes ses prises, au lieu d'une grille 12 × 12.
 

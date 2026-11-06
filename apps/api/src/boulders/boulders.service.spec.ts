@@ -23,9 +23,11 @@ const prismaMock = {
     findMany: jest.fn(),
   },
   angle: { findUnique: jest.fn() },
+  boulderAngle: { findMany: jest.fn(), count: jest.fn() },
 };
 
-// La forme minimale que findAll déréférence dans son mapping.
+// La forme minimale que findOne déréférence (et que le catalogue reprend
+// sous `boulder`).
 const boulderRow = {
   id: 10,
   name: 'Crimpy',
@@ -39,10 +41,25 @@ const boulderRow = {
   createdAt: new Date(),
 };
 
-function findManyArg(): { where: Record<string, unknown> } {
-  const [arg] = prismaMock.boulder.findMany.mock.calls[0] as [
-    { where: Record<string, unknown> },
-  ];
+// Une ligne du catalogue : le bloc à une inclinaison (`boulder_angles`), avec
+// la cotation et le nombre d'ascensions de cette inclinaison.
+const catalogRow = {
+  boulderId: 10,
+  grade: { rank: 7 },
+  _count: { ascents: 2 },
+  boulder: boulderRow,
+};
+
+// L'inclinaison demandée (40°) a l'id 5 dans `angles`.
+const ANGLE_ID = 5;
+
+type FindManyArg = {
+  where: Record<string, unknown> & { boulder: Record<string, unknown> };
+  orderBy: unknown;
+};
+
+function findManyArg(): FindManyArg {
+  const [arg] = prismaMock.boulderAngle.findMany.mock.calls[0] as [FindManyArg];
   return arg;
 }
 
@@ -60,42 +77,56 @@ describe('BouldersService', () => {
     }).compile();
 
     service = module.get(BouldersService);
-    prismaMock.boulder.findMany.mockResolvedValue([boulderRow]);
-    prismaMock.boulder.count.mockResolvedValue(1);
+    prismaMock.boulderAngle.findMany.mockResolvedValue([catalogRow]);
+    prismaMock.boulderAngle.count.mockResolvedValue(1);
     prismaMock.ascent.groupBy.mockResolvedValue([]);
   });
 
   describe('findAll — filtres', () => {
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: ANGLE_ID });
+    });
+
     // Le catalogue ne montre que le publié. Ces deux conditions ne dépendent
     // d'aucun filtre : une régression les rendrait invisibles, mais exposerait
     // les brouillons de tout le monde.
     it('exclut toujours les brouillons et les blocs privés', async () => {
-      await service.findAll({});
+      await service.findAll({ angle: 40 });
 
-      expect(findManyArg().where).toMatchObject({
+      expect(findManyArg().where.boulder).toMatchObject({
         isPublic: true,
         isDraft: false,
       });
     });
 
-    it("n'ajoute aucune condition quand aucun filtre nest fourni", async () => {
-      await service.findAll({});
-
-      expect(findManyArg().where).toEqual({ isPublic: true, isDraft: false });
-    });
-
-    it('filtre par angle', async () => {
+    // Explore est toujours à une inclinaison, et un bloc n'y apparaît que
+    // s'il y est coté (cotation de départ ou votes).
+    it("ne garde que les blocs cotés à l'inclinaison demandée", async () => {
       await service.findAll({ angle: 40 });
 
-      expect(findManyArg().where).toMatchObject({
-        angle: { valueDegrees: 40 },
+      expect(prismaMock.angle.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { valueDegrees: 40 } }),
+      );
+      expect(findManyArg().where).toEqual({
+        angleId: ANGLE_ID,
+        gradeId: { not: null },
+        boulder: { isPublic: true, isDraft: false },
       });
     });
 
-    // Les deux bornes sont indépendantes : ne fournir qu'un minimum doit
-    // produire un gte seul, pas une plage fermée sur une borne absente.
-    it('accepte une borne de cotation seule', async () => {
-      await service.findAll({ gradeMin: 5 });
+    it('rejette une inclinaison absente de la table', async () => {
+      prismaMock.angle.findUnique.mockResolvedValue(null);
+
+      await expect(service.findAll({ angle: 40 })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    // La cotation filtrée est celle de l'inclinaison (`boulder_angles.grade`),
+    // pas la référence du créateur : un bloc 6c à 40° peut être 7a à 50°.
+    // Les deux bornes sont indépendantes : un minimum seul donne un gte seul.
+    it("filtre sur la cotation à l'inclinaison, une borne seule comprise", async () => {
+      await service.findAll({ angle: 40, gradeMin: 5 });
 
       expect(findManyArg().where).toMatchObject({
         grade: { rank: { gte: 5 } },
@@ -103,7 +134,7 @@ describe('BouldersService', () => {
     });
 
     it('accepte les deux bornes de cotation', async () => {
-      await service.findAll({ gradeMin: 5, gradeMax: 9 });
+      await service.findAll({ angle: 40, gradeMin: 5, gradeMax: 9 });
 
       expect(findManyArg().where).toMatchObject({
         grade: { rank: { gte: 5, lte: 9 } },
@@ -113,9 +144,9 @@ describe('BouldersService', () => {
     // Le créateur d'un bloc importé est son setter Kilter : le filtre cherche
     // dans les deux, sinon « JustinKo » ne trouverait aucun de ses blocs.
     it('cherche le nom et le créateur (compte ou setter Kilter) sans tenir compte de la casse', async () => {
-      await service.findAll({ name: 'CRIMP', creator: 'Seb' });
+      await service.findAll({ angle: 40, name: 'CRIMP', creator: 'Seb' });
 
-      expect(findManyArg().where).toMatchObject({
+      expect(findManyArg().where.boulder).toMatchObject({
         name: { contains: 'CRIMP', mode: 'insensitive' },
         OR: [
           { creator: { username: { contains: 'Seb', mode: 'insensitive' } } },
@@ -129,45 +160,67 @@ describe('BouldersService', () => {
     // renverrait ceux qui portent l'un ou l'autre — la nuance ne se voit pas
     // en lisant le résultat, seulement en lisant la requête.
     it('cumule les tags en ET', async () => {
-      await service.findAll({ tags: ['crimp', 'dyno'] });
+      await service.findAll({ angle: 40, tags: ['crimp', 'dyno'] });
 
-      expect(findManyArg().where).toMatchObject({
+      expect(findManyArg().where.boulder).toMatchObject({
         AND: [
           { boulderTags: { some: { tag: { slug: 'crimp' } } } },
           { boulderTags: { some: { tag: { slug: 'dyno' } } } },
         ],
       });
     });
+
+    // Popularité Kilter à cette inclinaison d'abord (0 pour un bloc créé dans
+    // l'app, qui passe donc après), puis nos ascensions, puis un ordre stable
+    // pour que la pagination ne saute ni ne répète aucun bloc.
+    it('trie par popularité Kilter, puis par nos ascensions', async () => {
+      await service.findAll({ angle: 40 });
+
+      expect(findManyArg().orderBy).toEqual([
+        { kilterAscensionists: 'desc' },
+        { ascents: { _count: 'desc' } },
+        { boulderId: 'asc' },
+      ]);
+    });
   });
 
   describe('findAll — sortie', () => {
-    it('projette le bloc sur le contrat du résumé', async () => {
-      const { data } = await service.findAll({});
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: ANGLE_ID });
+    });
+
+    // Une carte = le bloc à l'inclinaison demandée : cotation et ascensions
+    // de cette inclinaison, pas la référence du créateur (V4 à 40° ici, rang 6).
+    it("projette le bloc à l'inclinaison demandée", async () => {
+      const { data } = await service.findAll({ angle: 45 });
 
       expect(data[0]).toMatchObject({
         id: 10,
         name: 'Crimpy',
-        gradeRank: 6,
-        angleDegrees: 40,
+        gradeRank: 7,
+        angleDegrees: 45,
         creatorUsername: 'seb',
         setterName: null,
         tags: ['crimp'],
-        ascentCount: 3,
+        ascentCount: 2,
       });
     });
 
     // Un bloc importé appartient en base au compte système `kilter` : le
     // client affiche le setter Kilter, que le résumé doit donc porter.
     it('donne le setter Kilter d’un bloc importé', async () => {
-      prismaMock.boulder.findMany.mockResolvedValue([
+      prismaMock.boulderAngle.findMany.mockResolvedValue([
         {
-          ...boulderRow,
-          creator: { username: 'kilter' },
-          setterName: 'JustinKo',
+          ...catalogRow,
+          boulder: {
+            ...boulderRow,
+            creator: { username: 'kilter' },
+            setterName: 'JustinKo',
+          },
         },
       ]);
 
-      const { data } = await service.findAll({});
+      const { data } = await service.findAll({ angle: 40 });
 
       expect(data[0]).toMatchObject({
         creatorUsername: 'kilter',
@@ -175,10 +228,24 @@ describe('BouldersService', () => {
       });
     });
 
+    // La note moyenne est celle de l'inclinaison affichée, comme la cotation.
+    it("ne moyenne que les notes données à l'inclinaison demandée", async () => {
+      await service.findAll({ angle: 40 });
+
+      const [arg] = prismaMock.ascent.groupBy.mock.calls[0] as [
+        { where: unknown },
+      ];
+      expect(arg.where).toEqual({
+        boulderId: { in: [10] },
+        angleId: ANGLE_ID,
+        rating: { not: null },
+      });
+    });
+
     // Aucune note ne doit donner null, pas 0 : une moyenne de 0 se lirait
     // comme « très mal noté » alors que personne n'a voté.
     it('renvoie null comme note moyenne quand personne na voté', async () => {
-      const { data } = await service.findAll({});
+      const { data } = await service.findAll({ angle: 40 });
 
       expect(data[0].averageRating).toBeNull();
     });
@@ -188,15 +255,15 @@ describe('BouldersService', () => {
         { boulderId: 10, _avg: { rating: 4.5 } },
       ]);
 
-      const { data } = await service.findAll({});
+      const { data } = await service.findAll({ angle: 40 });
 
       expect(data[0].averageRating).toBe(4.5);
     });
 
     it('calcule le nombre total de pages', async () => {
-      prismaMock.boulder.count.mockResolvedValue(45);
+      prismaMock.boulderAngle.count.mockResolvedValue(45);
 
-      const { meta } = await service.findAll({ limit: 20 });
+      const { meta } = await service.findAll({ angle: 40, limit: 20 });
 
       expect(meta).toEqual({ total: 45, page: 1, limit: 20, totalPages: 3 });
     });
