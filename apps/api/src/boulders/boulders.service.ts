@@ -39,10 +39,17 @@ export class BouldersService {
       ...(filters.name && {
         name: { contains: filters.name, mode: 'insensitive' },
       }),
+      // Le créateur d'un bloc importé est son setter Kilter, pas le compte
+      // système qui le porte en base.
       ...(filters.creator && {
-        creator: {
-          username: { contains: filters.creator, mode: 'insensitive' },
-        },
+        OR: [
+          {
+            creator: {
+              username: { contains: filters.creator, mode: 'insensitive' },
+            },
+          },
+          { setterName: { contains: filters.creator, mode: 'insensitive' } },
+        ],
       }),
       ...(filters.tags?.length && {
         AND: filters.tags.map((slug) => ({
@@ -95,6 +102,7 @@ export class BouldersService {
         gradeRank: boulder.grade.rank,
         angleDegrees: boulder.angle.valueDegrees,
         creatorUsername: boulder.creator.username,
+        setterName: boulder.setterName,
         tags: boulder.boulderTags.map((bt) => bt.tag.slug),
         ascentCount: boulder._count.ascents,
         averageRating: ratingByBoulder.get(boulder.id) ?? null,
@@ -149,6 +157,7 @@ export class BouldersService {
       gradeRank: boulder.grade.rank,
       angleDegrees: boulder.angle.valueDegrees,
       creatorUsername: boulder.creator.username,
+      setterName: boulder.setterName,
       tags: boulder.boulderTags.map((bt) => bt.tag.slug),
       ascentCount: boulder._count.ascents,
       averageRating: ratings._avg.rating,

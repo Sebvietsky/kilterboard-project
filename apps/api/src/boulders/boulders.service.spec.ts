@@ -31,6 +31,7 @@ const boulderRow = {
   name: 'Crimpy',
   grade: { vScale: 'V4', fontScale: '6B+', rank: 6 },
   creator: { username: 'seb' },
+  setterName: null,
   angle: { valueDegrees: 40 },
   boulderTags: [{ tag: { name: 'Crimp', slug: 'crimp' } }],
   _count: { ascents: 3 },
@@ -109,12 +110,17 @@ describe('BouldersService', () => {
       });
     });
 
-    it('cherche le nom et le créateur sans tenir compte de la casse', async () => {
+    // Le créateur d'un bloc importé est son setter Kilter : le filtre cherche
+    // dans les deux, sinon « JustinKo » ne trouverait aucun de ses blocs.
+    it('cherche le nom et le créateur (compte ou setter Kilter) sans tenir compte de la casse', async () => {
       await service.findAll({ name: 'CRIMP', creator: 'Seb' });
 
       expect(findManyArg().where).toMatchObject({
         name: { contains: 'CRIMP', mode: 'insensitive' },
-        creator: { username: { contains: 'Seb', mode: 'insensitive' } },
+        OR: [
+          { creator: { username: { contains: 'Seb', mode: 'insensitive' } } },
+          { setterName: { contains: 'Seb', mode: 'insensitive' } },
+        ],
       });
     });
 
@@ -144,8 +150,28 @@ describe('BouldersService', () => {
         gradeRank: 6,
         angleDegrees: 40,
         creatorUsername: 'seb',
+        setterName: null,
         tags: ['crimp'],
         ascentCount: 3,
+      });
+    });
+
+    // Un bloc importé appartient en base au compte système `kilter` : le
+    // client affiche le setter Kilter, que le résumé doit donc porter.
+    it('donne le setter Kilter d’un bloc importé', async () => {
+      prismaMock.boulder.findMany.mockResolvedValue([
+        {
+          ...boulderRow,
+          creator: { username: 'kilter' },
+          setterName: 'JustinKo',
+        },
+      ]);
+
+      const { data } = await service.findAll({});
+
+      expect(data[0]).toMatchObject({
+        creatorUsername: 'kilter',
+        setterName: 'JustinKo',
       });
     });
 
