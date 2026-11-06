@@ -4,7 +4,7 @@
 // Domaines principaux :
 //   - Utilisateurs & social    : User, UserFollow
 //   - Matériel                 : BoardLayout, BoardSize, Board, Hold, HoldLed, Angle
-//   - Blocs                    : Boulder, BoulderHold, BoulderTag, Tag, Grade
+//   - Blocs                    : Boulder, BoulderAngle, KilterAngleStat, BoulderHold, BoulderTag, Tag, Grade
 //   - Activité grimpe          : BoardSession, Ascent, AscentNote, AscentNoteLike
 //   - Collections              : Playlist, PlaylistBoulder
 // ============================================================
@@ -265,6 +265,12 @@ model Boulder {
   angle     Angle       @relation(fields: [angleId], references: [id], onDelete: Restrict)
   angleId   Int         @map("angle_id")
 
+  // Bloc importé du catalogue Kilter (`db:import-climbs`) : son uuid Kilter,
+  // qui rend l'import idempotent, et le pseudo Kilter de son créateur. Le
+  // créateur en base est alors le compte système `kilter`.
+  kilterUuid String? @unique @map("kilter_uuid") @db.VarChar(64)
+  setterName String? @map("setter_name") @db.VarChar(100)
+
   isPublic  Boolean  @default(false) @map("is_public") // false par défaut car isDraft = true
   isDraft   Boolean  @default(true) @map("is_draft") // true par défaut -> false dès la création du boulder
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -316,9 +322,30 @@ model BoulderAngle {
   ascents          Ascent[]
   likes            BoulderLike[]
   playlistBoulders PlaylistBoulder[]
+  kilterStats      KilterAngleStat?
 
   @@id([boulderId, angleId])
   @@map("boulder_angles")
+}
+
+// Statistiques Kilter d'un bloc importé à une inclinaison (`board_climb_stats`),
+// telles que Kilter les publie. Données de référence, hors de la règle de
+// cotation : celle-ci ne lit que `boulder_angles.base_grade_id`, que l'import
+// remplit à partir d'ici. Servent au tri par popularité et à l'affichage.
+model KilterAngleStat {
+  boulderId    Int          @map("boulder_id")
+  angleId      Int          @map("angle_id")
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+
+  // Cotation moyenne, décimale, sur l'échelle des rangs (`grades.rank`)
+  difficulty        Float
+  ascensionistCount Int     @map("ascensionist_count")
+  // Note moyenne Kilter (0 à 3 étoiles dans leur app)
+  qualityAverage    Float?  @map("quality_average")
+  isBenchmark       Boolean @default(false) @map("is_benchmark")
+
+  @@id([boulderId, angleId])
+  @@map("kilter_angle_stats")
 }
 
 // Table de jonction entre un bloc et ses prises.

@@ -88,6 +88,7 @@ Abréviations :
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
 | Catalogue et détail : publics et publiés seulement | code | S | bo › findAll, findOne | — | — |
+| Bloc importé : le setter Kilter est exposé (`setterName`) et le filtre « creator » le cherche aussi | DEC 11-06 | S | bo › donne le setter Kilter d'un bloc importé ; cherche le nom et le créateur (compte ou setter Kilter) | S01, S02 tuées (2026-11-06) | — |
 | Commentaires : publics seulement | CdC | S | bo › findComments | M38 tuée | `/comments` d'un bloc privé non vérifié (faible) |
 | Bornes de pagination, tag seul en tableau | code | D | boulders.dto › FilterBoulderDto | D06, D07 tuées | — |
 | Like idempotent, par inclinaison, sur bloc visible | DEC 10-14, 10-15 | S + D + B | bo › like, unlike, isLiked ; boulders.dto › AngleQueryDto | M35, M36 tuées | unicité en base : e2e |

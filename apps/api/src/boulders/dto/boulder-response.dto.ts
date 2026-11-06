@@ -28,6 +28,9 @@ export class BoulderSummaryDto {
   gradeRank!: number;
   angleDegrees!: number;
   creatorUsername!: string;
+  // Pseudo Kilter du créateur d'un bloc importé (`creatorUsername` est alors
+  // le compte système `kilter`) ; `null` pour un bloc créé dans l'app.
+  setterName!: string | null;
   tags!: string[];
   ascentCount!: number;
   averageRating!: number | null;
