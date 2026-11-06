@@ -85,6 +85,9 @@ export class BouldersService {
         include: {
           grade: { select: { rank: true } },
           _count: { select: { ascents: true } },
+          kilterStats: {
+            select: { ascensionistCount: true, qualityAverage: true },
+          },
           boulder: {
             include: {
               creator: { select: { username: true } },
@@ -120,7 +123,7 @@ export class BouldersService {
     );
 
     return {
-      data: rows.map(({ boulder, grade, _count }) => ({
+      data: rows.map(({ boulder, grade, _count, kilterStats }) => ({
         id: boulder.id,
         name: boulder.name,
         // Non nul : le where ne garde que les inclinaisons cotées.
@@ -131,6 +134,8 @@ export class BouldersService {
         tags: boulder.boulderTags.map((bt) => bt.tag.slug),
         ascentCount: _count.ascents,
         averageRating: ratingByBoulder.get(boulder.id) ?? null,
+        kilterAscensionists: kilterStats?.ascensionistCount ?? null,
+        kilterQuality: kilterStats?.qualityAverage ?? null,
         isPublic: boulder.isPublic,
         createdAt: boulder.createdAt,
       })),
@@ -161,6 +166,9 @@ export class BouldersService {
             angle: { select: { valueDegrees: true } },
             grade: { select: { vScale: true, rank: true } },
             baseGrade: { select: { rank: true } },
+            kilterStats: {
+              select: { ascensionistCount: true, qualityAverage: true },
+            },
           },
           orderBy: { angle: { valueDegrees: 'asc' } },
         },
@@ -176,6 +184,13 @@ export class BouldersService {
       _avg: { rating: true },
     });
 
+    // Le premier niveau décrit l'inclinaison de référence (`gradeRank`,
+    // `angleDegrees`) : ses statistiques Kilter aussi. Les autres sont dans
+    // `angleGrades`.
+    const referenceStats = boulder.boulderAngles.find(
+      (ba) => ba.angle.valueDegrees === boulder.angle.valueDegrees,
+    )?.kilterStats;
+
     return {
       id: boulder.id,
       name: boulder.name,
@@ -186,6 +201,8 @@ export class BouldersService {
       tags: boulder.boulderTags.map((bt) => bt.tag.slug),
       ascentCount: boulder._count.ascents,
       averageRating: ratings._avg.rating,
+      kilterAscensionists: referenceStats?.ascensionistCount ?? null,
+      kilterQuality: referenceStats?.qualityAverage ?? null,
       isPublic: boulder.isPublic,
       createdAt: boulder.createdAt,
       description: boulder.description,
@@ -202,6 +219,8 @@ export class BouldersService {
         baseGradeRank: ba.baseGrade?.rank ?? null,
         votesCount: ba.votesCount,
         isEstimated: isEstimatedGrade(ba.votesCount, ba.baseGrade !== null),
+        kilterAscensionists: ba.kilterStats?.ascensionistCount ?? null,
+        kilterQuality: ba.kilterStats?.qualityAverage ?? null,
       })),
     };
   }

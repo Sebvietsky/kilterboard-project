@@ -347,7 +347,8 @@ model KilterAngleStat {
   // Cotation moyenne, décimale, sur l'échelle des rangs (`grades.rank`)
   difficulty        Float
   ascensionistCount Int     @map("ascensionist_count")
-  // Note moyenne Kilter (0 à 3 étoiles dans leur app)
+  // Note moyenne Kilter, sur 5 comme nos étoiles (relevé du 2026-11-06 :
+  // de 0,14 à 5, moyenne 3,26) ; nulle sans vote
   qualityAverage    Float?  @map("quality_average")
   isBenchmark       Boolean @default(false) @map("is_benchmark")
 

@@ -42,6 +42,7 @@ import { useGradeLabel, useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
 import { plural } from '@/lib/format/plural';
+import { compactCount } from '@/lib/format/compactCount';
 import { showToast, TOAST_VISIBLE_MS } from '@/lib/toast/useToastStore';
 import { useEffect, useState } from 'react';
 
@@ -406,6 +407,18 @@ function BoulderDetailScreen({
           </>
         )}
       </View>
+
+      {/* Chiffres Kilter à l'inclinaison affichée, à part des nôtres et avec
+          leur source (décision du 2026-11-06). Absents pendant le placeholder
+          venu d'Explore, qui n'a pas encore les inclinaisons. */}
+      {angleGrade?.kilterAscensionists != null && (
+        <Text style={styles.kilterLine}>
+          On Kilter at {angle}° · {compactCount(angleGrade.kilterAscensionists)}{' '}
+          climbers
+          {angleGrade.kilterQuality !== null &&
+            ` · ★ ${angleGrade.kilterQuality.toFixed(1)}`}
+        </Text>
+      )}
 
       <View style={styles.logSection}>
         <Text style={styles.sectionLabel}>Log session</Text>
@@ -998,6 +1011,13 @@ const styles = StyleSheet.create({
     width: 1,
     alignSelf: 'stretch',
     backgroundColor: colors.border,
+  },
+  kilterLine: {
+    marginTop: -spacing.md,
+    textAlign: 'center',
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
   statLabel: {
     fontFamily: typography.family.data,
