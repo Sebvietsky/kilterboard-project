@@ -71,6 +71,13 @@ versions selon [SemVer](https://semver.org/lang/fr/).
   popularité Kilter à cette inclinaison (`boulder_angles.kilter_ascensionists`),
   puis par nos ascensions. Mobile : 40° par défaut, bouton d'inclinaison dans
   l'en-tête d'Explore, l'inclinaison ne s'efface plus avec les filtres.
+- **Statistiques Kilter affichées à part des nôtres** : `kilterAscensionists`
+  et `kilterQuality` (note sur 5) sur les cartes d'Explore, à l'inclinaison de
+  la carte, et par inclinaison dans `angleGrades` du détail. Mobile :
+  « 104k on Kilter · ★ 3.1 » sur la carte (nos ascensions à la suite, « in
+  app »), et « On Kilter at 40° · … » sous les statistiques du détail. Les
+  chiffres ne sont jamais additionnés : grimpeurs Kilter contre nos lignes
+  d'ascension.
 - **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
   la taille et toutes ses prises, au lieu d'une grille 12 × 12.
 

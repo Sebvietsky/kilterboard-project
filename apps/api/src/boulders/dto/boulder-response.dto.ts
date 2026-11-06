@@ -34,6 +34,12 @@ export class BoulderSummaryDto {
   tags!: string[];
   ascentCount!: number;
   averageRating!: number | null;
+  // Statistiques Kilter à l'inclinaison de la carte, `null` sans elles (bloc
+  // créé dans l'app). Séparées de nos chiffres, qui ne mesurent pas la même
+  // chose : des grimpeurs sur toute la communauté Kilter, contre nos lignes
+  // d'ascension (décision du 2026-11-06).
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
   isPublic!: boolean;
   createdAt!: Date;
 }
@@ -64,6 +70,9 @@ export class AngleGradeDto {
   votesCount!: number;
   // Peu de votes, sans cotation de départ.
   isEstimated!: boolean;
+  // Statistiques Kilter à cette inclinaison, `null` sans elles.
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
 }
 
 export class BoulderDetailDto extends BoulderSummaryDto {

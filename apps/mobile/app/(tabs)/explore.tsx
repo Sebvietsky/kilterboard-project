@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
+import { compactCount } from '@/lib/format/compactCount';
 import { boulderBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
@@ -38,14 +39,41 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
 
       <View style={styles.metaRow}>
         <Text style={styles.metaData}>{item.angleDegrees}°</Text>
-        <Text style={styles.metaDot}>·</Text>
-        <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
-        {item.averageRating !== null && (
+        {item.kilterAscensionists !== null ? (
+          // Bloc Kilter : ses chiffres, avec leur source ; les nôtres à la
+          // suite s'il y en a. Jamais additionnés (décision du 2026-11-06).
           <>
             <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.ratingText}>
-              ★ {item.averageRating.toFixed(1)}
+            <Text style={styles.metaData}>
+              {compactCount(item.kilterAscensionists)} on Kilter
             </Text>
+            {item.kilterQuality !== null && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.ratingText}>
+                  ★ {item.kilterQuality.toFixed(1)}
+                </Text>
+              </>
+            )}
+            {item.ascentCount > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaData}>{item.ascentCount} in app</Text>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
+            {item.averageRating !== null && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.ratingText}>
+                  ★ {item.averageRating.toFixed(1)}
+                </Text>
+              </>
+            )}
           </>
         )}
       </View>
