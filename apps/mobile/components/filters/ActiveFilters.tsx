@@ -10,9 +10,9 @@ import { colors, spacing, typography, radii } from '@/constants/theme';
 // le faire piloter par des props ne ferait que déplacer la même connaissance
 // dans l'écran appelant.
 // La recherche par nom n'y figure pas — elle est déjà visible dans son champ.
+// L'inclinaison non plus : elle a son propre bouton, et ne s'efface pas.
 export function ActiveFilters() {
   const creator = useFiltersStore((s) => s.creator);
-  const angle = useFiltersStore((s) => s.angle);
   const gradeMin = useFiltersStore((s) => s.gradeMin);
   const gradeMax = useFiltersStore((s) => s.gradeMax);
   const tags = useFiltersStore((s) => s.tags);
@@ -27,14 +27,6 @@ export function ActiveFilters() {
       key: 'creator',
       label: `by ${creator}`,
       onRemove: () => setFilters({ creator: undefined }),
-    });
-  }
-
-  if (angle !== undefined) {
-    chips.push({
-      key: 'angle',
-      label: `${angle}°`,
-      onRemove: () => setFilters({ angle: undefined }),
     });
   }
 
