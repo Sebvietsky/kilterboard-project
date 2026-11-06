@@ -42,9 +42,10 @@ Abréviations :
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
 | Médiane basse, résistante aux aberrants | DEC, note boulder-angle | S | cg › medianGrade | C01 tuée | — |
-| Créateur sous 5 votes, médiane à partir de 5 | DEC | S | cg › effectiveGrade | C02, C03 tuées | — |
-| Autre inclinaison : rien sans vote, médiane dès le premier | DEC | S | cg › effectiveGrade | C06 tuée | — |
-| « Estimée » : 1 à 4 votes hors inclinaison du créateur | DEC | S | cg › isEstimatedGrade ; bo › findOne | C04, C15 tuées | — |
+| Cotation de départ (créateur à son inclinaison, Kilter pour un bloc importé) sous 5 votes, médiane à partir de 5 | DEC 11-06 | S | cg › effectiveGrade — avec une cotation de départ ; recomputeAngleGrade › garde la cotation de départ sous le seuil, passe à la médiane au seuil | C02, C03 tuées ; G01 tuée (2026-11-06) | — |
+| Sans cotation de départ : rien sans vote, médiane dès le premier | DEC | S | cg › effectiveGrade — sans cotation de départ | C06 tuée | — |
+| La cotation de départ est celle de l'inclinaison recalculée, et un recalcul sans vote ne l'efface pas | DEC 11-06 | S | cg › lit la cotation de départ de cette inclinaison ; garde la cotation de départ sans vote | G04 tuée (2026-11-06) | — |
+| « Estimée » : 1 à 4 votes sans cotation de départ | DEC 11-06 | S | cg › isEstimatedGrade ; bo › findOne | C04, C15 tuées ; G02, G03 tuées (2026-11-06) | — |
 | Seuls les envois à cette inclinaison votent | DEC | S | cg › ne compte que les grades ressentis d'envois… | C05, C09 tuées | — |
 | Nombre de votes stocké | DEC | S | cg › écrit la médiane et le nombre de votes | C08 tuée | — |
 | Verrou de ligne avant la lecture des votes | 3456556 | S | cg › verrouille la ligne avant de lire | C07 tuée | sérialisation réelle : e2e |

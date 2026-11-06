@@ -238,9 +238,10 @@ model Grade {
   fontScale String @unique @db.VarChar(5) // ex. "6c+"
   rank      Int    @unique // `difficulty` Kilter, croissant avec la difficulté
 
-  boulders      Boulder[]      @relation("BoulderGrade")
-  boulderAngles BoulderAngle[] @relation("BoulderAngleGrade")
-  ascents       Ascent[]       @relation("AscentFeltGrade")
+  boulders          Boulder[]      @relation("BoulderGrade")
+  boulderAngles     BoulderAngle[] @relation("BoulderAngleGrade")
+  boulderBaseAngles BoulderAngle[] @relation("BoulderAngleBaseGrade")
+  ascents           Ascent[]       @relation("AscentFeltGrade")
 
   @@map("grades")
 }
@@ -288,20 +289,29 @@ model Boulder {
 // les ascensions, favoris et entrées de playlist y pointent par une clé
 // étrangère composée, qui exige que la ligne existe déjà.
 //
-// `gradeId` : cotation effective. Celle du créateur sur sa ligne jusqu'au seuil
-// de votes, puis la médiane des votes ; null ailleurs tant que personne n'y a
-// envoyé le bloc. `votesCount` : un vote = le grade ressenti du premier envoi
-// d'un grimpeur à cette inclinaison. « Estimée » ne se stocke pas, elle se
-// déduit (peu de votes, hors inclinaison du créateur).
+// `baseGradeId` : cotation de départ à cette inclinaison, s'il y en a une.
+// Celle du créateur à son inclinaison ; pour un bloc importé, celle de Kilter à
+// chaque inclinaison où il a des statistiques.
+// `gradeId` : cotation effective. La cotation de départ jusqu'au seuil de
+// votes, puis la médiane des votes ; sans cotation de départ, null tant que
+// personne n'y a envoyé le bloc. `votesCount` : un vote = le grade ressenti du
+// premier envoi d'un grimpeur à cette inclinaison. « Estimée » ne se stocke
+// pas, elle se déduit (peu de votes, sans cotation de départ).
 // La cotation et l'inclinaison du créateur restent sur `boulders`, en référence.
 model BoulderAngle {
-  boulderId  Int     @map("boulder_id")
-  boulder    Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  angleId    Int     @map("angle_id")
-  angle      Angle   @relation(fields: [angleId], references: [id], onDelete: Restrict)
-  gradeId    Int?    @map("grade_id")
-  grade      Grade?  @relation("BoulderAngleGrade", fields: [gradeId], references: [id], onDelete: Restrict)
-  votesCount Int     @default(0) @map("votes_count")
+  boulderId   Int     @map("boulder_id")
+  boulder     Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId     Int     @map("angle_id")
+  angle       Angle   @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Cotation effective : résultat calculé par recomputeAngleGrade, jamais
+  // écrit à la main (src/boulders/community-grade.ts).
+  gradeId     Int?    @map("grade_id")
+  grade       Grade?  @relation("BoulderAngleGrade", fields: [gradeId], references: [id], onDelete: Restrict)
+  // Cotation de départ à cette inclinaison, source du calcul : celle du
+  // créateur à son inclinaison, celle de Kilter pour un bloc importé.
+  baseGradeId Int?    @map("base_grade_id")
+  baseGrade   Grade?  @relation("BoulderAngleBaseGrade", fields: [baseGradeId], references: [id], onDelete: Restrict)
+  votesCount  Int     @default(0) @map("votes_count")
 
   ascents          Ascent[]
   likes            BoulderLike[]
