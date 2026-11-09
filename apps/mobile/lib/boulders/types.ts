@@ -12,6 +12,11 @@ export interface BoulderSummary {
   tags: string[];
   ascentCount: number;
   averageRating: number | null;
+  // Statistiques Kilter à l'inclinaison de la carte, `null` sans elles (bloc
+  // créé dans l'app). À afficher à part de nos chiffres, avec leur source :
+  // des grimpeurs sur toute la communauté Kilter.
+  kilterAscensionists: number | null;
+  kilterQuality: number | null;
   isPublic: boolean;
   createdAt: string; // string JSON, PAS Date
 }
@@ -62,6 +67,9 @@ export interface AngleGrade {
   votesCount: number;
   // Peu de votes, sans cotation de départ.
   isEstimated: boolean;
+  // Statistiques Kilter à cette inclinaison, `null` sans elles.
+  kilterAscensionists: number | null;
+  kilterQuality: number | null;
 }
 
 // `gradeRank` et `angleDegrees` hérités de BoulderSummary restent la

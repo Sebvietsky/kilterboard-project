@@ -47,6 +47,7 @@ const catalogRow = {
   boulderId: 10,
   grade: { rank: 7 },
   _count: { ascents: 2 },
+  kilterStats: null,
   boulder: boulderRow,
 };
 
@@ -228,6 +229,34 @@ describe('BouldersService', () => {
       });
     });
 
+    // Les chiffres Kilter restent à part des nôtres (décision du 2026-11-06) :
+    // grimpeurs sur toute la communauté contre nos lignes d'ascension.
+    it("donne les statistiques Kilter de l'inclinaison, à part des nôtres", async () => {
+      prismaMock.boulderAngle.findMany.mockResolvedValue([
+        {
+          ...catalogRow,
+          kilterStats: { ascensionistCount: 104258, qualityAverage: 3.1 },
+        },
+      ]);
+
+      const { data } = await service.findAll({ angle: 40 });
+
+      expect(data[0]).toMatchObject({
+        ascentCount: 2,
+        kilterAscensionists: 104258,
+        kilterQuality: 3.1,
+      });
+    });
+
+    it('renvoie null sans statistiques Kilter (bloc créé dans l’app)', async () => {
+      const { data } = await service.findAll({ angle: 40 });
+
+      expect(data[0]).toMatchObject({
+        kilterAscensionists: null,
+        kilterQuality: null,
+      });
+    });
+
     // La note moyenne est celle de l'inclinaison affichée, comme la cotation.
     it("ne moyenne que les notes données à l'inclinaison demandée", async () => {
       await service.findAll({ angle: 40 });
@@ -283,24 +312,28 @@ describe('BouldersService', () => {
           angle: { valueDegrees: 40 },
           grade: { vScale: 'V4', rank: 6 },
           baseGrade: { rank: 6 },
+          kilterStats: { ascensionistCount: 1200, qualityAverage: 3.1 },
         },
         {
           votesCount: 1,
           angle: { valueDegrees: 45 },
           grade: { vScale: 'V5', rank: 7 },
           baseGrade: { rank: 7 },
+          kilterStats: { ascensionistCount: 300, qualityAverage: null },
         },
         {
           votesCount: 1,
           angle: { valueDegrees: 50 },
           grade: { vScale: 'V6', rank: 8 },
           baseGrade: null,
+          kilterStats: null,
         },
         {
           votesCount: 0,
           angle: { valueDegrees: 60 },
           grade: null,
           baseGrade: null,
+          kilterStats: null,
         },
       ],
     };
@@ -341,6 +374,24 @@ describe('BouldersService', () => {
       ]);
     });
 
+    // Le premier niveau du détail décrit l'inclinaison de référence : ses
+    // statistiques Kilter aussi. Référence à 45° ici, après 40° qui a les
+    // siennes : prendre la première inclinaison venue donnerait celles de 40°.
+    it("donne au premier niveau les statistiques Kilter de l'inclinaison de référence", async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...detailRow,
+        angle: { valueDegrees: 45 },
+      });
+
+      const detail = await service.findOne(10);
+
+      expect(detail).toMatchObject({
+        angleDegrees: 45,
+        kilterAscensionists: 300,
+        kilterQuality: null,
+      });
+    });
+
     // « Estimée » se déduit : peu de votes, et seulement sans cotation de
     // départ. Une inclinaison qui en a une la garde sous le seuil : ce n'est
     // pas une estimation, même avec un vote, qu'elle vienne du créateur ou de
@@ -357,6 +408,8 @@ describe('BouldersService', () => {
           baseGradeRank: 6,
           votesCount: 2,
           isEstimated: false,
+          kilterAscensionists: 1200,
+          kilterQuality: 3.1,
         },
         {
           angleDegrees: 45,
@@ -364,6 +417,8 @@ describe('BouldersService', () => {
           baseGradeRank: 7,
           votesCount: 1,
           isEstimated: false,
+          kilterAscensionists: 300,
+          kilterQuality: null,
         },
         {
           angleDegrees: 50,
@@ -371,6 +426,8 @@ describe('BouldersService', () => {
           baseGradeRank: null,
           votesCount: 1,
           isEstimated: true,
+          kilterAscensionists: null,
+          kilterQuality: null,
         },
         {
           angleDegrees: 60,
@@ -378,6 +435,8 @@ describe('BouldersService', () => {
           baseGradeRank: null,
           votesCount: 0,
           isEstimated: false,
+          kilterAscensionists: null,
+          kilterQuality: null,
         },
       ]);
     });
