@@ -1,14 +1,15 @@
 export type FiltersValues = {
   name?: string;
   creator?: string;
-  angle?: number;
+  // Toujours définie : Explore montre les blocs à une inclinaison.
+  angle: number;
   gradeMin?: number;
   gradeMax?: number;
   tags: string[];
 };
 
 export interface FiltersState extends FiltersValues {
-  setAngle: (angle?: number) => void;
+  setAngle: (angle: number) => void;
   setGrade: (rank?: number) => void;
   setFilters: (partial: Partial<FiltersValues>) => void;
   reset: () => void;

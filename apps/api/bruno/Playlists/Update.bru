@@ -1,0 +1,18 @@
+meta {
+  name: Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/playlists/{{playlistId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Projets 40° — hiver",
+    "isPublic": true
+  }
+}

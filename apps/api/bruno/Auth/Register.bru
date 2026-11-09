@@ -1,0 +1,27 @@
+meta {
+  name: Register
+  type: http
+  seq: 0
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "bruno_test",
+    "email": "bruno_test@example.com",
+    "password": "Str0ng-Passw0rd!"
+  }
+}
+
+docs {
+  - username : 3-20 caractères, lettres, chiffres, `-` et `_`.
+  - password : 12-32 caractères, avec minuscule, majuscule, chiffre et
+    caractère spécial (`#?!@$%^&*-`).
+  - Email ou username déjà pris : 409, message volontairement vague.
+  - Throttle : 3/min.
+}

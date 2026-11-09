@@ -1,6 +1,8 @@
 import { Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
-import { gradeLabel, tagLabel } from '@/lib/filters/const';
+import { tagLabel } from '@/lib/filters/const';
+import { gradeLabel } from '@/lib/grades/scale';
+import { useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { colors, spacing, typography, radii } from '@/constants/theme';
 
 // Récap des filtres actifs, sous la barre de recherche d'Explore.
@@ -8,14 +10,15 @@ import { colors, spacing, typography, radii } from '@/constants/theme';
 // le faire piloter par des props ne ferait que déplacer la même connaissance
 // dans l'écran appelant.
 // La recherche par nom n'y figure pas — elle est déjà visible dans son champ.
+// L'inclinaison non plus : elle a son propre bouton, et ne s'efface pas.
 export function ActiveFilters() {
   const creator = useFiltersStore((s) => s.creator);
-  const angle = useFiltersStore((s) => s.angle);
   const gradeMin = useFiltersStore((s) => s.gradeMin);
   const gradeMax = useFiltersStore((s) => s.gradeMax);
   const tags = useFiltersStore((s) => s.tags);
   const setFilters = useFiltersStore((s) => s.setFilters);
   const reset = useFiltersStore((s) => s.reset);
+  const gradeSystem = useGradeSystem();
 
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
 
@@ -27,14 +30,6 @@ export function ActiveFilters() {
     });
   }
 
-  if (angle !== undefined) {
-    chips.push({
-      key: 'angle',
-      label: `${angle}°`,
-      onRemove: () => setFilters({ angle: undefined }),
-    });
-  }
-
   // gradeMin et gradeMax sont posés ensemble par l'écran de filtres (et effacés
   // ensemble quand la plage couvre tout) : une seule chip pour les deux.
   if (gradeMin !== undefined && gradeMax !== undefined) {
@@ -42,8 +37,8 @@ export function ActiveFilters() {
       key: 'grade',
       label:
         gradeMin === gradeMax
-          ? gradeLabel(gradeMin)
-          : `${gradeLabel(gradeMin)} — ${gradeLabel(gradeMax)}`,
+          ? gradeLabel(gradeMin, gradeSystem)
+          : `${gradeLabel(gradeMin, gradeSystem)} — ${gradeLabel(gradeMax, gradeSystem)}`,
       onRemove: () => setFilters({ gradeMin: undefined, gradeMax: undefined }),
     });
   }

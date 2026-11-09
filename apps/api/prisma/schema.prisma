@@ -3,17 +3,18 @@
 //
 // Domaines principaux :
 //   - Utilisateurs & social    : User, UserFollow
-//   - Matériel                 : BoardLayout, Board, Hold, Angle
-//   - Blocs                    : Boulder, BoulderHold, BoulderTag, Tag, Grade
+//   - Matériel                 : BoardLayout, BoardSize, Board, Hold, HoldLed, Angle
+//   - Blocs                    : Boulder, BoulderAngle, KilterAngleStat, BoulderHold, BoulderTag, Tag, Grade
 //   - Activité grimpe          : BoardSession, Ascent, AscentNote, AscentNoteLike
 //   - Collections              : Playlist, PlaylistBoulder
 // ============================================================
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  runtime      = "nodejs"
-  moduleFormat = "cjs"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  runtime         = "nodejs"
+  moduleFormat    = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -65,6 +66,7 @@ model User {
   follows    UserFollow[] @relation("FollowerRelation")
 
   playlists     Playlist[]
+  boulderLikes  BoulderLike[]
   refreshTokens RefreshToken[]
 
   @@map("users")
@@ -88,24 +90,47 @@ model UserFollow {
 // MATÉRIEL — BOARD & PRISES
 // ============================================================
 
-// Modèle de planche (ex. Kilter Board 12x12°).
-// Sert de référence partagée entre les prises (Hold), les blocs (Boulder)
-// et les installations physiques (Board).
+// Modèle de planche (ex. Kilter Board Original), toutes tailles confondues.
+// Sert de référence partagée entre les tailles (BoardSize), les prises (Hold),
+// les blocs (Boulder) et les installations physiques (Board).
 model BoardLayout {
   id           Int     @id @default(autoincrement())
   name         String  @unique @db.VarChar(100)
   manufacturer String? @db.VarChar(100)
 
-  // Dimensions en nombre de prises (pas en cm)
-  width       Int
-  height      Int
+  // Les dimensions dépendent de la taille (BoardSize), pas du layout
   description String?
 
   boulders Boulder[]
   holds    Hold[]
   boards   Board[]
+  sizes    BoardSize[]
 
   @@map("board_layouts")
+}
+
+// Taille d'une planche pour un layout (ex. "12 x 12 with kickboard").
+// Une taille est un rectangle (edge_*) sur la grille commune des prises du layout,
+// et fixe la position LED de chaque prise (HoldLed).
+// kilterSizeId : id Kilter de la taille (board_product_sizes), qui sert à l'import.
+model BoardSize {
+  id           Int         @id @default(autoincrement())
+  layout       BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  layoutId     Int         @map("layout_id")
+  kilterSizeId Int         @map("kilter_size_id")
+  name         String      @db.VarChar(100)
+
+  edgeLeft   Int @map("edge_left")
+  edgeRight  Int @map("edge_right")
+  edgeBottom Int @map("edge_bottom")
+  edgeTop    Int @map("edge_top")
+
+  leds   HoldLed[]
+  boards Board[]
+
+  @@unique([layoutId, kilterSizeId])
+  @@unique([layoutId, name])
+  @@map("board_sizes")
 }
 
 // Installation physique d'une planche dans une salle ou chez un particulier.
@@ -128,29 +153,55 @@ model Board {
   layoutId    Int         @map("layout_id")
   boardLayout BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Restrict)
 
+  // La taille fixe les positions LED : une mauvaise taille allume les mauvaises prises.
+  // Elle doit appartenir au même layout que la board (vérifié par le service, pas par la base).
+  sizeId Int       @map("size_id")
+  size   BoardSize @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+
   boardSessions BoardSession[]
 
   @@map("boards")
 }
 
-// Prise physique sur un layout, identifiée par un code (ex. "A3").
-// La position (x, y) est exprimée en coordonnées de grille.
-// Contrainte UNIQUE(layoutId, holdCode) : un code de prise est unique par layout.
+// Prise posée sur un layout : un placement Kilter (un trou + un set).
+// La position (x, y) reprend les coordonnées Kilter du trou, communes à toutes les tailles.
+// L'id reste le nôtre : boulder_holds n'en dépend pas, et l'id Kilter n'est unique que par marque.
 model Hold {
   id       Int         @id @default(autoincrement())
   layout   BoardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
   layoutId Int         @map("layout_id")
 
-  // Code alphanumérique identifiant la prise sur le layout (ex. "B7")
-  holdCode String @map("hold_code") @db.VarChar(20)
+  // Id Kilter du placement (board_placements), qui sert à l'import et à la lecture des blocs Kilter
+  kilterPlacementId Int @map("kilter_placement_id")
+
+  // Nom Kilter du trou (ex. "18,17", "1,KB1" pour le kickboard)
+  holdCode String  @map("hold_code") @db.VarChar(20)
+  set      HoldSet
 
   x Int
   y Int
 
   boulderHolds BoulderHold[]
+  leds         HoldLed[]
 
   @@unique([layoutId, holdCode])
+  @@unique([layoutId, kilterPlacementId])
   @@map("holds")
+}
+
+// Position LED d'une prise pour une taille de planche.
+// Une prise sans ligne pour une taille est hors du cadre de cette taille.
+// UNIQUE(sizeId, position) : une LED n'éclaire qu'une prise.
+model HoldLed {
+  hold     Hold      @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  holdId   Int       @map("hold_id")
+  size     BoardSize @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  sizeId   Int       @map("size_id")
+  position Int
+
+  @@id([holdId, sizeId])
+  @@unique([sizeId, position])
+  @@map("hold_leds")
 }
 
 // Angle d'inclinaison de la planche en degrés.
@@ -160,7 +211,11 @@ model Angle {
   valueDegrees Int     @unique @map("value_degrees")
   label        String? @db.VarChar(50) // ex. "Vertical", "Overhang"
 
-  boulders Boulder[]
+  boulders         Boulder[]
+  boulderAngles    BoulderAngle[]
+  ascents          Ascent[]
+  boulderLikes     BoulderLike[]
+  playlistBoulders PlaylistBoulder[]
 
   @@map("angles")
 }
@@ -172,14 +227,21 @@ model Angle {
 // Table de référence des cotations, double-indexée V-scale et Fontainebleau.
 // `rank` permet d'ordonner les grades sans dépendre du format texte.
 // Utilisée à deux endroits : cotation officielle d'un bloc + grade ressenti d'une ascension.
+//
+// Une ligne par cotation Font, l'échelle la plus fine : 6a et 6a+ sont deux
+// lignes, toutes deux V3. Le V n'est donc pas unique. `rank` reprend le
+// `difficulty` de Kilter (`board_difficulty_grades`), ce qui rend l'import
+// direct. Seules les cotations listées par Kilter (4a à 8c+) existent ici.
 model Grade {
   id        Int    @id @default(autoincrement())
-  vScale    String @unique @db.VarChar(5) // ex. "V5"
-  fontScale String @unique @db.VarChar(5) // ex. "7A"
-  rank      Int    @unique // ordre de difficulté croissante
+  vScale    String @db.VarChar(5) // ex. "V5"
+  fontScale String @unique @db.VarChar(5) // ex. "6c+"
+  rank      Int    @unique // `difficulty` Kilter, croissant avec la difficulté
 
-  boulders Boulder[] @relation("BoulderGrade")
-  ascents  Ascent[]  @relation("AscentFeltGrade")
+  boulders          Boulder[]      @relation("BoulderGrade")
+  boulderAngles     BoulderAngle[] @relation("BoulderAngleGrade")
+  boulderBaseAngles BoulderAngle[] @relation("BoulderAngleBaseGrade")
+  ascents           Ascent[]       @relation("AscentFeltGrade")
 
   @@map("grades")
 }
@@ -203,6 +265,12 @@ model Boulder {
   angle     Angle       @relation(fields: [angleId], references: [id], onDelete: Restrict)
   angleId   Int         @map("angle_id")
 
+  // Bloc importé du catalogue Kilter (`db:import-climbs`) : son uuid Kilter,
+  // qui rend l'import idempotent, et le pseudo Kilter de son créateur. Le
+  // créateur en base est alors le compte système `kilter`.
+  kilterUuid String? @unique @map("kilter_uuid") @db.VarChar(64)
+  setterName String? @map("setter_name") @db.VarChar(100)
+
   isPublic  Boolean  @default(false) @map("is_public") // false par défaut car isDraft = true
   isDraft   Boolean  @default(true) @map("is_draft") // true par défaut -> false dès la création du boulder
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -210,11 +278,82 @@ model Boulder {
 
   boulderHolds     BoulderHold[]
   boulderTags      BoulderTag[]
+  boulderAngles    BoulderAngle[]
   ascents          Ascent[]
   ascentNotes      AscentNote[]
   playlistBoulders PlaylistBoulder[]
+  likes            BoulderLike[]
 
   @@map("boulders")
+}
+
+// Un bloc à une inclinaison : « le même bloc à une autre inclinaison est un
+// autre bloc ». Association entre Boulder et Angle, identifiée par le couple
+// (boulderId, angleId) et porteuse de la cotation effective à cette inclinaison.
+//
+// Une ligne par inclinaison de la table `angles`, toutes créées avec le bloc :
+// les ascensions, favoris et entrées de playlist y pointent par une clé
+// étrangère composée, qui exige que la ligne existe déjà.
+//
+// `baseGradeId` : cotation de départ à cette inclinaison, s'il y en a une.
+// Celle du créateur à son inclinaison ; pour un bloc importé, celle de Kilter à
+// chaque inclinaison où il a des statistiques.
+// `gradeId` : cotation effective. La cotation de départ jusqu'au seuil de
+// votes, puis la médiane des votes ; sans cotation de départ, null tant que
+// personne n'y a envoyé le bloc. `votesCount` : un vote = le grade ressenti du
+// premier envoi d'un grimpeur à cette inclinaison. « Estimée » ne se stocke
+// pas, elle se déduit (peu de votes, sans cotation de départ).
+// La cotation et l'inclinaison du créateur restent sur `boulders`, en référence.
+model BoulderAngle {
+  boulderId   Int     @map("boulder_id")
+  boulder     Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId     Int     @map("angle_id")
+  angle       Angle   @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Cotation effective : résultat calculé par recomputeAngleGrade, jamais
+  // écrit à la main (src/boulders/community-grade.ts).
+  gradeId     Int?    @map("grade_id")
+  grade       Grade?  @relation("BoulderAngleGrade", fields: [gradeId], references: [id], onDelete: Restrict)
+  // Cotation de départ à cette inclinaison, source du calcul : celle du
+  // créateur à son inclinaison, celle de Kilter pour un bloc importé.
+  baseGradeId Int?    @map("base_grade_id")
+  baseGrade   Grade?  @relation("BoulderAngleBaseGrade", fields: [baseGradeId], references: [id], onDelete: Restrict)
+  votesCount  Int     @default(0) @map("votes_count")
+
+  ascents          Ascent[]
+  likes            BoulderLike[]
+  playlistBoulders PlaylistBoulder[]
+  kilterStats      KilterAngleStat?
+
+  // Clé de tri d'Explore : nombre de grimpeurs Kilter à cette inclinaison,
+  // copie de `kilter_angle_stats.ascensionist_count` écrite par l'import.
+  // Non nulle, 0 pour un bloc créé dans l'app : Prisma ne sait pas trier une
+  // relation absente en dernier, et ces blocs doivent passer après.
+  kilterAscensionists Int @default(0) @map("kilter_ascensionists")
+
+  @@id([boulderId, angleId])
+  @@index([angleId, kilterAscensionists(sort: Desc)])
+  @@map("boulder_angles")
+}
+
+// Statistiques Kilter d'un bloc importé à une inclinaison (`board_climb_stats`),
+// telles que Kilter les publie. Données de référence, hors de la règle de
+// cotation : celle-ci ne lit que `boulder_angles.base_grade_id`, que l'import
+// remplit à partir d'ici. Servent au tri par popularité et à l'affichage.
+model KilterAngleStat {
+  boulderId    Int          @map("boulder_id")
+  angleId      Int          @map("angle_id")
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+
+  // Cotation moyenne, décimale, sur l'échelle des rangs (`grades.rank`)
+  difficulty        Float
+  ascensionistCount Int     @map("ascensionist_count")
+  // Note moyenne Kilter, sur 5 comme nos étoiles (relevé du 2026-11-06 :
+  // de 0,14 à 5, moyenne 3,26) ; nulle sans vote
+  qualityAverage    Float?  @map("quality_average")
+  isBenchmark       Boolean @default(false) @map("is_benchmark")
+
+  @@id([boulderId, angleId])
+  @@map("kilter_angle_stats")
 }
 
 // Table de jonction entre un bloc et ses prises.
@@ -261,8 +400,7 @@ model BoulderTag {
 // Session de grimpe d'un utilisateur sur une planche.
 // Règle métier : endedAt IS NULL = session active.
 // Un utilisateur ne peut avoir qu'une seule session active à la fois —
-// cette contrainte est enforced dans SessionsService (pas via un index DB
-// car Prisma ne supporte pas encore les index partiels natifs).
+// cette contrainte est enforced dans SessionsService + par @@unique avec condition
 // boardId est nullable : on peut logger une session sans board référencé.
 model BoardSession {
   id      Int    @id @default(autoincrement())
@@ -280,9 +418,40 @@ model BoardSession {
   isShared  Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  ascents Ascent[]
+  entries SessionEntry[]
 
+  @@unique([userId], where: { endedAt: null }, map: "board_sessions_one_active_per_user")
   @@map("board_sessions")
+}
+
+// Un passage sur un bloc pendant une session. Une ligne par log, jamais
+// modifiée : c'est le journal dont on tire le compte rendu de la session.
+//
+// Table distincte et non une colonne `session_id` sur Ascent : une ascension
+// est UNE ligne par bloc (un projet se met à jour par PATCH), alors qu'un même
+// bloc peut être travaillé dans plusieurs sessions, et plusieurs fois dans la
+// même. Avec une colonne, le projet quittait la session précédente à chaque
+// nouvelle séance.
+//
+// Un log hors session n'écrit rien ici : `sessionId` est obligatoire.
+model SessionEntry {
+  id        Int          @id @default(autoincrement())
+  sessionId Int          @map("session_id")
+  session   BoardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ascentId  Int          @map("ascent_id")
+  ascent    Ascent       @relation(fields: [ascentId], references: [id], onDelete: Cascade)
+
+  // Statut de l'ascension À L'ISSUE de ce passage : PROJECT tant que le bloc
+  // résiste, SENT le jour où il tombe. Figé ici, car Ascent.status évolue.
+  status   AscentStatus
+  // Essais de CE passage, pas le cumul (qui reste sur Ascent.attemptsCount).
+  attempts Int          @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([sessionId, createdAt])
+  @@index([ascentId])
+  @@map("session_entries")
 }
 
 // Enregistrement d'une tentative ou d'une réussite sur un bloc.
@@ -291,13 +460,20 @@ model BoardSession {
 // `sendDate` : date d'envoi, null si status = PROJECT.
 // sessionId nullable : une ascension peut être enregistrée hors session.
 model Ascent {
-  id        Int           @id @default(autoincrement())
-  userId    Int           @map("user_id")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boulderId Int           @map("boulder_id")
-  boulder   Boulder       @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  sessionId Int?          @map("session_id")
-  session   BoardSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  id        Int     @id @default(autoincrement())
+  userId    Int     @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId Int     @map("boulder_id")
+  boulder   Boulder @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+
+  // Inclinaison à laquelle le bloc a été grimpé, pas celle de sa création :
+  // le même bloc à 40° et à 45° donne deux réussites distinctes. Toujours
+  // envoyée par le client, jamais devinée : sans BLE, seul l'écran la connaît.
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison : la clé composée garantit que la ligne existe,
+  // et donne accès à la cotation effective.
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
 
   status        AscentStatus
   attemptsCount Int          @default(0) @map("attempts_count")
@@ -311,6 +487,9 @@ model Ascent {
   // l'historique par séance (date, essais et note de chacune).
   sessionsCount Int @default(1) @map("sessions_count")
 
+  // Grade ressenti = le vote du grimpeur pour la cotation du bloc à cette
+  // inclinaison. Donné une seule fois, au premier envoi (ou à la complétion
+  // du projet) : l'index partiel ci-dessous le garantit en base.
   feltGrade   Grade? @relation("AscentFeltGrade", fields: [feltGradeId], references: [id], onDelete: Restrict)
   feltGradeId Int?   @map("felt_grade_id")
 
@@ -320,8 +499,11 @@ model Ascent {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  ascentNotes AscentNote[]
+  ascentNotes    AscentNote[]
+  sessionEntries SessionEntry[]
 
+  // Un seul grade ressenti par grimpeur, par bloc et par inclinaison.
+  @@unique([userId, boulderId, angleId], where: { feltGradeId: { not: null } }, map: "ascents_one_felt_grade_per_user_boulder_angle")
   @@map("ascents")
 }
 
@@ -364,7 +546,8 @@ model AscentNoteLike {
 // COLLECTIONS
 // ============================================================
 
-// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Favoris").
+// Liste de blocs créée par un utilisateur (ex. "Mes projets", "Circuit du mardi").
+// Les favoris n'en sont pas une : ils ont leur propre table (BoulderLike).
 // Privée par défaut — isPublic = true pour partager avec la communauté.
 model Playlist {
   id          Int      @id @default(autoincrement())
@@ -381,17 +564,41 @@ model Playlist {
 }
 
 // Table de jonction Playlist ↔ Boulder, avec position optionnelle pour l'ordre.
-// Clé composite (boulderId, playlistId) : un bloc n'apparaît qu'une fois par playlist.
+// Clé composite (boulderId, playlistId, angleId) : un bloc n'apparaît qu'une fois
+// par playlist et par inclinaison. Le même bloc à deux inclinaisons fait deux entrées.
 model PlaylistBoulder {
-  boulder    Boulder  @relation(fields: [boulderId], references: [id], onDelete: Cascade)
-  boulderId  Int      @map("boulder_id")
-  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
-  playlistId Int      @map("playlist_id")
-  position   Int? // Ordre d'affichage dans la playlist, null = non ordonné
-  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  playlist     Playlist     @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  playlistId   Int          @map("playlist_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  angleId      Int          @map("angle_id")
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  position     Int? // Ordre d'affichage dans la playlist, null = non ordonné
+  addedAt      DateTime     @default(now()) @map("added_at") @db.Timestamptz
 
-  @@id([boulderId, playlistId])
+  @@id([boulderId, playlistId, angleId])
   @@map("playlist_boulders")
+}
+
+// Favori : un utilisateur like un bloc.
+// Clé composite (userId, boulderId, angleId) : un user like un bloc une fois par
+// inclinaison. Le même bloc liké à deux inclinaisons fait deux favoris.
+// `createdAt` sert à trier les blocs likés, du plus récent au plus ancien.
+model BoulderLike {
+  userId       Int          @map("user_id")
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boulderId    Int          @map("boulder_id")
+  boulder      Boulder      @relation(fields: [boulderId], references: [id], onDelete: Cascade)
+  angleId      Int          @map("angle_id")
+  angle        Angle        @relation(fields: [angleId], references: [id], onDelete: Restrict)
+  // Le bloc à cette inclinaison (voir BoulderAngle).
+  boulderAngle BoulderAngle @relation(fields: [boulderId, angleId], references: [boulderId, angleId], onDelete: Cascade)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, boulderId, angleId])
+  @@map("boulder_likes")
 }
 
 // Stockage du refresh token
@@ -434,6 +641,12 @@ enum HoldRole {
   HAND // Prise de main intermédiaire
   FOOT // Prise de pied uniquement
   FINISH // Prise de finition (top)
+}
+
+// Jeu de prises Kilter auquel appartient une prise (board_sets)
+enum HoldSet {
+  BOLT_ONS // Set 1
+  SCREW_ONS // Set 20
 }
 
 // Statut d'une ascension

@@ -4,6 +4,106 @@ Toutes les modifications notables de ce projet sont consignées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
 versions selon [SemVer](https://semver.org/lang/fr/).
 
+## [Unreleased]
+
+### Changements
+
+- **Journal de session** : nouvelle table `session_entries`, une ligne par
+  passage sur un bloc pendant une session. Un même bloc peut ainsi figurer
+  dans plusieurs sessions, et plusieurs fois dans la même. La colonne
+  `ascents.session_id` est supprimée, ses données reprises par la migration.
+- **`POST /ascents` consigne l'ascension dans la session en cours** quand
+  `sessionId` est absent. Un `sessionId: null` explicite la laisse hors
+  session. C'est un changement de contrat : auparavant, un champ absent
+  signifiait « hors session ». La réponse ne contient plus `sessionId`.
+- **`PATCH /ascents/:id` consigne un passage** quand il enregistre une séance
+  ou clôt un projet.
+- **`GET /sessions/active` renvoie `entries`** (les passages, avec les essais
+  et le statut de chacun) à la place de `ascents`. `GET /sessions/me` compte
+  `_count.entries`.
+- **Fermeture automatique des sessions oubliées** : une session sans aucun
+  bloc loggé depuis 2 h est fermée par le serveur, à la date de sa dernière
+  activité. Elle ne bloque plus le démarrage d'une nouvelle session.
+- **Mobile — écran Session** : démarrage et fin de session, chrono, stats de
+  la séance, projets à reprendre et liste des blocs loggés.
+- **Mobile — confirmation après un log** : un toast s'affiche et le bouton
+  passe sur « Logged » le temps de la confirmation, sans pouvoir être
+  retapé. Auparavant, logger un bloc déjà envoyé ne donnait aucun retour.
+- **Mobile — état de la session dans le header** : une pastille indique sur
+  tous les onglets si une session tourne, avec son chrono, et mène à l'écran
+  Session.
+- **Historique des sessions** : nouvelle route `GET /sessions/:id` (détail
+  d'une session avec ses passages). Côté mobile, l'onglet Session liste les
+  séances passées quand aucune ne tourne, et chacune ouvre son compte rendu.
+- **Add to playlist** : depuis le détail d'un bloc, une feuille liste ses
+  playlists, ajoute ou retire le bloc d'un tap et permet d'en créer une.
+  `GET /playlists/me` accepte `boulderId` et indique alors, pour chaque
+  playlist, si elle contient déjà le bloc (`containsBoulder`).
+- **Mobile — détail d'une playlist** : ses blocs, le retrait d'un bloc, la
+  suppression de la playlist et son édition (nom, description, publique ou
+  privée), réservés au propriétaire. Les lignes de Library
+  y mènent. `GET /playlists/:id` renvoie désormais les blocs dans un ordre
+  stable (position, puis ajout le plus récent).
+- **Prises réelles de la Kilter Board Original** : le matériel (prises, tailles,
+  positions LED) est importé du catalogue public de boardsesh par
+  `pnpm --filter api db:import-catalog`, à lancer avant `db:seed`. Nouvelles
+  tables `board_sizes` et `hold_leds` ; `holds` reçoit l'id Kilter du
+  placement et son set ; `boards` reçoit une taille ; `board_layouts` perd
+  `width` et `height`. Taille importée : 12 x 12 with kickboard.
+  Changement cassant : une base existante est à remettre à zéro.
+- **`GET /board-sizes` et `GET /board-sizes/:id`** (module `boards`) : les
+  tailles importées, puis le cadre d'une taille et ses prises, chacune avec sa
+  position LED.
+- **Cotation de départ par inclinaison** : `boulder_angles.base_grade_id`.
+  La règle de cotation communautaire l'applique à toute inclinaison qui en a
+  une (et non plus seulement à celle du créateur) ; `GET /boulders/:id`
+  renvoie `baseGradeRank` par inclinaison.
+- **Blocs Kilter** : `pnpm --filter api db:import-climbs`, après
+  `db:import-catalog` et `db:seed`, importe les blocs grimpés par au moins 20
+  personnes (16 301), avec une cotation de départ à chaque inclinaison cotée
+  et leurs statistiques Kilter (`kilter_angle_stats`). Ils appartiennent au
+  compte système `kilter` ; le pseudo du setter est dans `setterName`,
+  affiché sur les cartes et le détail, et cherché par le filtre « creator ».
+- **Explore toujours à une inclinaison** (changement de contrat) :
+  `GET /boulders` exige `angle`. Une carte est le bloc à cette inclinaison :
+  il n'apparaît que s'il y est coté, avec la cotation, les ascensions et la
+  note de cette inclinaison ; le filtre de cotation porte sur elle. Tri par
+  popularité Kilter à cette inclinaison (`boulder_angles.kilter_ascensionists`),
+  puis par nos ascensions. Mobile : 40° par défaut, bouton d'inclinaison dans
+  l'en-tête d'Explore, l'inclinaison ne s'efface plus avec les filtres.
+- **Statistiques Kilter affichées à part des nôtres** : `kilterAscensionists`
+  et `kilterQuality` (note sur 5) sur les cartes d'Explore, à l'inclinaison de
+  la carte, et par inclinaison dans `angleGrades` du détail. Mobile :
+  « 104k on Kilter · ★ 3.1 » sur la carte (nos ascensions à la suite, « in
+  app »), et « On Kilter at 40° · … » sous les statistiques du détail. Les
+  chiffres ne sont jamais additionnés : grimpeurs Kilter contre nos lignes
+  d'ascension.
+- **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
+  la taille et toutes ses prises, au lieu d'une grille 12 × 12.
+
+### Corrections
+
+- **Déconnexions intempestives** : le serveur gardait un seul refresh token
+  par compte et supprimait les autres à chaque connexion, si bien qu'une
+  connexion ailleurs déconnectait le téléphone. Il en garde désormais un par
+  appareil, et accepte encore 60 s un token déjà utilisé (réponse perdue,
+  app rechargée). `POST /auth/logout` ne déconnecte que l'appareil qui
+  envoie son refresh token.
+- **Mobile — déconnexion sur une simple panne réseau** : un refresh qui
+  échouait pour cause de réseau, de 5xx ou de 429 effaçait la session. Le
+  mobile ne se déconnecte plus que si le serveur refuse le refresh token.
+- **Mobile — Start ou End en échec laissait l'écran bloqué** : l'état de la
+  session est désormais relu après une erreur (409), et non seulement après
+  un succès.
+- **`POST /ascents` acceptait n'importe quel `sessionId`** : la session doit
+  désormais exister (404), appartenir à l'utilisateur (403) et être encore
+  ouverte (409).
+- **Rate limiting de l'authentification inopérant** : annoncé en 0.1.0, il ne
+  protégeait rien — `@Throttle` était posé sur le service, que le throttler ne
+  lit pas, et aucun `ThrottlerGuard` n'était enregistré. `register` est
+  désormais limité à 3 requêtes/min et `login` à 5/min par IP ; `refresh` et
+  `logout` en sont exclus.
+
 ## [0.1.0] — 2026-07-30
 
 Première release depuis `main`, qui accusait 45 commits de retard. Elle couvre

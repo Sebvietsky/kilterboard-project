@@ -2,9 +2,11 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { SessionsService } from '../sessions/sessions.service';
 import { UpdateAscentDto } from './dto/update-ascent.dto';
 import { JwtPayload } from '../common/interfaces/auth-payload.interface';
 import {
@@ -25,11 +27,16 @@ import {
 } from './dto/ascent-response.types';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
+import { resolveAngleId } from '../common/utils/angle.utils';
+import { recomputeAngleGrade } from '../boulders/community-grade';
 import { FilterAscentDto } from './dto/filter-ascent.dto';
 
 @Injectable()
 export class AscentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   async create(dto: CreateAscentDto, user: JwtPayload): Promise<AscentCreated> {
     const boulder: Boulder | null = await this.prisma.boulder.findUnique({
@@ -39,10 +46,19 @@ export class AscentsService {
     if (!boulder.isPublic || boulder.isDraft)
       throw new NotFoundException('Boulder not found');
 
-    // On récupère l'historique du user sur ce bloc pour sécuriser les règles
-    // métier, en une seule requête.
+    // Résolution degrés -> Angle.id, comme le rank du grade ressenti.
+    const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
+
+    // On récupère l'historique du user sur ce bloc À CETTE INCLINAISON pour
+    // sécuriser les règles métier, en une seule requête. Le filtre suffit à
+    // rendre toutes les règles ci-dessous « par bloc et par inclinaison » :
+    // un envoi à 40° ne compte pas à 45°.
     const myAscents = await this.prisma.ascent.findMany({
-      where: { userId: user.userId, boulderId: dto.boulderId },
+      where: {
+        userId: user.userId,
+        boulderId: dto.boulderId,
+        angleId,
+      },
       select: { status: true },
     });
     const hasAnyAscent = myAscents.length > 0;
@@ -50,10 +66,11 @@ export class AscentsService {
       (a) => a.status === AscentStatus.PROJECT,
     );
 
-    // Flash n'est possible qu'au tout premier contact avec le bloc.
+    // Flash n'est possible qu'au tout premier contact avec le bloc, à cette
+    // inclinaison.
     if (dto.status === AscentStatus.FLASH && hasAnyAscent) {
       throw new BadRequestException(
-        'Flash is only possible on your first ascent.',
+        'Flash is only possible on your first ascent at this angle.',
       );
     }
     // Un flash est par définition réussi au premier essai. Le statut portant
@@ -67,10 +84,15 @@ export class AscentsService {
         'A flash is a first-attempt send: attempts must be 1.',
       );
     }
-    // Un seul projet actif par bloc.
-    if (dto.status === AscentStatus.PROJECT && hasActiveProject) {
+    // Un projet se travaille sur un bloc jamais fait : il naît au premier
+    // contact, comme le flash. Après un envoi, c'est un repeat (SENT) ; et un
+    // projet déjà ouvert se poursuit par PATCH. Sa complétion est donc
+    // toujours le premier envoi, celui qui porte le vote.
+    if (dto.status === AscentStatus.PROJECT && hasAnyAscent) {
       throw new BadRequestException(
-        'You already have an active project on this boulder.',
+        hasActiveProject
+          ? 'You already have an active project on this boulder at this angle.'
+          : 'A project can only be opened on your first ascent at this angle.',
       );
     }
     // Tant qu'un projet est actif, on le termine par PATCH sur l'ascension
@@ -82,17 +104,32 @@ export class AscentsService {
       hasActiveProject
     ) {
       throw new BadRequestException(
-        'You already have an active project on this boulder. Complete it instead of logging a new ascent.',
+        'You already have an active project on this boulder at this angle. Complete it instead of logging a new ascent.',
       );
     }
-    // Grade ressenti obligatoire uniquement au premier envoi (SENT/FLASH).
-    if (
+    // Grade ressenti au premier envoi (SENT/FLASH) à cette inclinaison, et
+    // seulement là : c'est le vote du grimpeur pour la cotation, un par bloc
+    // et par inclinaison. Obligatoire au premier envoi, refusé partout
+    // ailleurs (envois suivants, projets, REPEAT).
+    const isFirstSend =
       (dto.status === AscentStatus.FLASH || dto.status === AscentStatus.SENT) &&
-      !hasAnyAscent &&
-      !dto.feltGradeRank
-    ) {
+      !hasAnyAscent;
+    if (isFirstSend && !dto.feltGradeRank) {
       throw new BadRequestException(
         'Felt grade is required for your first send.',
+      );
+    }
+    if (!isFirstSend && dto.feltGradeRank) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+    // La note (étoiles) suit la même règle, facultative en plus : une par
+    // grimpeur, au premier envoi. Sinon chaque repeat pèserait dans la
+    // moyenne du bloc.
+    if (!isFirstSend && dto.rating !== undefined && dto.rating !== null) {
+      throw new BadRequestException(
+        'A rating can only be given on your first send at this angle.',
       );
     }
 
@@ -106,20 +143,45 @@ export class AscentsService {
         throw new BadRequestException('Invalid felt grade.');
       }
     }
-    return await this.prisma.ascent.create({
-      data: {
-        userId: user.userId,
-        boulderId: dto.boulderId,
-        status: dto.status,
-        attemptsCount,
-        feltGradeId: grade?.id ?? null,
-        rating: dto.rating ?? null,
-        sessionId: dto.sessionId ?? null,
-        sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
-        // Un projet actif bloque tout create ci-dessus : jamais de conversion
-        // ici. La transition projet -> send se fait via PATCH (complétion).
-        wasProject: false,
-      },
+    const sessionId = await this.sessions.resolveSessionId(
+      dto.sessionId,
+      user.userId,
+    );
+
+    // Une transaction : au premier envoi, l'ascension porte un vote, et la
+    // cotation du bloc à cette inclinaison est recalculée avec. Un vote écrit
+    // sans son recalcul laisserait la cotation fausse.
+    return await this.prisma.$transaction(async (tx) => {
+      const created = await tx.ascent.create({
+        data: {
+          userId: user.userId,
+          boulderId: dto.boulderId,
+          angleId,
+          status: dto.status,
+          attemptsCount,
+          feltGradeId: grade?.id ?? null,
+          rating: dto.rating ?? null,
+          // Écriture imbriquée : l'ascension et son passage dans la session
+          // sont créés ensemble, jamais l'un sans l'autre.
+          ...(sessionId && {
+            sessionEntries: {
+              create: {
+                sessionId,
+                status: dto.status,
+                attempts: attemptsCount,
+              },
+            },
+          }),
+          sendDate: dto.status !== AscentStatus.PROJECT ? new Date() : null,
+          // Un projet actif bloque tout create ci-dessus : jamais de
+          // conversion ici. La transition projet -> send se fait via PATCH.
+          wasProject: false,
+        },
+      });
+      if (isFirstSend) {
+        await recomputeAngleGrade(tx, dto.boulderId, angleId);
+      }
+      return created;
     });
   }
 
@@ -139,8 +201,17 @@ export class AscentsService {
           boulder: {
             select: {
               name: true,
-              grade: { select: { vScale: true, fontScale: true, rank: true } },
               angle: { select: { valueDegrees: true } },
+            },
+          },
+          // Inclinaison de l'ascension, à ne pas confondre avec
+          // `boulder.angle`, celle de la création du bloc.
+          angle: { select: { valueDegrees: true } },
+          // Cotation effective à l'inclinaison de l'ascension, et non celle du
+          // créateur : `boulder.grade` ne vaut qu'à son inclinaison.
+          boulderAngle: {
+            select: {
+              grade: { select: { vScale: true, fontScale: true, rank: true } },
             },
           },
           feltGrade: { select: { vScale: true, fontScale: true } },
@@ -150,7 +221,13 @@ export class AscentsService {
         },
         skip,
         take,
-        orderBy: { createdAt: 'desc' },
+        // Par date d'envoi, celle qu'affiche l'historique : la création d'un
+        // projet complété est bien plus ancienne. Les projets ouverts, sans
+        // envoi, passent en tête, du plus récent au plus ancien.
+        orderBy: [
+          { sendDate: { sort: 'desc', nulls: 'first' } },
+          { createdAt: 'desc' },
+        ],
       }),
       this.prisma.ascent.count({ where: { userId } }),
     ]);
@@ -173,6 +250,9 @@ export class AscentsService {
     return await this.prisma.ascent.findMany({
       where: { userId, boulderId },
       include: {
+        // Toutes les inclinaisons d'un coup : le mobile filtre sur celle du
+        // sélecteur, et en changer ne relance pas de requête.
+        angle: { select: { valueDegrees: true } },
         feltGrade: { select: { vScale: true, fontScale: true } },
         ascentNotes: { where: { userId } },
       },
@@ -191,12 +271,47 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Le flash atteste d'une réussite au premier contact avec le bloc : c'est
-    // un fait établi à la création, jamais un état qu'on atteint par la suite.
-    // Aucune transition ne mène donc à FLASH — pas même la complétion d'un
-    // projet, qui prouve précisément le contraire.
-    if (dto.status === AscentStatus.FLASH) {
-      throw new BadRequestException("An ascent can't be changed to a flash.");
+    // Transitions en liste blanche : la seule est PROJECT -> SENT, la
+    // complétion. Tout ce qui n'est pas prévu est refusé, y compris un statut
+    // ajouté plus tard. Deux refus distincts :
+    // - 400 : la cible n'est jamais valide. Le flash atteste d'une réussite au
+    //   premier contact, un fait de création qu'aucune transition n'atteint ;
+    //   un envoi ne redevient pas projet (il pourrait être supprimé, et son
+    //   vote avec) ; un projet ne se termine pas en REPEAT (sans grade).
+    // - 409 : la demande aurait réussi sur un projet, mais l'ascension n'en
+    //   est plus un. C'est le cas d'une complétion renvoyée après une réponse
+    //   perdue : le client relit l'état au lieu de réessayer. Une séance sur
+    //   un envoi tombe aussi ici.
+    if (dto.status !== undefined && dto.status !== AscentStatus.SENT) {
+      throw new BadRequestException(
+        `An ascent can't be changed to ${dto.status}.`,
+      );
+    }
+    if (
+      (dto.status !== undefined || dto.attemptsToAdd !== undefined) &&
+      ascent.status !== AscentStatus.PROJECT
+    ) {
+      throw new ConflictException('This ascent is no longer a project.');
+    }
+
+    // Après les gardes ci-dessus, un statut fourni est forcément une
+    // complétion.
+    const completesProject = dto.status === AscentStatus.SENT;
+
+    // Le grade ressenti est le vote du grimpeur, donné une seule fois. En
+    // PATCH, la seule occasion est la complétion d'un projet : c'est alors le
+    // premier envoi à cette inclinaison.
+    if (dto.feltGradeRank && !completesProject) {
+      throw new BadRequestException(
+        'A felt grade can only be given on your first send at this angle.',
+      );
+    }
+    // Même règle pour la note (étoiles), comme dans create : elle se donne à
+    // la complétion, jamais après.
+    if (dto.rating !== undefined && dto.rating !== null && !completesProject) {
+      throw new BadRequestException(
+        'A rating can only be given on your first send at this angle.',
+      );
     }
 
     // Résolution rank -> Grade.id, comme dans create (rank est @unique).
@@ -210,43 +325,63 @@ export class AscentsService {
       }
     }
 
-    // Grade ressenti obligatoire pour clore un projet — sauf s'il en porte
-    // déjà un.
-    if (dto.status === AscentStatus.SENT && !grade && !ascent.feltGradeId) {
+    // Grade ressenti obligatoire pour clore un projet. Un projet n'en porte
+    // jamais (refusé à la création depuis 3371a76) : il vient de la requête.
+    if (completesProject && !grade) {
       throw new BadRequestException(
         'Felt grade is required to finish a project.',
       );
     }
 
-    // FLASH est refusé plus haut : SENT est la seule sortie possible d'un projet.
-    const completesProject =
-      ascent.status === AscentStatus.PROJECT &&
-      dto.status === AscentStatus.SENT;
+    // Une séance enregistrée ou une complétion est un passage sur le bloc :
+    // il figure dans le compte rendu de la session en cours. Modifier une
+    // note n'en est pas un.
+    const sessionId =
+      dto.attemptsToAdd || dto.status
+        ? await this.sessions.resolveSessionId(undefined, user.userId)
+        : null;
 
     // Objet construit champ par champ, jamais `...dto`. Un spread déverse dans
     // Prisma tout ce que le DTO porte : le jour où il gagne un champ qui n'est
     // pas une colonne — attemptsToAdd et feltGradeRank en sont deux —, l'appel
     // échoue à l'exécution, et tsc ne peut rien voir puisqu'il type dto par la
     // classe DTO, pas par le modèle Prisma.
-    return await this.prisma.ascent.update({
-      where: { id },
-      data: {
-        ...(dto.status && { status: dto.status }),
-        ...(grade && { feltGradeId: grade.id }),
-        ...(dto.rating !== undefined && { rating: dto.rating }),
-        // Le client envoie les essais de SA séance ; c'est le serveur qui
-        // additionne. Un total ne peut donc que croître, là où une valeur
-        // absolue venue du client pourrait le faire reculer.
-        ...(dto.attemptsToAdd && {
-          attemptsCount: { increment: dto.attemptsToAdd },
-          sessionsCount: { increment: 1 },
-        }),
-        wasProject: completesProject || ascent.wasProject,
-        sendDate:
-          dto.status && dto.status !== AscentStatus.PROJECT
-            ? new Date()
-            : ascent.sendDate,
-      },
+    // Une transaction, comme dans create : la complétion d'un projet est le
+    // premier envoi à cette inclinaison, donc un vote à compter.
+    return await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.ascent.update({
+        where: { id },
+        data: {
+          ...(dto.status && { status: dto.status }),
+          ...(grade && { feltGradeId: grade.id }),
+          ...(dto.rating !== undefined && { rating: dto.rating }),
+          // Le client envoie les essais de SA séance ; c'est le serveur qui
+          // additionne. Un total ne peut donc que croître, là où une valeur
+          // absolue venue du client pourrait le faire reculer.
+          ...(dto.attemptsToAdd && {
+            attemptsCount: { increment: dto.attemptsToAdd },
+            sessionsCount: { increment: 1 },
+          }),
+          ...(sessionId && {
+            sessionEntries: {
+              create: {
+                sessionId,
+                status: dto.status ?? ascent.status,
+                attempts: dto.attemptsToAdd ?? 0,
+              },
+            },
+          }),
+          wasProject: completesProject || ascent.wasProject,
+          sendDate:
+            dto.status && dto.status !== AscentStatus.PROJECT
+              ? new Date()
+              : ascent.sendDate,
+        },
+      });
+      if (completesProject) {
+        await recomputeAngleGrade(tx, ascent.boulderId, ascent.angleId);
+      }
+      return updated;
     });
   }
 
@@ -272,19 +407,25 @@ export class AscentsService {
     assertFound(ascent, 'Ascent');
     assertOwnerShip(ascent, user.userId);
 
-    // Règle métier : 1 seule note publique par user par bloc (premier SENT ou FLASH uniquement)
-    // Les REPEAT ne peuvent avoir que des notes privées
+    // Règle métier : le commentaire public est l'évaluation du bloc, donnée
+    // une fois, au premier envoi à cette inclinaison (FLASH, SENT ou projet
+    // terminé). Ensuite, notes privées seulement : un second SENT est un
+    // repeat. Le premier envoi se reconnaît à son vote : le grade ressenti
+    // y est obligatoire et refusé partout ailleurs.
     if (
       dto.visibility === 'PUBLIC' &&
-      ascent.status !== AscentStatus.SENT &&
-      ascent.status !== AscentStatus.FLASH
+      ((ascent.status !== AscentStatus.SENT &&
+        ascent.status !== AscentStatus.FLASH) ||
+        ascent.feltGradeId === null)
     ) {
       throw new BadRequestException(
         'Public notes are only allowed on your first SENT or FLASH ascent.',
       );
     }
 
-    // Règle métier : 1 seule note publique par user par bloc
+    // Règle métier : 1 seule note publique par user, par bloc et par
+    // inclinaison. Le même bloc à une autre inclinaison se commente à part.
+    // La note n'a pas d'inclinaison propre : elle la tient de son ascension.
     if (dto.visibility === 'PUBLIC') {
       const existingPublicNote: AscentNote | null =
         await this.prisma.ascentNote.findFirst({
@@ -292,11 +433,12 @@ export class AscentsService {
             userId: user.userId,
             boulderId: ascent.boulderId,
             visibility: 'PUBLIC',
+            ascent: { angleId: ascent.angleId },
           },
         });
       if (existingPublicNote) {
         throw new BadRequestException(
-          'You already have a public note on this boulder.',
+          'You already have a public note on this boulder at this angle.',
         );
       }
     }
