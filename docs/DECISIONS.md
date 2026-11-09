@@ -5,28 +5,31 @@ En fin de session, l'agent propose un diff de ce fichier et Seb le valide avant 
 Garder le fichier court : une ligne par fait, avec une date pour chaque décision.
 Le détail de conception vit dans `docs/notes/` (non importé) : lire la note du sujet avant d'y travailler.
 
-Dernière mise à jour : 2026-11-05
+Dernière mise à jour : 2026-11-09
 
 ## Chantier en cours
 
-**Prochaine action :** migration du schéma des prises (choix B, Seb écrit le schéma) et import du catalogue pour la taille 10 (#86 fusionnée). Recompiler l'app avant de s'en servir (`docs/notes/expo-dev-build.md`).
+**Prochaine action :** essai de l'ampoule en salle (#89, brouillon ; checklist : `docs/notes/ble-essai-salle.md`, section « Prochain essai : l'ampoule »). Avant : recompiler l'app (expire le 2026-11-12) et résoudre le conflit de #89 sur `app/boulder/[id].tsx`. Après l'essai : fusionner #89, puis création de bloc.
 
+- Fusionnées du 2026-11-05 au 2026-11-09 : décisions du 2026-10-24 (#87), schéma des prises et catalogue matériel (#88), swipe entre blocs (#90), cotation de départ par inclinaison (#91), import des blocs Kilter (#92), Explore étape 3 (#93), statistiques Kilter (#94). Brouillon : ampoule (#89).
 - Fusionnée le 2026-10-24 : vraie connexion BLE (#86). Du 2026-10-21 au 2026-10-23 : décisions du 2026-10-20 (#79), timeout et écran hors ligne (#80), inclinaison des passages (#81), historique des ascensions (#82), échelle de cotation (#83), curseur des filtres (#84), essai BLE en salle (#85). Le 2026-10-20 : development build iOS et Expo SDK 58 (#77), décisions du 2026-10-19 (#78). Le 2026-10-15 : cotation communautaire (#70), protocole et audit des tests (#72), correctifs B1, B2, B3, B5, B7 (#73, arrivés dans `develop` avec #72), suite de l'audit (#74), favoris (#65), inclinaison étape 1 (#66), inclinaison des favoris et des playlists (#68), création de playlist depuis Library (#69). Le 2026-10-12 : refresh token par appareil (#63), historique des sessions (#59), playlists (#61, #62).
-- Chantier BLE : essai en salle fait (#85, `docs/notes/ble-essai-salle.md`), vraie connexion faite (#86). Reste, dans l'ordre : migration du schéma des prises (choix B ci-dessous) et import du catalogue (taille 10), réécriture de `seed.ts`, bouton ampoule, création de bloc, puis encart de signalement de bug.
+- Chantier BLE : essai en salle fait (#85, `docs/notes/ble-essai-salle.md`), vraie connexion faite (#86). Schéma des prises, catalogue et blocs Kilter faits (#88, #92). Reste, dans l'ordre : essai en salle et fusion de l'ampoule (#89), création de bloc, puis encart de signalement de bug.
 - Audit des tests du 2026-10-15 : 10 écarts (B1 à B10), tous corrigés (#73, #74). Matrice règle → tests : `docs/notes/api-tests-matrice.md`, à tenir à jour dans chaque PR qui touche une règle.
 - Nicolas teste l'app depuis le 2026-10-24 : build Release sur son iPhone, API du Mac exposée par ngrok. Marche à suivre et renouvellement : `docs/notes/partage-ami.md`. Installée le 2026-10-24, donc expirée depuis le 2026-10-31.
-- Base locale remise à zéro le 2026-10-21 pour la table des cotations (#83), puis reseedée, vérifiée en lecture seule : 24 cotations, votes 86/86.
-- Mis de côté le temps du BLE (2026-10-17) : étape 3 (Explore, conception : `docs/notes/boulder-angle.md`), pagination, stats du bloc, `refresh` en 200, « déconnecter tous les appareils », e2e, série sur le détail du profil.
+- Base locale remise à zéro le 2026-11-05 (#88), reseedée, puis 16 301 blocs Kilter importés (#92). Vérifié : 179 509 lignes `boulder_angles`, 0 prise hors du cadre de la taille 10.
+- Mis de côté le temps du BLE (2026-10-17) : pagination, stats du bloc, `refresh` en 200, « déconnecter tous les appareils », e2e, série sur le détail du profil. (Étape 3, Explore, faite le 2026-11-06 : #93.)
 - Lancer l'app : `pnpm --filter api start:dev`, `pnpm --filter mobile start` (`--clear` après un changement de dépendances ou de `.env`), puis ouvrir KilterBoard sur l'iPhone. Sans board : `EXPO_PUBLIC_BOARD_SIMULATED=1` dans `apps/mobile/.env`. En salle : partage de connexion de l'iPhone, IP du Mac dans `.env`, à remettre à la maison. Mode développeur activé en permanence. Signature gratuite : l'app expire au bout de 7 jours, recompiler (`docs/notes/expo-dev-build.md`).
 - Après un changement des règles de cotation : `pnpm --filter api db:recompute-grades`.
 - Après un changement de branche pendant que l'app tourne : recharger l'app complètement (`r` dans Metro) avant de tester.
 - Après une migration ou un changement de branche : `pnpm --filter api db:generate`. Prisma 7 ne régénère plus le client dans `migrate dev`. (Le 2026-10-15, un client généré sur une ancienne branche a donné 28 erreurs `tsc` après retour sur `feature/community-grade`.)
-- `db:reset` toujours depuis une branche qui a toutes les migrations : lancé depuis une branche ancienne, il crée une base sans `boulder_angles`. Prisma 7 ne lance plus le seed au reset : enchaîner `db:seed` puis `db:seed:dev`. Lancé par l'agent, Prisma exige le message d'accord explicite de Seb.
+- `db:reset` toujours depuis une branche qui a toutes les migrations : lancé depuis une branche ancienne, il crée une base sans `boulder_angles`. Prisma 7 ne lance plus le seed au reset : enchaîner `db:import-catalog`, `db:seed`, `db:import-climbs`, puis `db:seed:dev` (qui recalcule 179 509 cotations, environ 2 min). Lancé par l'agent, Prisma exige le message d'accord explicite de Seb.
+- PR empilées : fusionner avec `gh pr merge --merge`, **sans** `--delete-branch`. La suppression automatique du dépôt recible la PR suivante ; `--delete-branch` ferme les PR qui dépendent de la branche (#92 fermée puis rouverte le 2026-11-09).
+- CI GitHub bloquée du 2026-11-06 au 2026-11-09 (« account locked due to a billing issue ») par les budgets à 0 $ d'un compte sans moyen de paiement. Levé en ajoutant une carte et en modifiant le budget Actions. Ne pas remettre le budget Actions à 0 $ avec blocage.
 
 ## Travail non commité
 
 - `apps/api/bruno/environments/Local.bru` : variables de test que Seb change au fil de l'eau. Ne jamais commiter.
-- Catalogue matériel Kilter téléchargé dans `/tmp/kilter-catalog.uTof/` : hors dépôt, temporaire, se retélécharge par le manifeste.
+- Snapshots Kilter dans `/tmp/kilter-catalog.Qn8p/catalog.db` (matériel) et `/tmp/kilter-climbs.aYQT/climbs.db` (blocs) : hors dépôt, temporaires. Les scripts d'import les retéléchargent s'ils sont lancés sans argument.
 
 ## Décisions tranchées (ne pas rouvrir sans raison nouvelle)
 
@@ -68,6 +71,10 @@ API
 - **2026-10-21 · L'API n'envoie que des rangs** (`gradeRank`, `feltGradeRank`) ; le mobile les traduit dans l'échelle de l'utilisateur (#83).
 - **2026-10-21 · `GET /ascents/me`** : cotation effective à l'inclinaison de l'ascension, tri par date d'envoi, projets ouverts en tête (#82).
 - **2026-07-30 · Tests e2e de l'API reportés.** Conception déjà faite : `docs/notes/api-tests.md`.
+- **2026-11-05 · `GET /board-sizes` et `GET /board-sizes/:id`** (module `boards`, public) : le cadre d'une taille et ses prises, avec leur position LED, lues à travers les LED de la taille (#88).
+- **2026-11-06 · Cotation de départ par inclinaison** (`boulder_angles.base_grade_id`) : celle du créateur à son inclinaison, celle de Kilter à chaque inclinaison cotée d'un bloc importé. La règle communautaire s'applique à toute inclinaison qui en a une ; « estimée » = peu de votes et pas de cotation de départ (#91). Généralise la règle du 2026-10-15 sans la changer.
+- **2026-11-06 · Explore toujours à une inclinaison** (#93) : `GET /boulders` exige `angle`. Une carte = un bloc à cette inclinaison, s'il y est coté, avec la cotation, les ascensions et la note de cette inclinaison. Tri : popularité Kilter (`boulder_angles.kilter_ascensionists`, 0 pour un bloc de l'app), puis nos ascensions. Tranche « Explore sans filtre d'inclinaison ».
+- **2026-11-06 · Statistiques Kilter affichées à part des nôtres** (option A, #94), jamais additionnées : grimpeurs Kilter contre nos lignes d'ascension. Révisable.
 
 Mobile
 - **2026-09-29 · Client API (corps vide)** : `get/post/put/patch` lèvent sur un corps vide, `api.getOrNull` est réservé aux vides légitimes, `delete` renvoie `void`.
@@ -100,6 +107,10 @@ Mobile
 - **2026-10-15 · Library : bouton + flottant pour créer une playlist** (#69), avec une feuille commune à la création et à l'édition (`PlaylistFormSheet`). Détail d'une playlist : croix de retrait à gauche, cotation à droite.
 - **2026-10-15 · Sans cotation à son inclinaison, une carte affiche « Not graded »** (badge neutre), et un tiret dans les cercles des passages de session.
 - **2026-10-12 · Le refresh a trois issues** (`refreshed`, `rejected`, `unavailable`) ; seul `rejected` déconnecte (#63).
+- **2026-11-05 · Swipe entre les blocs depuis le détail** (#90) : glisser à gauche donne le suivant, à droite le précédent, depuis toutes les listes. `FlatList` horizontale paginée, et non `PanResponder` : le retour plein écran d'iOS 26 passe avant tout geste JS.
+- **2026-11-05 · Taille dessinée et allumée : la première importée**, en attendant le lien entre la board BLE et `Board.sizeId`.
+- **2026-11-05 · Ampoule** (#89) : si deux téléphones sont connectés, le dernier envoi l'emporte, sans alerte (l'app ne peut pas savoir qu'un autre est connecté).
+- **2026-11-06 · Explore : 40° par défaut**, bouton d'inclinaison dans l'en-tête ; l'inclinaison n'est plus un filtre qu'on efface.
 
 Inclinaison (décidé le 2026-10-12, étape 1 faite le 2026-10-15 (#66), étape 2 le 2026-10-15 (#70) — détail : `docs/notes/boulder-angle.md`)
 - **2026-10-15 · Principe : le même bloc à une autre inclinaison est un autre bloc.** Le créateur fixe l'inclinaison par défaut du bloc (`boulders.angle_id`) ; chaque action de l'utilisateur (ascension, like, entrée de playlist) enregistre la sienne.
@@ -130,6 +141,8 @@ Général
 - **2026-10-20 · Catalogue Kilter : filtrer toujours sur `board_type = 'kilter'`.** Les ids (trous, tailles) se répètent d'une marque à l'autre.
 - **2026-10-20 · Couleur LED du start : `00FF00`** (`led_color`), et non `00DD00` (`screen_color`). `docs/ble-protocol.md` corrigé.
 - **2026-10-24 · Partage à un ami : build Release et tunnel ngrok à domaine fixe**, l'API restant sur le Mac. Écartés pour l'instant : TestFlight (compte payant) et hébergement de l'API (une demi-journée).
+- **2026-11-05 · Matériel Kilter importé par `db:import-catalog`**, séparé du seed (#88). `Hold` garde notre id, l'id Kilter va dans `kilter_placement_id` ; `BoardLayout` perd `width` et `height`.
+- **2026-11-06 · Import des blocs** (#92) : au moins 20 grimpeurs, inclinaisons de 20 à 70°, compte système `kilter` et `setter_name`, `kilter_uuid` unique, statistiques brutes dans `kilter_angle_stats`. Inclinaison de référence : celle du setter si elle est cotée, sinon la plus grimpée. Détail : `docs/notes/kilter-data.md`.
 - **Version 0.x** tant que le MVP n'est pas terminé (date inconnue).
 
 ## Invariants : implémenté ou seulement prévu
@@ -176,8 +189,7 @@ Général
 - Changer le mot de passe de `kilter_admin` et régénérer l'authtoken ngrok (exposition le 2026-10-24).
 
 - Dates en base : celles écrites par Prisma sont décalées de 2 h par rapport à `now()` en SQL (PostgreSQL en `Europe/Paris`). L'API est cohérente avec elle-même ; toute requête SQL à la main qui compare avec `now()` est fausse. Cause et impact à vérifier.
-- Explore sans filtre d'inclinaison : une carte par bloc, ou une carte par couple coté (bloc, inclinaison) ? La règle « envois seulement » ne tranche que le cas filtré.
-- Filtre Explore « jamais fait » : jamais fait **à cette inclinaison**. Sans filtre d'inclinaison, son sens dépend de la question précédente.
+- Filtre Explore « jamais fait » : à cette inclinaison (Explore est toujours à une inclinaison depuis #93). Pas encore fait.
 - `GET /sessions/me` et `GET /boulders/likes/me` ne sont pas paginés. À trancher ensemble.
 - Statistiques du bloc : le nombre d'ascensions compte chaque ligne (repeats et projets compris) ; nombre d'ascensions ou de grimpeurs ? Et faut-il les afficher, avec la note moyenne, par inclinaison sur le détail du bloc ? Seb n'a pas tranché (2026-10-15).
 - `login` renvoie 200 et `refresh` 201 : l'agent recommande d'aligner `refresh` sur 200 dans une branche `fix/`. À décider.
@@ -186,3 +198,10 @@ Général
 - Le like et le log d'une ascension refusent aussi au créateur son propre brouillon, contrairement à la règle B4. À aligner le jour où la création de blocs existera.
 - Le commentaire d'une complétion part dans une seconde requête après le `PATCH` : si elle échoue, le projet est terminé sans son commentaire public, et il ne peut plus être ajouté.
 - L'authentification n'a de test automatique que côté service. Le scénario à deux appareils et tout le côté mobile ne sont vérifiés qu'à la main : meilleur candidat pour démarrer les tests e2e.
+- Lien entre une board BLE (série) et sa taille (`Board.sizeId`) : à concevoir.
+- Image fidèle de la board, comme dans l'app Kilter : contredit « pas de photo de la board » (copyright Kilter, 2026-10-19). Dessin plus fidèle ou photo : à trancher.
+- Après un swipe, l'URL reste celle du bloc ouvert : à reprendre pour le partage de liens et la restauration d'état.
+- Détail d'un bloc : jusqu'à 3 pages rendues à l'ouverture (swipe), coût non mesuré.
+- `db:seed:dev` recalcule toutes les cotations (1 min 46) : ne recalculer que les lignes qui ont des votes ?
+- Statistiques Kilter : l'import ne met pas à jour un bloc déjà importé. Rafraîchir, et à quelle fréquence ?
+- Ampoule : elle ne montre pas que le bloc affiché est déjà allumé.
