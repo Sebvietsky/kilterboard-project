@@ -177,7 +177,8 @@ describe('BouldersService', () => {
   });
 
   describe('findOne', () => {
-    // Bloc créé à l'inclinaison 5 (40°), coté V4 par son créateur.
+    // Bloc créé à 40°, coté V4 par son créateur ; cotation de départ aussi à
+    // 45° (celle de Kilter pour un bloc importé), aucune à 50° ni à 60°.
     const detailRow = {
       ...boulderRow,
       angleId: 5,
@@ -185,22 +186,28 @@ describe('BouldersService', () => {
       boulderHolds: [{ role: 'START', hold: { holdCode: 'A1', x: 10, y: 20 } }],
       boulderAngles: [
         {
-          angleId: 5,
           votesCount: 2,
           angle: { valueDegrees: 40 },
           grade: { vScale: 'V4', rank: 6 },
+          baseGrade: { rank: 6 },
         },
         {
-          angleId: 7,
+          votesCount: 1,
+          angle: { valueDegrees: 45 },
+          grade: { vScale: 'V5', rank: 7 },
+          baseGrade: { rank: 7 },
+        },
+        {
           votesCount: 1,
           angle: { valueDegrees: 50 },
           grade: { vScale: 'V6', rank: 8 },
+          baseGrade: null,
         },
         {
-          angleId: 9,
           votesCount: 0,
           angle: { valueDegrees: 60 },
           grade: null,
+          baseGrade: null,
         },
       ],
     };
@@ -241,10 +248,11 @@ describe('BouldersService', () => {
       ]);
     });
 
-    // « Estimée » se déduit : peu de votes, et seulement hors de l'inclinaison
-    // du créateur. Sa ligne garde sa cotation sous le seuil, elle n'est donc
-    // pas une estimation, même avec 2 votes.
-    it('donne la cotation de chaque inclinaison, estimée hors celle du créateur', async () => {
+    // « Estimée » se déduit : peu de votes, et seulement sans cotation de
+    // départ. Une inclinaison qui en a une la garde sous le seuil : ce n'est
+    // pas une estimation, même avec un vote, qu'elle vienne du créateur ou de
+    // Kilter.
+    it('donne la cotation de chaque inclinaison, estimée seulement sans cotation de départ', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue(detailRow);
 
       const detail = await service.findOne(10);
@@ -253,18 +261,28 @@ describe('BouldersService', () => {
         {
           angleDegrees: 40,
           gradeRank: 6,
+          baseGradeRank: 6,
           votesCount: 2,
+          isEstimated: false,
+        },
+        {
+          angleDegrees: 45,
+          gradeRank: 7,
+          baseGradeRank: 7,
+          votesCount: 1,
           isEstimated: false,
         },
         {
           angleDegrees: 50,
           gradeRank: 8,
+          baseGradeRank: null,
           votesCount: 1,
           isEstimated: true,
         },
         {
           angleDegrees: 60,
           gradeRank: null,
+          baseGradeRank: null,
           votesCount: 0,
           isEstimated: false,
         },

@@ -49,10 +49,14 @@ export interface PublicNote {
 // Cotation du bloc à une inclinaison (GET /boulders/:id, `angleGrades`).
 export interface AngleGrade {
   angleDegrees: number;
-  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  // Cotation effective ; sans cotation de départ, `null` tant que personne
+  // n'y a envoyé le bloc.
   gradeRank: number | null;
+  // Cotation de départ : celle du créateur à son inclinaison, celle de Kilter
+  // pour un bloc importé. `null` s'il n'y en a pas.
+  baseGradeRank: number | null;
   votesCount: number;
-  // Peu de votes, hors inclinaison du créateur.
+  // Peu de votes, sans cotation de départ.
   isEstimated: boolean;
 }
 

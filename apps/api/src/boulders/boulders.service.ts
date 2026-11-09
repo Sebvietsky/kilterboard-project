@@ -124,10 +124,10 @@ export class BouldersService {
         _count: { select: { ascents: true } },
         boulderAngles: {
           select: {
-            angleId: true,
             votesCount: true,
             angle: { select: { valueDegrees: true } },
             grade: { select: { vScale: true, rank: true } },
+            baseGrade: { select: { rank: true } },
           },
           orderBy: { angle: { valueDegrees: 'asc' } },
         },
@@ -165,11 +165,9 @@ export class BouldersService {
       angleGrades: boulder.boulderAngles.map((ba) => ({
         angleDegrees: ba.angle.valueDegrees,
         gradeRank: ba.grade?.rank ?? null,
+        baseGradeRank: ba.baseGrade?.rank ?? null,
         votesCount: ba.votesCount,
-        isEstimated: isEstimatedGrade(
-          ba.votesCount,
-          ba.angleId === boulder.angleId,
-        ),
+        isEstimated: isEstimatedGrade(ba.votesCount, ba.baseGrade !== null),
       })),
     };
   }

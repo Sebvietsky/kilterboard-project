@@ -292,8 +292,9 @@ function BoulderDetailScreen({
   const detail = boulder.data;
   // Défini dès que le bloc l'est : à défaut d'autre choix, celle du créateur.
   const angle = selectedAngle ?? detail.angleDegrees;
-  // Cotation effective à l'inclinaison affichée : celle du créateur à la
-  // sienne jusqu'au seuil de votes, la médiane des votes ensuite et ailleurs.
+  // Cotation effective à l'inclinaison affichée : la cotation de départ
+  // (créateur ou Kilter) jusqu'au seuil de votes, la médiane des votes ensuite
+  // ou sans cotation de départ.
   // Pendant le placeholder venu d'Explore, `angleGrades` est vide : seule la
   // cotation du créateur à son inclinaison est connue.
   const isSetAngle = angle === detail.angleDegrees;
@@ -301,12 +302,12 @@ function BoulderDetailScreen({
   const gradeLabel = formatGrade(
     angleGrade ? angleGrade.gradeRank : isSetAngle ? detail.gradeRank : null,
   );
-  // La cotation du créateur, en petit, seulement quand la communauté l'a
-  // remplacée par une autre à son inclinaison.
-  const creatorGradeReplaced =
-    isSetAngle &&
-    angleGrade?.gradeRank != null &&
-    angleGrade.gradeRank !== detail.gradeRank;
+  // La cotation de départ (créateur ou Kilter), en petit, seulement quand
+  // les votes l'ont remplacée par une autre à cette inclinaison.
+  const baseGradeReplaced =
+    angleGrade?.baseGradeRank != null &&
+    angleGrade.gradeRank != null &&
+    angleGrade.gradeRank !== angleGrade.baseGradeRank;
   const notesAtAngle = detail.publicNotes.filter(
     (note) => note.angleDegrees === angle,
   );
@@ -341,9 +342,9 @@ function BoulderDetailScreen({
               Estimated · {plural(angleGrade.votesCount, 'vote')}
             </Text>
           )}
-          {creatorGradeReplaced && angleGrade && (
+          {baseGradeReplaced && angleGrade && (
             <Text style={styles.gradeNote}>
-              Set as {formatGrade(detail.gradeRank)} ·{' '}
+              Set as {formatGrade(angleGrade.baseGradeRank)} ·{' '}
               {plural(angleGrade.votesCount, 'vote')}
             </Text>
           )}
