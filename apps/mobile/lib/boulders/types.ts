@@ -22,7 +22,8 @@ export interface PaginatedResponse<T> {
 }
 
 export interface BoulderFilters {
-  angle?: number;
+  // Obligatoire côté API : une carte = un bloc à cette inclinaison.
+  angle: number;
   gradeMin?: number;
   gradeMax?: number;
   tags?: string[];

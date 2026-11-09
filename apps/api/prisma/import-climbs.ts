@@ -376,11 +376,14 @@ async function writeBatch(
         data: fresh.flatMap((b) =>
           angleIds.map((angleId) => {
             const base = b.baseGrades.get(angleId) ?? null;
+            const stat = b.stats.find((s) => s.angleId === angleId);
             return {
               boulderId: b.id,
               angleId,
               baseGradeId: base,
               gradeId: base,
+              // Clé de tri d'Explore, copie des statistiques Kilter.
+              kilterAscensionists: stat?.ascensionistCount ?? 0,
             };
           }),
         ),

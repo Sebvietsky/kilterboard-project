@@ -19,6 +19,8 @@ import { useRouter } from 'expo-router';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 import { ActiveFilters } from '@/components/filters/ActiveFilters';
+import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { ChevronDown } from 'lucide-react-native';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
   const formatGrade = useGradeLabel();
@@ -83,6 +85,8 @@ export default function ExploreScreen() {
   const gradeMin = useFiltersStore((s) => s.gradeMin);
   const gradeMax = useFiltersStore((s) => s.gradeMax);
   const tags = useFiltersStore((s) => s.tags);
+  const setAngle = useFiltersStore((s) => s.setAngle);
+  const [anglePickerOpen, setAnglePickerOpen] = useState(false);
 
   const filters: BoulderFilters = {
     name: debouncedSearch || undefined,
@@ -178,15 +182,33 @@ export default function ExploreScreen() {
           autoCorrect={false}
           returnKeyType="search"
         />
-        <Pressable
-          style={({ pressed }) => [
-            styles.filtersButton,
-            pressed && styles.filtersButtonPressed,
-          ]}
-          onPress={() => router.push('/search')}
-        >
-          <Text style={styles.filtersButtonText}>Filters</Text>
-        </Pressable>
+        <View style={styles.headerRow}>
+          {/* L'inclinaison de la board, toujours choisie : à côté des
+              filtres et non dedans, c'est le réglage qu'on change le plus. */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.filtersButton,
+              styles.angleButton,
+              pressed && styles.filtersButtonPressed,
+            ]}
+            onPress={() => setAnglePickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Board angle ${angle} degrees, change`}
+          >
+            <Text style={styles.filtersButtonText}>{angle}°</Text>
+            <ChevronDown size={typography.size.md} color={colors.textMuted} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.filtersButton,
+              styles.filtersButtonWide,
+              pressed && styles.filtersButtonPressed,
+            ]}
+            onPress={() => router.push('/search')}
+          >
+            <Text style={styles.filtersButtonText}>Filters</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ActiveFilters />
@@ -239,6 +261,13 @@ export default function ExploreScreen() {
             <Text style={styles.endText}>You&apos;ve reached the end.</Text>
           ) : undefined
         }
+      />
+
+      <AnglePickerSheet
+        visible={anglePickerOpen}
+        selected={angle}
+        onSelect={setAngle}
+        onClose={() => setAnglePickerOpen(false)}
       />
     </View>
   );
@@ -293,6 +322,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  angleButton: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+  },
+  filtersButtonWide: {
+    flex: 1,
   },
   filtersButtonPressed: {
     backgroundColor: colors.surfaceMuted,
