@@ -329,7 +329,9 @@ function BoulderDetailScreen({
             />
             {currentStatus && <StatusBadge status={currentStatus} />}
           </View>
-          <Text style={styles.setter}>by {detail.creatorUsername}</Text>
+          <Text style={styles.setter}>
+            by {detail.setterName ?? detail.creatorUsername}
+          </Text>
         </View>
         <View style={styles.gradeBlock}>
           {gradeLabel !== null ? (

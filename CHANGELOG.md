@@ -54,6 +54,16 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 - **`GET /board-sizes` et `GET /board-sizes/:id`** (module `boards`) : les
   tailles importées, puis le cadre d'une taille et ses prises, chacune avec sa
   position LED.
+- **Cotation de départ par inclinaison** : `boulder_angles.base_grade_id`.
+  La règle de cotation communautaire l'applique à toute inclinaison qui en a
+  une (et non plus seulement à celle du créateur) ; `GET /boulders/:id`
+  renvoie `baseGradeRank` par inclinaison.
+- **Blocs Kilter** : `pnpm --filter api db:import-climbs`, après
+  `db:import-catalog` et `db:seed`, importe les blocs grimpés par au moins 20
+  personnes (16 301), avec une cotation de départ à chaque inclinaison cotée
+  et leurs statistiques Kilter (`kilter_angle_stats`). Ils appartiennent au
+  compte système `kilter` ; le pseudo du setter est dans `setterName`,
+  affiché sur les cartes et le détail, et cherché par le filtre « creator ».
 - **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
   la taille et toutes ses prises, au lieu d'une grille 12 × 12.
 

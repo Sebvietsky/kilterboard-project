@@ -1,11 +1,18 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { HoldSet, PrismaClient } from '../src/generated/prisma/client';
-import { DatabaseSync, type SQLOutputValue } from 'node:sqlite';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { gunzipSync } from 'node:zlib';
+import { DatabaseSync } from 'node:sqlite';
 import 'dotenv/config';
+import {
+  BOARD_TYPE,
+  KILTER_LAYOUT_ID,
+  KILTER_LAYOUT_NAME,
+  fetchJson,
+  int,
+  isArtifact,
+  str,
+  withSnapshot,
+  type Artifact,
+} from './kilter-snapshot';
 
 /**
  * Importe le matériel Kilter (layout, tailles, prises, LED) depuis le catalogue
@@ -23,13 +30,6 @@ import 'dotenv/config';
 const MANIFEST_URL =
   'https://snapshots.boardsesh.com/board-snapshots/v1-catalog/manifest.json';
 
-// Les ids se répètent d'une marque à l'autre : toujours filtrer sur la marque.
-const BOARD_TYPE = 'kilter';
-
-// Kilter Board Original (product 1, layout 1).
-const KILTER_LAYOUT_ID = 1;
-export const KILTER_LAYOUT_NAME = 'Kilter Board Original';
-
 // Tailles importées : 12 x 12 with kickboard, la board de Seb (2026-10-23).
 // Une autre taille s'ajoute ici : ses LED s'importent, les prises sont communes.
 const KILTER_SIZE_IDS = [10];
@@ -40,81 +40,18 @@ const HOLD_SETS: Record<number, HoldSet> = {
   20: HoldSet.SCREW_ONS,
 };
 
-type Row = Record<string, SQLOutputValue>;
-
-// Les lignes SQLite ne sont pas typées : chaque champ est vérifié à la lecture,
-// un catalogue dont le format a changé échoue ici plutôt qu'en base.
-function int(row: Row, key: string): number {
-  const value = row[key];
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new Error(
-      `Catalogue : ${key} n'est pas un entier (${String(value)})`,
-    );
+// Un seul fichier pour toutes les boards : `artifact` dans le manifeste.
+async function catalogArtifact(): Promise<Artifact> {
+  const manifest = await fetchJson(MANIFEST_URL);
+  if (
+    typeof manifest !== 'object' ||
+    manifest === null ||
+    !('artifact' in manifest) ||
+    !isArtifact(manifest.artifact)
+  ) {
+    throw new Error('Manifeste du catalogue : format inattendu');
   }
-  return value;
-}
-
-function str(row: Row, key: string): string {
-  const value = row[key];
-  if (typeof value !== 'string') {
-    throw new Error(`Catalogue : ${key} n'est pas un texte (${String(value)})`);
-  }
-  return value;
-}
-
-type Manifest = {
-  artifact: { url: string; bytes: number; uncompressedBytes: number };
-};
-
-function isManifest(value: unknown): value is Manifest {
-  if (typeof value !== 'object' || value === null || !('artifact' in value)) {
-    return false;
-  }
-  const { artifact } = value;
-  return (
-    typeof artifact === 'object' &&
-    artifact !== null &&
-    'url' in artifact &&
-    typeof artifact.url === 'string' &&
-    'uncompressedBytes' in artifact &&
-    typeof artifact.uncompressedBytes === 'number'
-  );
-}
-
-/**
- * Télécharge le catalogue dans un dossier temporaire neuf. Jamais d'URL
- * d'artefact en dur : les artefacts sont horodatés et supprimés après 14 jours.
- */
-async function downloadCatalog(dir: string): Promise<string> {
-  const manifestResponse = await fetch(MANIFEST_URL);
-  if (!manifestResponse.ok) {
-    throw new Error(`Manifeste : HTTP ${manifestResponse.status}`);
-  }
-  const manifest: unknown = await manifestResponse.json();
-  if (!isManifest(manifest)) {
-    throw new Error('Manifeste : format inattendu');
-  }
-
-  const { url, uncompressedBytes } = manifest.artifact;
-  console.log(`Downloading ${url}...`);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Catalogue : HTTP ${response.status}`);
-  }
-  const body = Buffer.from(await response.arrayBuffer());
-  // Gzip selon le manifeste ; fetch le décompresse déjà si le serveur annonce
-  // l'encodage. On regarde donc les octets magiques plutôt que l'en-tête.
-  const isGzip = body[0] === 0x1f && body[1] === 0x8b;
-  const bytes = isGzip ? gunzipSync(body) : body;
-  if (bytes.length !== uncompressedBytes) {
-    throw new Error(
-      `Catalogue : ${bytes.length} octets, ${uncompressedBytes} attendus`,
-    );
-  }
-
-  const path = join(dir, 'catalog.db');
-  writeFileSync(path, bytes);
-  return path;
+  return manifest.artifact;
 }
 
 type Placement = {
@@ -291,16 +228,9 @@ async function importCatalog(
 }
 
 async function main(prisma: PrismaClient, path: string | undefined) {
-  if (path) {
-    return importCatalog(prisma, readCatalog(path));
-  }
-  // Un dossier neuf pour le téléchargement, supprimé à la fin : 190 Mo.
-  const dir = mkdtempSync(join(tmpdir(), 'kilter-catalog-'));
-  try {
-    await importCatalog(prisma, readCatalog(await downloadCatalog(dir)));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  await withSnapshot(path, catalogArtifact, (catalogPath) =>
+    importCatalog(prisma, readCatalog(catalogPath)),
+  );
 }
 
 if (require.main === module) {

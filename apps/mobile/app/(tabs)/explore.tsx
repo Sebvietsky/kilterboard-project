@@ -48,7 +48,9 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
         )}
       </View>
 
-      <Text style={styles.creator}>by {item.creatorUsername}</Text>
+      <Text style={styles.creator}>
+        by {item.setterName ?? item.creatorUsername}
+      </Text>
     </View>
   );
 }

@@ -6,6 +6,9 @@ export interface BoulderSummary {
   gradeRank: number;
   angleDegrees: number;
   creatorUsername: string;
+  // Pseudo Kilter d'un bloc importé, à afficher à la place du compte système
+  // `kilter` ; `null` pour un bloc créé dans l'app.
+  setterName: string | null;
   tags: string[];
   ascentCount: number;
   averageRating: number | null;

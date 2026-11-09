@@ -2,7 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { HoldRole, PrismaClient } from '../src/generated/prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ensureBoulderAngles } from './seed-utils';
-import { KILTER_LAYOUT_NAME } from './import-catalog';
+import { KILTER_LAYOUT_NAME } from './kilter-snapshot';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
