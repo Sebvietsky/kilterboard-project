@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { BouldersService } from './boulders.service';
@@ -14,7 +13,7 @@ const prismaMock = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     count: jest.fn(),
-    update: jest.fn(),
+    updateMany: jest.fn(),
   },
   ascent: { groupBy: jest.fn(), aggregate: jest.fn() },
   ascentNote: { findMany: jest.fn() },
@@ -510,27 +509,40 @@ describe('BouldersService', () => {
   });
 
   describe('publishBoulder', () => {
-    // Boulder porte creatorId, pas userId : assertOwnerShip reçoit un objet
-    // adapté. Une inversion ici laisserait n'importe qui publier le brouillon
-    // d'un autre.
+    const draft = {
+      creatorId: 1,
+      status: BoulderStatus.DRAFT,
+      boulderHolds: [
+        { role: HoldRole.START },
+        { role: HoldRole.HAND },
+        { role: HoldRole.FINISH },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.boulder.updateMany.mockResolvedValue({ count: 1 });
+    });
+
     it('publie le brouillon de son créateur', async () => {
-      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10, creatorId: 1 });
+      await expect(service.publishBoulder(10, 1)).resolves.toEqual({
+        id: 10,
+        status: BoulderStatus.PUBLIC,
+      });
 
-      await service.publishBoulder(10, 1);
-
-      expect(prismaMock.boulder.update).toHaveBeenCalledWith({
-        where: { id: 10 },
+      expect(prismaMock.boulder.updateMany).toHaveBeenCalledWith({
+        where: { id: 10, status: BoulderStatus.DRAFT },
         data: { status: BoulderStatus.PUBLIC },
       });
     });
 
-    it("refuse de publier le bloc d'un autre", async () => {
-      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10, creatorId: 1 });
-
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403, qui
+    // révélerait qu'il existe.
+    it("renvoie 404 sur le brouillon d'un autre", async () => {
       await expect(service.publishBoulder(10, 999)).rejects.toThrow(
-        ForbiddenException,
+        NotFoundException,
       );
-      expect(prismaMock.boulder.update).not.toHaveBeenCalled();
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
     });
 
     it('rejette un bloc inexistant', async () => {
@@ -539,6 +551,47 @@ describe('BouldersService', () => {
       await expect(service.publishBoulder(10, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    // Publier est un aller simple : un bloc publié ne revient pas en
+    // brouillon, et ne se republie pas.
+    it('renvoie 409 sur un bloc déjà publié', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        status: BoulderStatus.PUBLIC,
+      });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
+    });
+
+    // Publié entre la lecture et l'écriture (autre appareil) : l'écriture
+    // conditionnée au statut ne trouve plus de brouillon.
+    it('renvoie 409 si le bloc a été publié entre-temps', async () => {
+      prismaMock.boulder.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    // START et FINISH ne s'exigent qu'à la publication (décision du
+    // 2026-11-18).
+    it.each([
+      ['sans START', [HoldRole.HAND, HoldRole.FINISH]],
+      ['sans FINISH', [HoldRole.START, HoldRole.HAND]],
+    ])('refuse un bloc %s', async (_label, roles) => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        boulderHolds: roles.map((role) => ({ role })),
+      });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
     });
   });
 

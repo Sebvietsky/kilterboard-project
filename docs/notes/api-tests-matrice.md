@@ -97,7 +97,9 @@ Abréviations :
 | Bornes de pagination, tag seul en tableau | code | D | boulders.dto › FilterBoulderDto | D06, D07 tuées | — |
 | Like idempotent, par inclinaison, sur bloc visible | DEC 10-14, 10-15 | S + D + B | bo › like, unlike, isLiked ; boulders.dto › AngleQueryDto | M35, M36 tuées | unicité en base : e2e |
 | Mes likes : les miens, à l'inclinaison du like, cotation effective | DEC 10-15 | S | bo › findMyLikes | M37 tuée | — |
-| Publication réservée au créateur | code | S | bo › publishBoulder | — | — |
+| Publication réservée au créateur du brouillon (404 pour les autres, B4) | Seb 2026-11-18 | S | bo › publishBoulder — renvoie 404 sur le brouillon d'un autre | P01 tuée (2026-11-18) | — |
+| Publication : DRAFT → PUBLIC sans retour, 409 si déjà publié, même entre la lecture et l'écriture | Seb 2026-11-18 | S | bo › renvoie 409 sur un bloc déjà publié ; si le bloc a été publié entre-temps | P03, P04 tuées (2026-11-18) | concurrence réelle : e2e |
+| Publication : au moins un START et un FINISH | Seb 2026-11-18 | S | bo › refuse un bloc sans START / sans FINISH | P02 tuée (2026-11-18) | — |
 | Création : un bloc naît brouillon ; nom, inclinaison, cotation et au moins une prise obligatoires ; START et FINISH pas exigés | Seb 2026-11-18 | D + S + B | boulders.dto › CreateBoulderDto ; bo › createDraft — crée un brouillon, sans statut explicite | — | défaut `DRAFT` de la colonne : e2e |
 | Création : une prise n'a qu'un rôle (doublon refusé en 400) | CL | D + B | boulders.dto › refuse la même prise deux fois | N01 tuée (2026-11-18) | — |
 | Création : prises connues et d'un seul layout, dont se déduit le layout du bloc | Seb 2026-11-18 | S | bo › déduit le layout des prises ; refuse des prises de deux layouts ; refuse une prise inconnue | N02 tuée (2026-11-18) | — |

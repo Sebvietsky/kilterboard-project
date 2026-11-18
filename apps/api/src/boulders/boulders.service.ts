@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
+import { assertFound } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
@@ -20,7 +20,7 @@ import {
   LikedBoulderDto,
   PublicNoteDto,
 } from './dto/boulder-response.dto';
-import { BoulderStatus, Prisma } from '../generated/prisma/client';
+import { BoulderStatus, HoldRole, Prisma } from '../generated/prisma/client';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
 import { resolveAngleId } from '../common/utils/angle.utils';
@@ -416,17 +416,46 @@ export class BouldersService {
     return layoutId;
   }
 
-  async publishBoulder(id: number, userId: number): Promise<void> {
-    const boulder = await this.prisma.boulder.findUnique({ where: { id } });
-    assertFound(boulder, 'Boulder');
-
-    // Boulder uses creatorId instead of userId
-    assertOwnerShip({ userId: boulder.creatorId }, userId);
-
-    await this.prisma.boulder.update({
+  /**
+   * Publie un brouillon : DRAFT -> PUBLIC, sans retour (décision du
+   * 2026-11-18). Un bloc publié peut recevoir des ascensions, il ne se
+   * modifie plus.
+   */
+  async publishBoulder(id: number, userId: number): Promise<BoulderCreatedDto> {
+    const boulder = await this.prisma.boulder.findUnique({
       where: { id },
+      select: {
+        creatorId: true,
+        status: true,
+        boulderHolds: { select: { role: true } },
+      },
+    });
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403.
+    if (!boulder || boulder.creatorId !== userId) {
+      throw new NotFoundException('Boulder not found');
+    }
+    if (boulder.status !== BoulderStatus.DRAFT) {
+      throw new ConflictException('Boulder is already published.');
+    }
+    // Un bloc se grimpe d'un départ à un top : exigé ici et non à la
+    // création, où le brouillon peut ne pas être fini.
+    const roles = new Set(boulder.boulderHolds.map((h) => h.role));
+    if (!roles.has(HoldRole.START) || !roles.has(HoldRole.FINISH)) {
+      throw new BadRequestException(
+        'A boulder needs at least one START and one FINISH hold.',
+      );
+    }
+
+    // Le statut dans le where : un PATCH ou une publication arrivés entre la
+    // lecture et l'écriture ne s'appliquent pas à un bloc déjà publié.
+    const { count } = await this.prisma.boulder.updateMany({
+      where: { id, status: BoulderStatus.DRAFT },
       data: { status: BoulderStatus.PUBLIC },
     });
+    if (count === 0) {
+      throw new ConflictException('Boulder is already published.');
+    }
+    return { id, status: BoulderStatus.PUBLIC };
   }
 
   /**

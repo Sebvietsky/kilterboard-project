@@ -90,7 +90,7 @@ export class BouldersController {
   async publishBoulder(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
-  ): Promise<void> {
+  ): Promise<BoulderCreatedDto> {
     return this.boulderService.publishBoulder(id, user.userId);
   }
 
