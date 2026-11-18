@@ -22,7 +22,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sebvietsky.kilterboard",
+      "appleTeamId": "2GZ4C556T6"
     },
     "android": {
       "adaptiveIcon": {
@@ -38,7 +40,25 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
+      "./plugins/with-pods-deployment-target",
+      "expo-splash-screen",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "KilterBoard uses Bluetooth to light up boulders on your board."
+        }
+      ]
     ]
   }
 }

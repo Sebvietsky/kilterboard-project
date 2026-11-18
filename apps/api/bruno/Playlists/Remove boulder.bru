@@ -1,0 +1,15 @@
+meta {
+  name: Remove boulder
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/playlists/{{playlistId}}/boulders/{{boulderId}}?angle=40
+  body: none
+  auth: inherit
+}
+
+params:query {
+  angle: 40
+}

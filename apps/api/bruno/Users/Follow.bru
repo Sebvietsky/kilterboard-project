@@ -1,0 +1,11 @@
+meta {
+  name: Follow
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/users/{{targetUsername}}/follow
+  body: none
+  auth: inherit
+}

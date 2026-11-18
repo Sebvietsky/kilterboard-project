@@ -1,0 +1,37 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/ascents
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "boulderId": {{boulderId}},
+    "status": "SENT",
+    "attemptsCount": 3,
+    "feltGradeRank": 6,
+    "rating": 4
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("ascentId", res.body.id);
+  }
+}
+
+docs {
+  - `status` : `FLASH` | `SENT` | `PROJECT`.
+  - FLASH : `attemptsCount` doit valoir 1 (déduit à 1 si omis), et seulement
+    au premier contact avec le bloc.
+  - `feltGradeRank` obligatoire au premier SENT/FLASH.
+  - `rating` : 1 à 5, optionnel.
+  - `sessionId` : absent, l'ascension est consignée dans la session en cours ; `null` la laisse hors session ; un id vise une session précise (à soi et ouverte).
+  - Un projet ouvert sur le bloc bloque tout POST : passer par Update.
+}
