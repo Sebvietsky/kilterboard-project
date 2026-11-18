@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -33,8 +34,9 @@ const prismaMock = {
 // Le client que reçoit le callback de la transaction. Ses écritures n'existent
 // pas sur prismaMock : un appel par `this.prisma` au lieu de `tx` échouerait.
 const txMock = {
-  boulder: { create: jest.fn() },
-  boulderAngle: { createMany: jest.fn() },
+  boulder: { create: jest.fn(), update: jest.fn() },
+  boulderAngle: { createMany: jest.fn(), update: jest.fn() },
+  boulderHold: { deleteMany: jest.fn(), createMany: jest.fn() },
 };
 
 // La forme minimale que findOne déréférence (et que le catalogue reprend
@@ -799,6 +801,167 @@ describe('BouldersService', () => {
           { boulderId: 99, angleId: 4, baseGradeId: null, gradeId: null },
         ],
       });
+    });
+  });
+  describe('updateDraft', () => {
+    const CREATOR_ID = 7;
+    const CREATOR_ANGLE_ID = 3;
+    const draft = {
+      id: 99,
+      creatorId: CREATOR_ID,
+      status: BoulderStatus.DRAFT,
+      layoutId: 1,
+      angleId: CREATOR_ANGLE_ID,
+    };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.grade.findUnique.mockResolvedValue({ id: 18 });
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 1 }]);
+      prismaMock.$transaction.mockImplementation(
+        (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+      );
+      txMock.boulder.update.mockResolvedValue({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    const nothingWritten = () => {
+      expect(txMock.boulder.update).not.toHaveBeenCalled();
+      expect(txMock.boulderAngle.update).not.toHaveBeenCalled();
+      expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
+    };
+
+    it('renvoie 404 pour un bloc inconnu', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(NotFoundException);
+      nothingWritten();
+    });
+
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403,
+    // pour ne pas révéler qu'il existe.
+    it("renvoie 404 sur le brouillon d'un autre", async () => {
+      await expect(
+        service.updateDraft(8, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(NotFoundException);
+      nothingWritten();
+    });
+
+    // Un bloc publié peut avoir des ascensions : changer ses prises ou sa
+    // cotation les rendrait fausses.
+    it.each([BoulderStatus.PRIVATE, BoulderStatus.PUBLIC])(
+      'renvoie 409 sur un bloc %s',
+      async (status) => {
+        prismaMock.boulder.findUnique.mockResolvedValue({ ...draft, status });
+
+        await expect(
+          service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
+        ).rejects.toThrow(ConflictException);
+        nothingWritten();
+      },
+    );
+
+    it('modifie le nom et la description', async () => {
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          name: 'Crimpy',
+          description: 'Petites réglettes',
+        }),
+      ).resolves.toEqual({ id: 99, status: BoulderStatus.DRAFT });
+
+      expect(txMock.boulder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 99 },
+          data: expect.objectContaining({
+            name: 'Crimpy',
+            description: 'Petites réglettes',
+          }) as unknown,
+        }),
+      );
+    });
+
+    it('refuse une cotation inconnue', async () => {
+      prismaMock.grade.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { gradeRank: 99 }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    // La cotation de départ vit sur la ligne de l'inclinaison du créateur.
+    // Un brouillon n'a pas de vote : la cotation effective est la cotation
+    // de départ, sans recalcul.
+    it("reporte la cotation sur la ligne de l'inclinaison du créateur", async () => {
+      await service.updateDraft(CREATOR_ID, 99, { gradeRank: 18 });
+
+      expect(txMock.boulder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ gradeId: 18 }) as unknown,
+        }),
+      );
+      expect(txMock.boulderAngle.update).toHaveBeenCalledWith({
+        where: {
+          boulderId_angleId: { boulderId: 99, angleId: CREATOR_ANGLE_ID },
+        },
+        data: { baseGradeId: 18, gradeId: 18 },
+      });
+    });
+
+    it('ne touche pas aux inclinaisons sans nouvelle cotation', async () => {
+      await service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' });
+
+      expect(txMock.boulderAngle.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse une prise inconnue', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          holds: [{ holdId: 1, role: HoldRole.START }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    // Le layout du bloc est fixé à la création, par ses premières prises.
+    it("refuse une prise d'un autre layout que celui du bloc", async () => {
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 2 }]);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          holds: [{ holdId: 1, role: HoldRole.START }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    it('remplace toutes les prises du bloc', async () => {
+      await service.updateDraft(CREATOR_ID, 99, {
+        holds: [{ holdId: 5, role: HoldRole.FINISH }],
+      });
+
+      expect(txMock.boulderHold.deleteMany).toHaveBeenCalledWith({
+        where: { boulderId: 99 },
+      });
+      expect(txMock.boulderHold.createMany).toHaveBeenCalledWith({
+        data: [{ boulderId: 99, holdId: 5, role: HoldRole.FINISH }],
+      });
+      // Supprimer après avoir recréé effacerait les nouvelles prises.
+      expect(
+        txMock.boulderHold.deleteMany.mock.invocationCallOrder[0],
+      ).toBeLessThan(txMock.boulderHold.createMany.mock.invocationCallOrder[0]);
+    });
+
+    it('ne touche pas aux prises sans nouvelle liste', async () => {
+      await service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' });
+
+      expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

@@ -15,6 +15,7 @@ import {
 import { BouldersService } from './boulders.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import { CreateBoulderDto } from './dto/create-boulder.dto';
+import { UpdateBoulderDto } from './dto/update-boulder.dto';
 import {
   BoulderCreatedDto,
   BoulderDetailDto,
@@ -70,6 +71,17 @@ export class BouldersController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<PublicNoteDto[]> {
     return this.boulderService.findComments(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  @HttpCode(200)
+  async updateDraft(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBoulderDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<BoulderCreatedDto> {
+    return this.boulderService.updateDraft(user.userId, id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

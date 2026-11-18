@@ -102,6 +102,10 @@ Abréviations :
 | Création : une prise n'a qu'un rôle (doublon refusé en 400) | CL | D + B | boulders.dto › refuse la même prise deux fois | N01 tuée (2026-11-18) | — |
 | Création : prises connues et d'un seul layout, dont se déduit le layout du bloc | Seb 2026-11-18 | S | bo › déduit le layout des prises ; refuse des prises de deux layouts ; refuse une prise inconnue | N02 tuée (2026-11-18) | — |
 | Création : une ligne `boulder_angles` par inclinaison, cotation de départ seulement à celle du créateur | DEC 10-15, 11-06 | S | bo › crée toutes les inclinaisons, cotées seulement à celle du créateur | N03 tuée (2026-11-18) | atomicité de la transaction : e2e |
+| Modification : brouillon seulement (409 sinon), 404 sur celui d'un autre (B4) | Seb 2026-11-18 | S | bo › updateDraft — renvoie 404 sur le brouillon d'un autre ; renvoie 409 sur un bloc PRIVATE/PUBLIC | U01, U02 tuées (2026-11-18) | — |
+| Modification : inclinaison fixée à la création | Seb 2026-11-18 | D | absente de `UpdateBoulderDto` | — | refus d'un `angleDegrees` (`forbidNonWhitelisted`) : e2e |
+| Modification : la cotation se reporte sur la ligne de l'inclinaison du créateur (cotation de départ et effective) | Seb 2026-11-18 | S | bo › reporte la cotation sur la ligne de l'inclinaison du créateur | U04 tuée (2026-11-18) | — |
+| Modification : les prises remplacent les anciennes, du layout du bloc | Seb 2026-11-18 | D + S | bo › remplace toutes les prises du bloc ; refuse une prise d'un autre layout ; boulders.dto › UpdateBoulderDto | U03 tuée (2026-11-18) | — |
 | Playlist privée visible du seul propriétaire | DEC 10-12 | S | pl › findOne | M42 tuée | — |
 | Écritures réservées au propriétaire | DEC 10-12 | S | pl › propriété | M43 tuée | — |
 | Entrée = bloc + inclinaison, doublon 409 | DEC 10-15 | S + D + B | pl › addBoulder ; playlists.dto › AddBoulderDto | M41, D08 tuées | unicité en base : e2e |

@@ -1,0 +1,27 @@
+meta {
+  name: Update
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/boulders/{{boulderId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Brouillon renommé",
+    "gradeRank": 18,
+    "holds": [
+      { "holdId": 1, "role": "START" },
+      { "holdId": 3, "role": "HAND" },
+      { "holdId": 2, "role": "FINISH" }
+    ]
+  }
+}
+
+docs {
+  Brouillon seulement (409 sinon). Tout est facultatif ; les prises envoyées remplacent les anciennes. L'inclinaison ne se modifie pas.
+}

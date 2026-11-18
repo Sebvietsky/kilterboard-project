@@ -1,8 +1,17 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
-import { CreateBoulderDto } from './dto/create-boulder.dto';
+import {
+  BoulderHoldInputDto,
+  CreateBoulderDto,
+} from './dto/create-boulder.dto';
+import { UpdateBoulderDto } from './dto/update-boulder.dto';
 import {
   BoulderCreatedDto,
   BoulderDetailDto,
@@ -267,28 +276,9 @@ export class BouldersService {
   ): Promise<BoulderCreatedDto> {
     const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
-    // Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400).
-    const grade = await this.prisma.grade.findUnique({
-      where: { rank: dto.gradeRank },
-      select: { id: true },
-    });
-    if (!grade) throw new BadRequestException('Invalid grade.');
-
-    // Le DTO garantit des ids distincts : une prise absente se voit au compte.
-    const holdIds = dto.holds.map((h) => h.holdId);
-    const holds = await this.prisma.hold.findMany({
-      where: { id: { in: holdIds } },
-      select: { layoutId: true },
-    });
-    if (holds.length !== holdIds.length) {
-      throw new BadRequestException('Invalid hold.');
-    }
-    // Le layout se déduit des prises : elles doivent toutes en venir.
-    const layoutIds = new Set(holds.map((h) => h.layoutId));
-    if (layoutIds.size !== 1) {
-      throw new BadRequestException('Holds must belong to the same layout.');
-    }
-    const [layoutId] = layoutIds;
+    const gradeId = await this.resolveGradeId(dto.gradeRank);
+    // Le layout se déduit des prises.
+    const layoutId = await this.resolveHoldsLayout(dto.holds);
 
     const angles = await this.prisma.angle.findMany({ select: { id: true } });
 
@@ -300,7 +290,7 @@ export class BouldersService {
           creatorId: userId,
           layoutId,
           angleId,
-          gradeId: grade.id,
+          gradeId,
           boulderHolds: {
             create: dto.holds.map((h) => ({ holdId: h.holdId, role: h.role })),
           },
@@ -312,7 +302,7 @@ export class BouldersService {
       // effective est la cotation de départ (community-grade.ts).
       await tx.boulderAngle.createMany({
         data: angles.map((a) => {
-          const base = a.id === angleId ? grade.id : null;
+          const base = a.id === angleId ? gradeId : null;
           return {
             boulderId: boulder.id,
             angleId: a.id,
@@ -323,6 +313,107 @@ export class BouldersService {
       });
       return boulder;
     });
+  }
+
+  /**
+   * Modifie un brouillon : nom, description, cotation provisoire, prises.
+   * L'inclinaison est fixée à la création (décision du 2026-11-18).
+   */
+  async updateDraft(
+    userId: number,
+    id: number,
+    dto: UpdateBoulderDto,
+  ): Promise<BoulderCreatedDto> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id },
+      select: { creatorId: true, status: true, layoutId: true, angleId: true },
+    });
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403,
+    // qui révélerait qu'il existe.
+    if (!boulder || boulder.creatorId !== userId) {
+      throw new NotFoundException('Boulder not found');
+    }
+    // Un bloc publié peut avoir des ascensions : ses prises et sa cotation
+    // ne bougent plus.
+    if (boulder.status !== BoulderStatus.DRAFT) {
+      throw new ConflictException('Only a draft can be edited.');
+    }
+
+    const gradeId =
+      dto.gradeRank === undefined
+        ? undefined
+        : await this.resolveGradeId(dto.gradeRank);
+    // Le layout est fixé à la création, par les premières prises.
+    if (dto.holds) await this.resolveHoldsLayout(dto.holds, boulder.layoutId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.boulder.update({
+        where: { id },
+        data: { name: dto.name, description: dto.description, gradeId },
+        select: { id: true, status: true },
+      });
+      // La cotation de départ vit sur la ligne de l'inclinaison du créateur.
+      // Un brouillon n'a pas de vote (on ne logge pas un brouillon) : la
+      // cotation effective est la cotation de départ, sans recalcul.
+      if (gradeId !== undefined) {
+        await tx.boulderAngle.update({
+          where: {
+            boulderId_angleId: { boulderId: id, angleId: boulder.angleId },
+          },
+          data: { baseGradeId: gradeId, gradeId },
+        });
+      }
+      // Le client envoie toutes les prises : elles remplacent les anciennes.
+      if (dto.holds) {
+        await tx.boulderHold.deleteMany({ where: { boulderId: id } });
+        await tx.boulderHold.createMany({
+          data: dto.holds.map((h) => ({
+            boulderId: id,
+            holdId: h.holdId,
+            role: h.role,
+          })),
+        });
+      }
+      return updated;
+    });
+  }
+
+  /** Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400). */
+  private async resolveGradeId(rank: number): Promise<number> {
+    const grade = await this.prisma.grade.findUnique({
+      where: { rank },
+      select: { id: true },
+    });
+    if (!grade) throw new BadRequestException('Invalid grade.');
+    return grade.id;
+  }
+
+  /**
+   * Vérifie que les prises existent et viennent toutes d'un même layout, et
+   * le renvoie. `expectedLayoutId` : celui du bloc, quand il existe déjà.
+   */
+  private async resolveHoldsLayout(
+    holds: readonly BoulderHoldInputDto[],
+    expectedLayoutId?: number,
+  ): Promise<number> {
+    // Le DTO garantit des ids distincts : une prise absente se voit au compte.
+    const holdIds = holds.map((h) => h.holdId);
+    const found = await this.prisma.hold.findMany({
+      where: { id: { in: holdIds } },
+      select: { layoutId: true },
+    });
+    if (found.length !== holdIds.length) {
+      throw new BadRequestException('Invalid hold.');
+    }
+    const layoutIds = new Set(found.map((h) => h.layoutId));
+    const [layoutId] = layoutIds;
+    if (
+      layoutIds.size !== 1 ||
+      (expectedLayoutId !== undefined && layoutId !== expectedLayoutId)
+    ) {
+      throw new BadRequestException('Holds must belong to the same layout.');
+    }
+    return layoutId;
   }
 
   async publishBoulder(id: number, userId: number): Promise<void> {

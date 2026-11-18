@@ -3,6 +3,7 @@ import { rejectedFields, toDto } from '../../../test/dto-validation';
 import { FilterBoulderDto } from './filter-boulders.dto';
 import { AngleQueryDto } from '../../common/dto/angle-query.dto';
 import { CreateBoulderDto } from './create-boulder.dto';
+import { UpdateBoulderDto } from './update-boulder.dto';
 
 describe('FilterBoulderDto', () => {
   it('accepte une recherche avec seulement une inclinaison', async () => {
@@ -147,5 +148,38 @@ describe('CreateBoulderDto', () => {
         holds: [{ holdId: 1, role: 'HAND' }],
       }),
     ).resolves.toEqual([]);
+  });
+});
+
+describe('UpdateBoulderDto', () => {
+  it('accepte une modification vide', async () => {
+    await expect(rejectedFields(UpdateBoulderDto, {})).resolves.toEqual([]);
+  });
+
+  it('accepte une cotation seule', async () => {
+    await expect(
+      rejectedFields(UpdateBoulderDto, { gradeRank: 18 }),
+    ).resolves.toEqual([]);
+  });
+
+  // Facultatif, mais jamais vide s'il est fourni : l'édition ne doit pas
+  // contourner ce que la création exige.
+  it.each([
+    ['un nom fait seulement d’espaces', { name: '   ' }, 'name'],
+    ['une liste de prises vide', { holds: [] }, 'holds'],
+    [
+      'la même prise deux fois',
+      {
+        holds: [
+          { holdId: 1, role: 'START' },
+          { holdId: 1, role: 'FINISH' },
+        ],
+      },
+      'holds',
+    ],
+  ])('refuse %s', async (_label, body, field) => {
+    await expect(rejectedFields(UpdateBoulderDto, body)).resolves.toEqual([
+      field,
+    ]);
   });
 });
