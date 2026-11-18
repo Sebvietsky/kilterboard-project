@@ -247,9 +247,10 @@ model Grade {
 }
 
 // Problème d'escalade créé par un utilisateur sur un layout à un angle donné.
-// `status` : brouillon (pas fini, encore modifiable), privé (fini, visible
-// de son seul créateur) ou public. Un enum et non deux booléens : l'état
-// « brouillon public » n'a pas de sens et ne doit pas pouvoir s'écrire.
+// `status` : brouillon (pas fini, encore modifiable, visible de son seul
+// créateur) ou public. Pas de bloc privé (décision du 2026-11-18) : un
+// brouillon en tient lieu. Un enum plutôt qu'un booléen `isDraft`, pour
+// qu'un état de plus (archivé…) ne coûte qu'un `ADD VALUE`.
 // onDelete: Restrict sur grade/layout/angle — on ne peut pas supprimer
 // une référence tant que des blocs y sont rattachés.
 model Boulder {
@@ -632,9 +633,8 @@ enum Visibility {
 // Statut d'un bloc. Distinct de `Visibility` : un commentaire n'a pas de
 // brouillon.
 enum BoulderStatus {
-  DRAFT // Pas fini : prises et cotation encore modifiables
-  PRIVATE // Publié, visible uniquement par son créateur
-  PUBLIC // Publié, visible par tous
+  DRAFT // Pas fini : prises et cotation encore modifiables, visible de son seul créateur
+  PUBLIC // Publié, visible par tous ; ne revient pas en brouillon
 }
 
 // Système de cotation préféré de l'utilisateur pour l'affichage

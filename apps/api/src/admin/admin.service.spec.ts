@@ -94,7 +94,7 @@ describe('AdminService', () => {
   });
 
   describe('findAllBoulders', () => {
-    it.each([BoulderStatus.DRAFT, BoulderStatus.PRIVATE, BoulderStatus.PUBLIC])(
+    it.each([BoulderStatus.DRAFT, BoulderStatus.PUBLIC])(
       'filtre sur status: %s',
       async (status) => {
         await service.findAllBoulders({ status });

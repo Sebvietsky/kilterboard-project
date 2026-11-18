@@ -213,7 +213,7 @@ export class PlaylistsService {
       where: { id: dto.boulderId },
     });
 
-    // Un bloc privé ou brouillon n'existe que pour son créateur (décision du
+    // Un brouillon n'existe que pour son créateur (décision du
     // 2026-10-15) : 404 pour les autres, comme le like et le log. Sans ça,
     // une playlist publique exposerait le nom du brouillon d'un autre.
     const isVisible =

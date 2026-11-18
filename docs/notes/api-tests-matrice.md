@@ -13,7 +13,7 @@ Abréviations :
 
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
-| Bloc privé ou brouillon : 404 au log | code | S | asc › create — accès au bloc | M06 tuée | — |
+| Brouillon : 404 au log, même pour son créateur | Seb 2026-11-18 | S | asc › create — accès au bloc | M06 tuée | — |
 | Inclinaison obligatoire, sans défaut | DEC 10-15 | D + S | asc.dto › refuse un log sans inclinaison ; asc › inclinaison inconnue | D01 tuée | — |
 | Règles par bloc ET par inclinaison | DEC 10-15 | S | asc › ne lit l'historique qu'à l'inclinaison demandée | M01 tuée | — |
 | Flash seulement au premier contact | CdC, DEC | S | asc › rejette un flash sur un bloc… | M02 tuée (masquée avant 2ec45eb) | — |
@@ -102,7 +102,7 @@ Abréviations :
 | Création : une prise n'a qu'un rôle (doublon refusé en 400) | CL | D + B | boulders.dto › refuse la même prise deux fois | N01 tuée (2026-11-18) | — |
 | Création : prises connues et d'un seul layout, dont se déduit le layout du bloc | Seb 2026-11-18 | S | bo › déduit le layout des prises ; refuse des prises de deux layouts ; refuse une prise inconnue | N02 tuée (2026-11-18) | — |
 | Création : une ligne `boulder_angles` par inclinaison, cotation de départ seulement à celle du créateur | DEC 10-15, 11-06 | S | bo › crée toutes les inclinaisons, cotées seulement à celle du créateur | N03 tuée (2026-11-18) | atomicité de la transaction : e2e |
-| Modification : brouillon seulement (409 sinon), 404 sur celui d'un autre (B4) | Seb 2026-11-18 | S | bo › updateDraft — renvoie 404 sur le brouillon d'un autre ; renvoie 409 sur un bloc PRIVATE/PUBLIC | U01, U02 tuées (2026-11-18) | — |
+| Modification : brouillon seulement (409 sinon), 404 sur celui d'un autre (B4) | Seb 2026-11-18 | S | bo › updateDraft — renvoie 404 sur le brouillon d'un autre ; renvoie 409 sur un bloc publié | U01, U02 tuées (2026-11-18) | — |
 | Modification : inclinaison fixée à la création | Seb 2026-11-18 | D | absente de `UpdateBoulderDto` | — | refus d'un `angleDegrees` (`forbidNonWhitelisted`) : e2e |
 | Modification : la cotation se reporte sur la ligne de l'inclinaison du créateur (cotation de départ et effective) | Seb 2026-11-18 | S | bo › reporte la cotation sur la ligne de l'inclinaison du créateur | U04 tuée (2026-11-18) | — |
 | Modification : les prises remplacent les anciennes, du layout du bloc | Seb 2026-11-18 | D + S | bo › remplace toutes les prises du bloc ; refuse une prise d'un autre layout ; boulders.dto › UpdateBoulderDto | U03 tuée (2026-11-18) | — |
@@ -110,7 +110,7 @@ Abréviations :
 | Écritures réservées au propriétaire | DEC 10-12 | S | pl › propriété | M43 tuée | — |
 | Entrée = bloc + inclinaison, doublon 409 | DEC 10-15 | S + D + B | pl › addBoulder ; playlists.dto › AddBoulderDto | M41, D08 tuées | unicité en base : e2e |
 | Mes playlists = les miennes | implicite | S | pl › ne lit que les playlists de l'utilisateur | M40 tuée | — |
-| Bloc privé ou brouillon : n'existe que pour son créateur (404 pour les autres) ; ajout en playlist | Seb 2026-10-15 (B4) | S | pl › rejette en 404 le bloc privé/brouillon d'un autre ; accepte le brouillon de son créateur | F12, F13 tuées | like et log refusent aussi le créateur sur son propre brouillon : à aligner quand la création de blocs existera |
+| Brouillon : n'existe que pour son créateur (404 pour les autres) ; ajout en playlist | Seb 2026-10-15 (B4) | S | pl › rejette en 404 le brouillon d'un autre ; accepte le brouillon de son créateur | F12, F13 tuées | — (like et log refusés au créateur sur son brouillon : règle, Seb 2026-11-18) |
 | Nom de playlist non vide | code | D | playlists.dto › CreatePlaylistDto, UpdatePlaylistDto | F06 tuée | — (B5 corrigé) |
 | `/admin` réservé aux ADMIN | CdC | G | roles.guard.spec | M48 tuée | `@Roles` sur le contrôleur : e2e |
 | Tri admin par liste blanche | code | S | admin.service.spec, pagination.utils.spec | — | — |

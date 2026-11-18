@@ -206,12 +206,13 @@ describe('AscentsService', () => {
       );
     });
 
-    // 404 et non 403 : révéler qu'un bloc privé existe est déjà une fuite.
-    it.each([
-      ['privé', { ...publicBoulder, status: BoulderStatus.PRIVATE }],
-      ['brouillon', { ...publicBoulder, status: BoulderStatus.DRAFT }],
-    ])('rejette un bloc %s en 404', async (_label, boulder) => {
-      prismaMock.boulder.findUnique.mockResolvedValue(boulder);
+    // 404 et non 403 : révéler qu'un brouillon existe est déjà une fuite. On
+    // ne logge pas un brouillon, même le sien (décision du 2026-11-18).
+    it('rejette un brouillon en 404', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...publicBoulder,
+        status: BoulderStatus.DRAFT,
+      });
 
       await expect(service.create(baseDto, user)).rejects.toThrow(
         NotFoundException,

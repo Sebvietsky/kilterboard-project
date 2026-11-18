@@ -37,7 +37,7 @@ export interface BoulderFilters {
 }
 
 export type HoldRole = 'START' | 'HAND' | 'FOOT' | 'FINISH'; // = enum Prisma
-export type BoulderStatus = 'DRAFT' | 'PRIVATE' | 'PUBLIC'; // = enum Prisma
+export type BoulderStatus = 'DRAFT' | 'PUBLIC'; // = enum Prisma
 export interface Hold {
   holdCode: string;
   x: number;

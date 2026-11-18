@@ -104,7 +104,7 @@ describe('BouldersService', () => {
     // Le catalogue ne montre que le publié. Ces deux conditions ne dépendent
     // d'aucun filtre : une régression les rendrait invisibles, mais exposerait
     // les brouillons de tout le monde.
-    it('exclut toujours les brouillons et les blocs privés', async () => {
+    it('exclut toujours les brouillons', async () => {
       await service.findAll({ angle: 40 });
 
       expect(findManyArg().where.boulder).toMatchObject({
@@ -356,7 +356,7 @@ describe('BouldersService', () => {
     });
 
     // La visibilité est portée par le where, pas par un test après coup : un
-    // bloc privé n'est pas trouvé du tout, donc 404 et non 403 — révéler qu'il
+    // brouillon n'est pas trouvé du tout, donc 404 et non 403 — révéler qu'il
     // existe serait déjà une fuite.
     it('ne cherche que parmi les blocs publics et publiés', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue(detailRow);
@@ -853,17 +853,17 @@ describe('BouldersService', () => {
 
     // Un bloc publié peut avoir des ascensions : changer ses prises ou sa
     // cotation les rendrait fausses.
-    it.each([BoulderStatus.PRIVATE, BoulderStatus.PUBLIC])(
-      'renvoie 409 sur un bloc %s',
-      async (status) => {
-        prismaMock.boulder.findUnique.mockResolvedValue({ ...draft, status });
+    it('renvoie 409 sur un bloc publié', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        status: BoulderStatus.PUBLIC,
+      });
 
-        await expect(
-          service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
-        ).rejects.toThrow(ConflictException);
-        nothingWritten();
-      },
-    );
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(ConflictException);
+      nothingWritten();
+    });
 
     it('modifie le nom et la description', async () => {
       await expect(

@@ -315,14 +315,14 @@ describe('PlaylistsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    // B4 (décision du 2026-10-15) : un bloc privé ou brouillon n'existe que
-    // pour son créateur. 404 et non 403 : révéler qu'il existe est déjà une
-    // fuite, et une playlist publique exposerait son nom.
-    it.each([
-      ['privé', { ...publicBoulder, status: BoulderStatus.PRIVATE }],
-      ['brouillon', { ...publicBoulder, status: BoulderStatus.DRAFT }],
-    ])("rejette en 404 le bloc %s d'un autre", async (_label, boulder) => {
-      prismaMock.boulder.findUnique.mockResolvedValue(boulder);
+    // B4 (décision du 2026-10-15) : un brouillon n'existe que pour son
+    // créateur. 404 et non 403 : révéler qu'il existe est déjà une fuite, et
+    // une playlist publique exposerait son nom.
+    it("rejette en 404 le brouillon d'un autre", async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...publicBoulder,
+        status: BoulderStatus.DRAFT,
+      });
 
       await expect(
         service.addBoulder(user, { boulderId: 10, angleDegrees: 50 }, 3),
