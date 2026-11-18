@@ -247,8 +247,9 @@ model Grade {
 }
 
 // Problème d'escalade créé par un utilisateur sur un layout à un angle donné.
-// `isDraft` permet de sauvegarder un bloc sans le publier.
-// `isPublic` contrôle la visibilité (profils privés ou blocs non partagés).
+// `status` : brouillon (pas fini, encore modifiable), privé (fini, visible
+// de son seul créateur) ou public. Un enum et non deux booléens : l'état
+// « brouillon public » n'a pas de sens et ne doit pas pouvoir s'écrire.
 // onDelete: Restrict sur grade/layout/angle — on ne peut pas supprimer
 // une référence tant que des blocs y sont rattachés.
 model Boulder {
@@ -271,10 +272,9 @@ model Boulder {
   kilterUuid String? @unique @map("kilter_uuid") @db.VarChar(64)
   setterName String? @map("setter_name") @db.VarChar(100)
 
-  isPublic  Boolean  @default(false) @map("is_public") // false par défaut car isDraft = true
-  isDraft   Boolean  @default(true) @map("is_draft") // true par défaut -> false dès la création du boulder
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  status    BoulderStatus @default(DRAFT)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   boulderHolds     BoulderHold[]
   boulderTags      BoulderTag[]
@@ -627,6 +627,14 @@ enum Role {
 enum Visibility {
   PUBLIC // Visible par tous (feed, page du bloc)
   PRIVATE // Visible uniquement par l'auteur
+}
+
+// Statut d'un bloc. Distinct de `Visibility` : un commentaire n'a pas de
+// brouillon.
+enum BoulderStatus {
+  DRAFT // Pas fini : prises et cotation encore modifiables
+  PRIVATE // Publié, visible uniquement par son créateur
+  PUBLIC // Publié, visible par tous
 }
 
 // Système de cotation préféré de l'utilisateur pour l'affichage

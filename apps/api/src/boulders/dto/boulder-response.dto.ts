@@ -1,4 +1,4 @@
-import { HoldRole } from '../../generated/prisma/client';
+import { BoulderStatus, HoldRole } from '../../generated/prisma/client';
 
 export class HoldDto {
   holdCode!: string;
@@ -40,7 +40,7 @@ export class BoulderSummaryDto {
   // d'ascension (décision du 2026-11-06).
   kilterAscensionists!: number | null;
   kilterQuality!: number | null;
-  isPublic!: boolean;
+  status!: BoulderStatus;
   createdAt!: Date;
 }
 

@@ -14,6 +14,7 @@ import {
   AscentNote,
   AscentStatus,
   Boulder,
+  BoulderStatus,
   Grade,
 } from '../generated/prisma/client';
 import { CreateNoteDto } from './dto/create-note.dto';
@@ -43,7 +44,7 @@ export class AscentsService {
       where: { id: dto.boulderId },
     });
     assertFound(boulder, 'Boulder');
-    if (!boulder.isPublic || boulder.isDraft)
+    if (boulder.status !== BoulderStatus.PUBLIC)
       throw new NotFoundException('Boulder not found');
 
     // Résolution degrés -> Angle.id, comme le rank du grade ressenti.

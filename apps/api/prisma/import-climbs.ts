@@ -1,5 +1,10 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { HoldRole, Prisma, PrismaClient } from '../src/generated/prisma/client';
+import {
+  BoulderStatus,
+  HoldRole,
+  Prisma,
+  PrismaClient,
+} from '../src/generated/prisma/client';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
@@ -284,8 +289,7 @@ function prepare(climb: KilterClimb, ref: Reference): PreparedBoulder | Skip {
       angleId: reference.angleId,
       creatorId: ref.creatorId,
       layoutId: ref.layoutId,
-      isPublic: true,
-      isDraft: false,
+      status: BoulderStatus.PUBLIC,
       ...(createdAt && !Number.isNaN(createdAt.getTime()) && { createdAt }),
     },
     holds,

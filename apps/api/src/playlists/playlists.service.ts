@@ -16,7 +16,7 @@ import {
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddBoulderDto } from './dto/add-boulder.dto';
-import { PlaylistBoulder } from '../generated/prisma/client';
+import { BoulderStatus, PlaylistBoulder } from '../generated/prisma/client';
 
 @Injectable()
 export class PlaylistsService {
@@ -218,7 +218,7 @@ export class PlaylistsService {
     // une playlist publique exposerait le nom du brouillon d'un autre.
     const isVisible =
       boulder !== null &&
-      ((boulder.isPublic && !boulder.isDraft) ||
+      (boulder.status === BoulderStatus.PUBLIC ||
         boulder.creatorId === user.userId);
     if (!isVisible) throw new NotFoundException('Boulder not found');
     const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);

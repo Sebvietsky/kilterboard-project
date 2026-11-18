@@ -27,8 +27,7 @@ export class AdminService {
   private readonly ALLOWED_BOULDER_ORDER_BY = [
     'createdAt',
     'name',
-    'isPublic',
-    'isDraft',
+    'status',
   ] as const;
   private readonly ALLOWED_PLAYLIST_ORDER_BY = [
     'createdAt',
@@ -76,7 +75,7 @@ export class AdminService {
       ...(query.search && {
         name: { contains: query.search, mode: 'insensitive' },
       }),
-      ...(query.isPublic !== undefined && { isPublic: query.isPublic }),
+      ...(query.status && { status: query.status }),
     };
 
     const { skip, take } = getPaginationParams(query.page, query.limit);

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BoulderStatus } from '../generated/prisma/client';
 
 const prismaMock = {
   boulder: {
@@ -37,7 +38,7 @@ const boulderRow = {
   angle: { valueDegrees: 40 },
   boulderTags: [{ tag: { name: 'Crimp', slug: 'crimp' } }],
   _count: { ascents: 3 },
-  isPublic: true,
+  status: BoulderStatus.PUBLIC,
   createdAt: new Date(),
 };
 
@@ -95,8 +96,7 @@ describe('BouldersService', () => {
       await service.findAll({ angle: 40 });
 
       expect(findManyArg().where.boulder).toMatchObject({
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
       });
     });
 
@@ -111,7 +111,7 @@ describe('BouldersService', () => {
       expect(findManyArg().where).toEqual({
         angleId: ANGLE_ID,
         gradeId: { not: null },
-        boulder: { isPublic: true, isDraft: false },
+        boulder: { status: BoulderStatus.PUBLIC },
       });
     });
 
@@ -353,7 +353,7 @@ describe('BouldersService', () => {
 
       expect(prismaMock.boulder.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 10, isPublic: true, isDraft: false },
+          where: { id: 10, status: BoulderStatus.PUBLIC },
         }),
       );
     });
@@ -508,7 +508,7 @@ describe('BouldersService', () => {
 
       expect(prismaMock.boulder.update).toHaveBeenCalledWith({
         where: { id: 10 },
-        data: { isDraft: false, isPublic: true },
+        data: { status: BoulderStatus.PUBLIC },
       });
     });
 
@@ -559,7 +559,7 @@ describe('BouldersService', () => {
       const [arg] = prismaMock.boulder.findUnique.mock.calls[0] as [
         { where: Record<string, unknown> },
       ];
-      expect(arg.where).toMatchObject({ isPublic: true, isDraft: false });
+      expect(arg.where).toMatchObject({ status: BoulderStatus.PUBLIC });
     });
 
     it('rejette un bloc introuvable', async () => {

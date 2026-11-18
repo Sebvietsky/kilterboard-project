@@ -9,7 +9,7 @@ import {
   LikedBoulderDto,
   PublicNoteDto,
 } from './dto/boulder-response.dto';
-import { Prisma } from '../generated/prisma/client';
+import { BoulderStatus, Prisma } from '../generated/prisma/client';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
 import { resolveAngleId } from '../common/utils/angle.utils';
@@ -48,8 +48,7 @@ export class BouldersService {
         },
       }),
       boulder: {
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
         ...(filters.name && {
           name: { contains: filters.name, mode: 'insensitive' },
         }),
@@ -136,7 +135,7 @@ export class BouldersService {
         averageRating: ratingByBoulder.get(boulder.id) ?? null,
         kilterAscensionists: kilterStats?.ascensionistCount ?? null,
         kilterQuality: kilterStats?.qualityAverage ?? null,
-        isPublic: boulder.isPublic,
+        status: boulder.status,
         createdAt: boulder.createdAt,
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -145,7 +144,7 @@ export class BouldersService {
 
   async findOne(id: number): Promise<BoulderDetailDto> {
     const boulder = await this.prisma.boulder.findUnique({
-      where: { id, isPublic: true, isDraft: false },
+      where: { id, status: BoulderStatus.PUBLIC },
       include: {
         grade: { select: { vScale: true, fontScale: true, rank: true } },
         creator: { select: { username: true } },
@@ -203,7 +202,7 @@ export class BouldersService {
       averageRating: ratings._avg.rating,
       kilterAscensionists: referenceStats?.ascensionistCount ?? null,
       kilterQuality: referenceStats?.qualityAverage ?? null,
-      isPublic: boulder.isPublic,
+      status: boulder.status,
       createdAt: boulder.createdAt,
       description: boulder.description,
       holds: boulder.boulderHolds.map((bh) => ({
@@ -265,7 +264,7 @@ export class BouldersService {
 
     await this.prisma.boulder.update({
       where: { id },
-      data: { isDraft: false, isPublic: true },
+      data: { status: BoulderStatus.PUBLIC },
     });
   }
 
@@ -281,7 +280,7 @@ export class BouldersService {
     angleDegrees: number,
   ): Promise<BoulderLikeStatusDto> {
     const boulder = await this.prisma.boulder.findUnique({
-      where: { id: boulderId, isPublic: true, isDraft: false },
+      where: { id: boulderId, status: BoulderStatus.PUBLIC },
       select: { id: true },
     });
     assertFound(boulder, 'Boulder');
