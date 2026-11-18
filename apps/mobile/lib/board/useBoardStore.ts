@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { mergeBoard } from './mergeBoard';
+import { lightMessage, type LitHold } from './protocol';
 import {
   BluetoothUnavailableError,
   type BoardConnection,
@@ -20,10 +21,17 @@ type BoardStore = {
   // Injectée par RootLayout, qui possède le BleManager (un seul par app).
   // `null` avant son premier effet : les actions ne font alors rien.
   connection: BoardConnection | null;
+  // Dernière board connectée, gardée après une coupure qui ne vient pas de
+  // l'app (un autre grimpeur prend la main) : l'ampoule s'y reconnecte.
+  // Oubliée par un Disconnect voulu.
+  lastBoard: DiscoveredBoard | null;
   setConnection: (connection: BoardConnection | null) => void;
   scan: () => Promise<void>;
   connect: (board: DiscoveredBoard) => Promise<void>;
   disconnect: () => Promise<void>;
+  // Allume ces prises, et seulement elles. Lève si aucune board n'est
+  // connectée ou si l'écriture échoue.
+  light: (holds: LitHold[]) => Promise<void>;
 };
 
 function errorMessage(error: unknown): string {
@@ -36,6 +44,7 @@ function errorMessage(error: unknown): string {
 export const useBoardStore = create<BoardStore>((set, get) => ({
   state: { status: 'idle' },
   connection: null,
+  lastBoard: null,
 
   setConnection: (connection) => set({ connection }),
 
@@ -82,7 +91,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       await connection.connect(board, () => {
         set({ state: { status: 'idle' } });
       });
-      set({ state: { status: 'connected', board } });
+      set({ state: { status: 'connected', board }, lastBoard: board });
     } catch (error) {
       set({ state: { status: 'error', message: errorMessage(error) } });
     }
@@ -90,6 +99,14 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
   disconnect: async () => {
     await get().connection?.disconnect();
-    set({ state: { status: 'idle' } });
+    set({ state: { status: 'idle' }, lastBoard: null });
+  },
+
+  light: async (holds) => {
+    const { state, connection } = get();
+    if (!connection || state.status !== 'connected') {
+      throw new Error('Not connected to a board');
+    }
+    await connection.write(lightMessage(holds));
   },
 }));

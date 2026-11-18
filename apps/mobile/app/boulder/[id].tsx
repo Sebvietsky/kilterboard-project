@@ -19,6 +19,7 @@ import {
 } from '@/constants/theme';
 import { ChevronDown } from 'lucide-react-native';
 import { BoardLED } from '@/components/BoardLED';
+import { LightBoulderButton } from '@/components/LightBoulderButton';
 import { useDefaultBoardSize } from '@/lib/boardSizes/queries';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
@@ -367,7 +368,11 @@ function BoulderDetailScreen({
         </View>
       </View>
 
-      <BoardLED size={boardSize.data} holds={detail.holds} />
+      {/* L'ampoule hors de BoardLED, qui rogne ce qui dépasse de son cadre. */}
+      <View>
+        <BoardLED size={boardSize.data} holds={detail.holds} />
+        <LightBoulderButton size={boardSize.data} holds={detail.holds} />
+      </View>
 
       <View style={styles.statsCard}>
         <View style={styles.statCol}>
