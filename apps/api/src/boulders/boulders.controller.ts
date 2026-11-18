@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -6,13 +7,16 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
+import { CreateBoulderDto } from './dto/create-boulder.dto';
 import {
+  BoulderCreatedDto,
   BoulderDetailDto,
   BoulderLikeStatusDto,
   BoulderSummaryDto,
@@ -34,6 +38,16 @@ export class BouldersController {
     @Query() filters: FilterBoulderDto,
   ): Promise<PaginatedResponse<BoulderSummaryDto>> {
     return this.boulderService.findAll(filters);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  @HttpCode(201)
+  async createDraft(
+    @Body() dto: CreateBoulderDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<BoulderCreatedDto> {
+    return this.boulderService.createDraft(user.userId, dto);
   }
 
   @UseGuards(JwtAuthGuard)

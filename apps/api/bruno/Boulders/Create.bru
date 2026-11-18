@@ -1,0 +1,34 @@
+meta {
+  name: Create
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/boulders
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Brouillon de test",
+    "description": "Crée un brouillon, visible de son seul créateur",
+    "angleDegrees": 40,
+    "gradeRank": 16,
+    "holds": [
+      { "holdId": 1, "role": "START" },
+      { "holdId": 2, "role": "FINISH" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("boulderId", res.body.id);
+  }
+}
+
+docs {
+  Les ids de prises viennent de GET /board-sizes/:id. Le layout se déduit des prises.
+}

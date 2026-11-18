@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
+import { CreateBoulderDto } from './dto/create-boulder.dto';
 import {
+  BoulderCreatedDto,
   BoulderDetailDto,
   BoulderLikeStatusDto,
   BoulderSummaryDto,
@@ -253,6 +255,74 @@ export class BouldersService {
       likesCount: note._count.ascentNoteLikes,
       createdAt: note.createdAt,
     }));
+  }
+
+  /**
+   * Crée un brouillon. Le statut DRAFT est la valeur par défaut de la
+   * colonne : un bloc ne naît jamais publié.
+   */
+  async createDraft(
+    userId: number,
+    dto: CreateBoulderDto,
+  ): Promise<BoulderCreatedDto> {
+    const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
+
+    // Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400).
+    const grade = await this.prisma.grade.findUnique({
+      where: { rank: dto.gradeRank },
+      select: { id: true },
+    });
+    if (!grade) throw new BadRequestException('Invalid grade.');
+
+    // Le DTO garantit des ids distincts : une prise absente se voit au compte.
+    const holdIds = dto.holds.map((h) => h.holdId);
+    const holds = await this.prisma.hold.findMany({
+      where: { id: { in: holdIds } },
+      select: { layoutId: true },
+    });
+    if (holds.length !== holdIds.length) {
+      throw new BadRequestException('Invalid hold.');
+    }
+    // Le layout se déduit des prises : elles doivent toutes en venir.
+    const layoutIds = new Set(holds.map((h) => h.layoutId));
+    if (layoutIds.size !== 1) {
+      throw new BadRequestException('Holds must belong to the same layout.');
+    }
+    const [layoutId] = layoutIds;
+
+    const angles = await this.prisma.angle.findMany({ select: { id: true } });
+
+    return this.prisma.$transaction(async (tx) => {
+      const boulder = await tx.boulder.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          creatorId: userId,
+          layoutId,
+          angleId,
+          gradeId: grade.id,
+          boulderHolds: {
+            create: dto.holds.map((h) => ({ holdId: h.holdId, role: h.role })),
+          },
+        },
+        select: { id: true, status: true },
+      });
+      // Une ligne par inclinaison de la table, comme pour tout bloc. Seule
+      // celle du créateur a une cotation de départ ; sans vote, la cotation
+      // effective est la cotation de départ (community-grade.ts).
+      await tx.boulderAngle.createMany({
+        data: angles.map((a) => {
+          const base = a.id === angleId ? grade.id : null;
+          return {
+            boulderId: boulder.id,
+            angleId: a.id,
+            baseGradeId: base,
+            gradeId: base,
+          };
+        }),
+      });
+      return boulder;
+    });
   }
 
   async publishBoulder(id: number, userId: number): Promise<void> {

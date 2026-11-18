@@ -98,6 +98,10 @@ Abréviations :
 | Like idempotent, par inclinaison, sur bloc visible | DEC 10-14, 10-15 | S + D + B | bo › like, unlike, isLiked ; boulders.dto › AngleQueryDto | M35, M36 tuées | unicité en base : e2e |
 | Mes likes : les miens, à l'inclinaison du like, cotation effective | DEC 10-15 | S | bo › findMyLikes | M37 tuée | — |
 | Publication réservée au créateur | code | S | bo › publishBoulder | — | — |
+| Création : un bloc naît brouillon ; nom, inclinaison, cotation et au moins une prise obligatoires ; START et FINISH pas exigés | Seb 2026-11-18 | D + S + B | boulders.dto › CreateBoulderDto ; bo › createDraft — crée un brouillon, sans statut explicite | — | défaut `DRAFT` de la colonne : e2e |
+| Création : une prise n'a qu'un rôle (doublon refusé en 400) | CL | D + B | boulders.dto › refuse la même prise deux fois | N01 tuée (2026-11-18) | — |
+| Création : prises connues et d'un seul layout, dont se déduit le layout du bloc | Seb 2026-11-18 | S | bo › déduit le layout des prises ; refuse des prises de deux layouts ; refuse une prise inconnue | N02 tuée (2026-11-18) | — |
+| Création : une ligne `boulder_angles` par inclinaison, cotation de départ seulement à celle du créateur | DEC 10-15, 11-06 | S | bo › crée toutes les inclinaisons, cotées seulement à celle du créateur | N03 tuée (2026-11-18) | atomicité de la transaction : e2e |
 | Playlist privée visible du seul propriétaire | DEC 10-12 | S | pl › findOne | M42 tuée | — |
 | Écritures réservées au propriétaire | DEC 10-12 | S | pl › propriété | M43 tuée | — |
 | Entrée = bloc + inclinaison, doublon 409 | DEC 10-15 | S + D + B | pl › addBoulder ; playlists.dto › AddBoulderDto | M41, D08 tuées | unicité en base : e2e |

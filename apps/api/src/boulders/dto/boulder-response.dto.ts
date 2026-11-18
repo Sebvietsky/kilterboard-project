@@ -48,6 +48,11 @@ export class BoulderLikeStatusDto {
   liked!: boolean;
 }
 
+export class BoulderCreatedDto {
+  id!: number;
+  status!: BoulderStatus;
+}
+
 export class LikedBoulderDto {
   id!: number;
   name!: string;

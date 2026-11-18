@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BoulderStatus } from '../generated/prisma/client';
+import { BoulderStatus, HoldRole } from '../generated/prisma/client';
 
 const prismaMock = {
   boulder: {
@@ -23,8 +23,18 @@ const prismaMock = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
   },
-  angle: { findUnique: jest.fn() },
+  angle: { findUnique: jest.fn(), findMany: jest.fn() },
   boulderAngle: { findMany: jest.fn(), count: jest.fn() },
+  grade: { findUnique: jest.fn() },
+  hold: { findMany: jest.fn() },
+  $transaction: jest.fn(),
+};
+
+// Le client que reçoit le callback de la transaction. Ses écritures n'existent
+// pas sur prismaMock : un appel par `this.prisma` au lieu de `tx` échouerait.
+const txMock = {
+  boulder: { create: jest.fn() },
+  boulderAngle: { createMany: jest.fn() },
 };
 
 // La forme minimale que findOne déréférence (et que le catalogue reprend
@@ -666,6 +676,128 @@ describe('BouldersService', () => {
       expect(like).toMatchObject({
         angleDegrees: 50,
         gradeRank: null,
+      });
+    });
+  });
+  describe('createDraft', () => {
+    const CREATOR_ANGLE_ID = 3;
+    const GRADE_ID = 16;
+    const dto = {
+      name: 'Crimpy',
+      angleDegrees: 40,
+      gradeRank: 6,
+      holds: [
+        { holdId: 1, role: HoldRole.START },
+        { holdId: 2, role: HoldRole.FINISH },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: CREATOR_ANGLE_ID });
+      prismaMock.grade.findUnique.mockResolvedValue({ id: GRADE_ID });
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 1 },
+      ]);
+      prismaMock.angle.findMany.mockResolvedValue([
+        { id: 2 },
+        { id: CREATOR_ANGLE_ID },
+        { id: 4 },
+      ]);
+      prismaMock.$transaction.mockImplementation(
+        (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+      );
+      txMock.boulder.create.mockResolvedValue({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    const createArg = () =>
+      (
+        txMock.boulder.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0].data;
+
+    // Un bloc ne naît jamais publié : le statut n'est pas écrit, la colonne
+    // vaut DRAFT par défaut. L'écrire PUBLIC le publierait sans contrôle.
+    it('crée un brouillon, sans statut explicite', async () => {
+      await expect(service.createDraft(7, dto)).resolves.toEqual({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+      expect(createArg()).not.toHaveProperty('status');
+      expect(createArg()).toMatchObject({
+        creatorId: 7,
+        angleId: CREATOR_ANGLE_ID,
+        gradeId: GRADE_ID,
+      });
+    });
+
+    it('déduit le layout des prises', async () => {
+      await service.createDraft(7, dto);
+
+      expect(createArg()).toMatchObject({ layoutId: 1 });
+    });
+
+    it('refuse des prises de deux layouts', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 2 },
+      ]);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une prise inconnue', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 1 }]);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une cotation inconnue', async () => {
+      prismaMock.grade.findUnique.mockResolvedValue(null);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('enregistre chaque prise avec son rôle', async () => {
+      await service.createDraft(7, dto);
+
+      expect(createArg().boulderHolds).toEqual({
+        create: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+    });
+
+    // Une ligne par inclinaison, créées avec le bloc (décision du
+    // 2026-10-15). Seule celle du créateur a une cotation de départ.
+    it('crée toutes les inclinaisons, cotées seulement à celle du créateur', async () => {
+      await service.createDraft(7, dto);
+
+      expect(txMock.boulderAngle.createMany).toHaveBeenCalledWith({
+        data: [
+          { boulderId: 99, angleId: 2, baseGradeId: null, gradeId: null },
+          {
+            boulderId: 99,
+            angleId: CREATOR_ANGLE_ID,
+            baseGradeId: GRADE_ID,
+            gradeId: GRADE_ID,
+          },
+          { boulderId: 99, angleId: 4, baseGradeId: null, gradeId: null },
+        ],
       });
     });
   });
