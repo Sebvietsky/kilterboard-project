@@ -7,10 +7,12 @@ import { AscentStatus, Prisma } from '../generated/prisma/client';
  * inclinaison (un seul par grimpeur, garanti par l'index partiel
  * `ascents_one_felt_grade_per_user_boulder_angle`).
  *
- * - Inclinaison du créateur : sa cotation tant qu'il y a moins de
- *   COMMUNITY_GRADE_THRESHOLD votes, la médiane des votes ensuite.
- * - Autre inclinaison : pas de cotation sans vote, la médiane dès le premier,
- *   « estimée » sous le seuil.
+ * - Inclinaison qui a une cotation de départ (`boulder_angles.base_grade_id`) :
+ *   elle tant qu'il y a moins de COMMUNITY_GRADE_THRESHOLD votes, la médiane
+ *   des votes ensuite. C'est celle du créateur à son inclinaison, celle de
+ *   Kilter à chaque inclinaison cotée d'un bloc importé.
+ * - Inclinaison sans cotation de départ : pas de cotation sans vote, la
+ *   médiane dès le premier, « estimée » sous le seuil.
  *
  * Toute la règle vit ici : le service des ascensions l'appelle à chaque vote,
  * le script `prisma/recompute-angle-grades.ts` pour les données existantes.
@@ -35,26 +37,26 @@ export function medianGrade<T extends Ranked>(grades: readonly T[]): T | null {
 }
 
 /**
- * Cotation effective à une inclinaison. `creatorGrade` n'est fourni que pour
- * l'inclinaison du créateur ; partout ailleurs il vaut `null`.
+ * Cotation effective à une inclinaison, à partir de sa cotation de départ
+ * (`null` si elle n'en a pas) et des votes.
  */
 export function effectiveGrade<T extends Ranked>(
   votes: readonly T[],
-  creatorGrade: T | null,
+  baseGrade: T | null,
 ): T | null {
-  if (creatorGrade && votes.length < COMMUNITY_GRADE_THRESHOLD) {
-    return creatorGrade;
+  if (baseGrade && votes.length < COMMUNITY_GRADE_THRESHOLD) {
+    return baseGrade;
   }
   return medianGrade(votes);
 }
 
-/** « Estimée » ne se stocke pas : peu de votes, hors inclinaison du créateur. */
+/** « Estimée » ne se stocke pas : peu de votes, sans cotation de départ. */
 export function isEstimatedGrade(
   votesCount: number,
-  isCreatorAngle: boolean,
+  hasBaseGrade: boolean,
 ): boolean {
   return (
-    !isCreatorAngle && votesCount > 0 && votesCount < COMMUNITY_GRADE_THRESHOLD
+    !hasBaseGrade && votesCount > 0 && votesCount < COMMUNITY_GRADE_THRESHOLD
   );
 }
 
@@ -77,9 +79,9 @@ export async function recomputeAngleGrade(
     WHERE boulder_id = ${boulderId} AND angle_id = ${angleId}
     FOR UPDATE`;
 
-  const boulder = await db.boulder.findUniqueOrThrow({
-    where: { id: boulderId },
-    select: { angleId: true, grade: { select: { id: true, rank: true } } },
+  const { baseGrade } = await db.boulderAngle.findUniqueOrThrow({
+    where: { boulderId_angleId: { boulderId, angleId } },
+    select: { baseGrade: { select: { id: true, rank: true } } },
   });
   // Le filtre sur le statut double l'invariant : seul un envoi vote.
   const ascents = await db.ascent.findMany({
@@ -93,10 +95,7 @@ export async function recomputeAngleGrade(
   });
   const votes = ascents.flatMap((a) => (a.feltGrade ? [a.feltGrade] : []));
 
-  const grade = effectiveGrade(
-    votes,
-    boulder.angleId === angleId ? boulder.grade : null,
-  );
+  const grade = effectiveGrade(votes, baseGrade);
 
   await db.boulderAngle.update({
     where: { boulderId_angleId: { boulderId, angleId } },

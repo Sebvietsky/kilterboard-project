@@ -42,9 +42,10 @@ Abréviations :
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
 | Médiane basse, résistante aux aberrants | DEC, note boulder-angle | S | cg › medianGrade | C01 tuée | — |
-| Créateur sous 5 votes, médiane à partir de 5 | DEC | S | cg › effectiveGrade | C02, C03 tuées | — |
-| Autre inclinaison : rien sans vote, médiane dès le premier | DEC | S | cg › effectiveGrade | C06 tuée | — |
-| « Estimée » : 1 à 4 votes hors inclinaison du créateur | DEC | S | cg › isEstimatedGrade ; bo › findOne | C04, C15 tuées | — |
+| Cotation de départ (créateur à son inclinaison, Kilter pour un bloc importé) sous 5 votes, médiane à partir de 5 | DEC 11-06 | S | cg › effectiveGrade — avec une cotation de départ ; recomputeAngleGrade › garde la cotation de départ sous le seuil, passe à la médiane au seuil | C02, C03 tuées ; G01 tuée (2026-11-06) | — |
+| Sans cotation de départ : rien sans vote, médiane dès le premier | DEC | S | cg › effectiveGrade — sans cotation de départ | C06 tuée | — |
+| La cotation de départ est celle de l'inclinaison recalculée, et un recalcul sans vote ne l'efface pas | DEC 11-06 | S | cg › lit la cotation de départ de cette inclinaison ; garde la cotation de départ sans vote | G04 tuée (2026-11-06) | — |
+| « Estimée » : 1 à 4 votes sans cotation de départ | DEC 11-06 | S | cg › isEstimatedGrade ; bo › findOne | C04, C15 tuées ; G02, G03 tuées (2026-11-06) | — |
 | Seuls les envois à cette inclinaison votent | DEC | S | cg › ne compte que les grades ressentis d'envois… | C05, C09 tuées | — |
 | Nombre de votes stocké | DEC | S | cg › écrit la médiane et le nombre de votes | C08 tuée | — |
 | Verrou de ligne avant la lecture des votes | 3456556 | S | cg › verrouille la ligne avant de lire | C07 tuée | sérialisation réelle : e2e |
@@ -87,6 +88,11 @@ Abréviations :
 | Règle | Source | Porteur | Tests | Mutation | Manque |
 | --- | --- | --- | --- | --- | --- |
 | Catalogue et détail : publics et publiés seulement | code | S | bo › findAll, findOne | — | — |
+| Explore toujours à une inclinaison, un bloc n'y apparaît que s'il y est coté | DEC 10-15, 11-06 | D + S | boulders.dto › exige une inclinaison ; bo › ne garde que les blocs cotés à l'inclinaison demandée | E01, E05 tuées (2026-11-06) | — |
+| Carte d'Explore : cotation, ascensions et note de l'inclinaison demandée ; filtre de cotation à cette inclinaison | DEC 11-06 | S | bo › projette le bloc à l'inclinaison demandée ; ne moyenne que les notes données à l'inclinaison demandée ; filtre sur la cotation à l'inclinaison | E03, E04 tuées (2026-11-06) | — |
+| Statistiques Kilter à part des nôtres, à l'inclinaison de la carte ; détail : par inclinaison, et celles de la référence au premier niveau | DEC 11-06 | S | bo › donne les statistiques Kilter de l'inclinaison, à part des nôtres ; renvoie null sans statistiques Kilter ; donne au premier niveau les statistiques Kilter de l'inclinaison de référence ; findOne › angleGrades | K01, K02, K03 tuées (2026-11-06 ; K03 survivait avant le test à 45°) | — |
+| Tri d'Explore : popularité Kilter à l'inclinaison, puis nos ascensions, ordre stable | DEC 11-06 | S + B | bo › trie par popularité Kilter, puis par nos ascensions | E02 tuée (2026-11-06) | pagination réelle sans saut : e2e |
+| Bloc importé : le setter Kilter est exposé (`setterName`) et le filtre « creator » le cherche aussi | DEC 11-06 | S | bo › donne le setter Kilter d'un bloc importé ; cherche le nom et le créateur (compte ou setter Kilter) | S01, S02 tuées (2026-11-06) | — |
 | Commentaires : publics seulement | CdC | S | bo › findComments | M38 tuée | `/comments` d'un bloc privé non vérifié (faible) |
 | Bornes de pagination, tag seul en tableau | code | D | boulders.dto › FilterBoulderDto | D06, D07 tuées | — |
 | Like idempotent, par inclinaison, sur bloc visible | DEC 10-14, 10-15 | S + D + B | bo › like, unlike, isLiked ; boulders.dto › AngleQueryDto | M35, M36 tuées | unicité en base : e2e |

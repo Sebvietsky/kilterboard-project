@@ -30,7 +30,7 @@ import {
 } from '@/lib/sessions/elapsed';
 import type { ActiveSession, SessionSummary } from '@/lib/sessions/types';
 import { useMyProjects } from '@/lib/ascents/queries';
-import { boulderHref } from '@/lib/boulders/href';
+import { ascentBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { MyProject } from '@/lib/ascents/types';
 import { formatClockTime, formatDay } from '@/lib/format/clockTime';
 import { plural } from '@/lib/format/plural';
@@ -211,7 +211,7 @@ function RunningSession({
   isRefetching: boolean;
   onRefresh: () => void;
 }) {
-  const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const endSession = useEndSession();
 
   // Confirmation : une session terminée ne se rouvre pas, et le bouton est à
@@ -236,11 +236,9 @@ function RunningSession({
       renderItem={({ item }) => (
         <Pressable
           onPress={() =>
-            router.push(
-              boulderHref(
-                item.ascent.boulderId,
-                item.ascent.angle.valueDegrees,
-              ),
+            openBoulder(
+              session.entries.map((entry) => ascentBrowseItem(entry.ascent)),
+              ascentBrowseItem(item.ascent),
             )
           }
           style={styles.rowPressable}
@@ -317,6 +315,7 @@ function LiveSessionHero({ session }: { session: ActiveSession }) {
 // charge) — un bandeau vide au milieu de l'écran n'apporterait rien.
 function ContinueProjects() {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const projects = useMyProjects();
 
   if (!projects.data?.length) return null;
@@ -339,7 +338,10 @@ function ContinueProjects() {
         renderItem={({ item }) => (
           <Pressable
             onPress={() =>
-              router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+              openBoulder(
+                (projects.data ?? []).map(ascentBrowseItem),
+                ascentBrowseItem(item),
+              )
             }
           >
             <ProjectCard project={item} />

@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { useBouldersInfinite } from '@/lib/boulders/queries';
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
-import { boulderHref } from '@/lib/boulders/href';
+import { compactCount } from '@/lib/format/compactCount';
+import { boulderBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { BoulderFilters, BoulderSummary } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 import { useRef, useState } from 'react';
@@ -19,6 +20,8 @@ import { useRouter } from 'expo-router';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useFiltersStore } from '@/lib/filters/useFiltersStore';
 import { ActiveFilters } from '@/components/filters/ActiveFilters';
+import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { ChevronDown } from 'lucide-react-native';
 
 function BoulderCard({ item }: { item: BoulderSummary }) {
   const formatGrade = useGradeLabel();
@@ -36,19 +39,48 @@ function BoulderCard({ item }: { item: BoulderSummary }) {
 
       <View style={styles.metaRow}>
         <Text style={styles.metaData}>{item.angleDegrees}°</Text>
-        <Text style={styles.metaDot}>·</Text>
-        <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
-        {item.averageRating !== null && (
+        {item.kilterAscensionists !== null ? (
+          // Bloc Kilter : ses chiffres, avec leur source ; les nôtres à la
+          // suite s'il y en a. Jamais additionnés (décision du 2026-11-06).
           <>
             <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.ratingText}>
-              ★ {item.averageRating.toFixed(1)}
+            <Text style={styles.metaData}>
+              {compactCount(item.kilterAscensionists)} on Kilter
             </Text>
+            {item.kilterQuality !== null && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.ratingText}>
+                  ★ {item.kilterQuality.toFixed(1)}
+                </Text>
+              </>
+            )}
+            {item.ascentCount > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaData}>{item.ascentCount} in app</Text>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaData}>{item.ascentCount} ascents</Text>
+            {item.averageRating !== null && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.ratingText}>
+                  ★ {item.averageRating.toFixed(1)}
+                </Text>
+              </>
+            )}
           </>
         )}
       </View>
 
-      <Text style={styles.creator}>by {item.creatorUsername}</Text>
+      <Text style={styles.creator}>
+        by {item.setterName ?? item.creatorUsername}
+      </Text>
     </View>
   );
 }
@@ -65,6 +97,7 @@ const TITLE_HEIGHT_FALLBACK =
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
@@ -80,6 +113,8 @@ export default function ExploreScreen() {
   const gradeMin = useFiltersStore((s) => s.gradeMin);
   const gradeMax = useFiltersStore((s) => s.gradeMax);
   const tags = useFiltersStore((s) => s.tags);
+  const setAngle = useFiltersStore((s) => s.setAngle);
+  const [anglePickerOpen, setAnglePickerOpen] = useState(false);
 
   const filters: BoulderFilters = {
     name: debouncedSearch || undefined,
@@ -175,15 +210,33 @@ export default function ExploreScreen() {
           autoCorrect={false}
           returnKeyType="search"
         />
-        <Pressable
-          style={({ pressed }) => [
-            styles.filtersButton,
-            pressed && styles.filtersButtonPressed,
-          ]}
-          onPress={() => router.push('/search')}
-        >
-          <Text style={styles.filtersButtonText}>Filters</Text>
-        </Pressable>
+        <View style={styles.headerRow}>
+          {/* L'inclinaison de la board, toujours choisie : à côté des
+              filtres et non dedans, c'est le réglage qu'on change le plus. */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.filtersButton,
+              styles.angleButton,
+              pressed && styles.filtersButtonPressed,
+            ]}
+            onPress={() => setAnglePickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Board angle ${angle} degrees, change`}
+          >
+            <Text style={styles.filtersButtonText}>{angle}°</Text>
+            <ChevronDown size={typography.size.md} color={colors.textMuted} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.filtersButton,
+              styles.filtersButtonWide,
+              pressed && styles.filtersButtonPressed,
+            ]}
+            onPress={() => router.push('/search')}
+          >
+            <Text style={styles.filtersButtonText}>Filters</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ActiveFilters />
@@ -194,7 +247,12 @@ export default function ExploreScreen() {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push(boulderHref(item.id, item.angleDegrees))}
+            onPress={() =>
+              openBoulder(
+                (boulders ?? []).map(boulderBrowseItem),
+                boulderBrowseItem(item),
+              )
+            }
           >
             <BoulderCard item={item} />
           </Pressable>
@@ -231,6 +289,13 @@ export default function ExploreScreen() {
             <Text style={styles.endText}>You&apos;ve reached the end.</Text>
           ) : undefined
         }
+      />
+
+      <AnglePickerSheet
+        visible={anglePickerOpen}
+        selected={angle}
+        onSelect={setAngle}
+        onClose={() => setAnglePickerOpen(false)}
       />
     </View>
   );
@@ -285,6 +350,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  angleButton: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+  },
+  filtersButtonWide: {
+    flex: 1,
   },
   filtersButtonPressed: {
     backgroundColor: colors.surfaceMuted,

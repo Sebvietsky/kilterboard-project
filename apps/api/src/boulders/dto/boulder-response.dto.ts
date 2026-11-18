@@ -28,9 +28,18 @@ export class BoulderSummaryDto {
   gradeRank!: number;
   angleDegrees!: number;
   creatorUsername!: string;
+  // Pseudo Kilter du créateur d'un bloc importé (`creatorUsername` est alors
+  // le compte système `kilter`) ; `null` pour un bloc créé dans l'app.
+  setterName!: string | null;
   tags!: string[];
   ascentCount!: number;
   averageRating!: number | null;
+  // Statistiques Kilter à l'inclinaison de la carte, `null` sans elles (bloc
+  // créé dans l'app). Séparées de nos chiffres, qui ne mesurent pas la même
+  // chose : des grimpeurs sur toute la communauté Kilter, contre nos lignes
+  // d'ascension (décision du 2026-11-06).
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
   isPublic!: boolean;
   createdAt!: Date;
 }
@@ -51,11 +60,19 @@ export class LikedBoulderDto {
 // Cotation du bloc à une inclinaison (ligne de `boulder_angles`).
 export class AngleGradeDto {
   angleDegrees!: number;
-  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  // Cotation effective ; sans cotation de départ, `null` tant que personne
+  // n'y a envoyé le bloc.
   gradeRank!: number | null;
+  // Cotation de départ (créateur à son inclinaison, Kilter pour un bloc
+  // importé), `null` s'il n'y en a pas : le client montre qu'elle a été
+  // remplacée par les votes.
+  baseGradeRank!: number | null;
   votesCount!: number;
-  // Peu de votes, hors inclinaison du créateur.
+  // Peu de votes, sans cotation de départ.
   isEstimated!: boolean;
+  // Statistiques Kilter à cette inclinaison, `null` sans elles.
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
 }
 
 export class BoulderDetailDto extends BoulderSummaryDto {

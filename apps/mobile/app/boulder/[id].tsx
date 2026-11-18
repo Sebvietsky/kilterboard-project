@@ -23,6 +23,7 @@ import { LightBoulderButton } from '@/components/LightBoulderButton';
 import { useDefaultBoardSize } from '@/lib/boardSizes/queries';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
+import { BoulderPager } from '@/components/boulder/BoulderPager';
 import { ANGLES } from '@/lib/filters/const';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import {
@@ -42,6 +43,7 @@ import { useGradeLabel, useGradeSystem } from '@/lib/grades/useGradeLabel';
 import { ApiError } from '@/lib/api/errors';
 import { relativeTime } from '@/lib/format/relativeTime';
 import { plural } from '@/lib/format/plural';
+import { compactCount } from '@/lib/format/compactCount';
 import { showToast, TOAST_VISIBLE_MS } from '@/lib/toast/useToastStore';
 import { useEffect, useState } from 'react';
 
@@ -62,7 +64,34 @@ const LOGGED_MESSAGE: Record<AscentStatus, string> = {
   PROJECT: 'Project started',
 };
 
-export default function BoulderDetailScreen() {
+// Une page par bloc de la liste d'où l'on vient : le swipe passe au voisin.
+// Chaque page a son propre état, le formulaire de log ne suit donc pas d'un
+// bloc à l'autre.
+export default function BoulderDetailRoute() {
+  const { id, angle } = useLocalSearchParams<{ id: string; angle?: string }>();
+  return (
+    <BoulderPager
+      opened={{ boulderId: Number(id), angleDegrees: Number(angle) }}
+      renderPage={(item) => (
+        <BoulderDetailScreen
+          boulderId={item.boulderId}
+          // Hors d'une liste, l'inclinaison reste celle du lien, même absente.
+          angleParam={
+            Number.isNaN(item.angleDegrees) ? angle : String(item.angleDegrees)
+          }
+        />
+      )}
+    />
+  );
+}
+
+function BoulderDetailScreen({
+  boulderId,
+  angleParam,
+}: {
+  boulderId: number;
+  angleParam: string | undefined;
+}) {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
   const [projectMode, setProjectMode] = useState<ProjectMode>('in-project');
   const [attempts, setAttempts] = useState(1);
@@ -71,11 +100,6 @@ export default function BoulderDetailScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [rating, setRating] = useState<number>();
 
-  const { id, angle: angleParam } = useLocalSearchParams<{
-    id: string;
-    angle?: string;
-  }>();
-  const boulderId = Number(id);
   const boulder = useBoulder(boulderId); // hooks appelés inconditionnellement
   const boardSize = useDefaultBoardSize();
   const myAscents = useMyAscentsOnBoulder(boulderId);
@@ -270,8 +294,9 @@ export default function BoulderDetailScreen() {
   const detail = boulder.data;
   // Défini dès que le bloc l'est : à défaut d'autre choix, celle du créateur.
   const angle = selectedAngle ?? detail.angleDegrees;
-  // Cotation effective à l'inclinaison affichée : celle du créateur à la
-  // sienne jusqu'au seuil de votes, la médiane des votes ensuite et ailleurs.
+  // Cotation effective à l'inclinaison affichée : la cotation de départ
+  // (créateur ou Kilter) jusqu'au seuil de votes, la médiane des votes ensuite
+  // ou sans cotation de départ.
   // Pendant le placeholder venu d'Explore, `angleGrades` est vide : seule la
   // cotation du créateur à son inclinaison est connue.
   const isSetAngle = angle === detail.angleDegrees;
@@ -279,12 +304,12 @@ export default function BoulderDetailScreen() {
   const gradeLabel = formatGrade(
     angleGrade ? angleGrade.gradeRank : isSetAngle ? detail.gradeRank : null,
   );
-  // La cotation du créateur, en petit, seulement quand la communauté l'a
-  // remplacée par une autre à son inclinaison.
-  const creatorGradeReplaced =
-    isSetAngle &&
-    angleGrade?.gradeRank != null &&
-    angleGrade.gradeRank !== detail.gradeRank;
+  // La cotation de départ (créateur ou Kilter), en petit, seulement quand
+  // les votes l'ont remplacée par une autre à cette inclinaison.
+  const baseGradeReplaced =
+    angleGrade?.baseGradeRank != null &&
+    angleGrade.gradeRank != null &&
+    angleGrade.gradeRank !== angleGrade.baseGradeRank;
   const notesAtAngle = detail.publicNotes.filter(
     (note) => note.angleDegrees === angle,
   );
@@ -306,7 +331,9 @@ export default function BoulderDetailScreen() {
             />
             {currentStatus && <StatusBadge status={currentStatus} />}
           </View>
-          <Text style={styles.setter}>by {detail.creatorUsername}</Text>
+          <Text style={styles.setter}>
+            by {detail.setterName ?? detail.creatorUsername}
+          </Text>
         </View>
         <View style={styles.gradeBlock}>
           {gradeLabel !== null ? (
@@ -319,9 +346,9 @@ export default function BoulderDetailScreen() {
               Estimated · {plural(angleGrade.votesCount, 'vote')}
             </Text>
           )}
-          {creatorGradeReplaced && angleGrade && (
+          {baseGradeReplaced && angleGrade && (
             <Text style={styles.gradeNote}>
-              Set as {formatGrade(detail.gradeRank)} ·{' '}
+              Set as {formatGrade(angleGrade.baseGradeRank)} ·{' '}
               {plural(angleGrade.votesCount, 'vote')}
             </Text>
           )}
@@ -385,6 +412,18 @@ export default function BoulderDetailScreen() {
           </>
         )}
       </View>
+
+      {/* Chiffres Kilter à l'inclinaison affichée, à part des nôtres et avec
+          leur source (décision du 2026-11-06). Absents pendant le placeholder
+          venu d'Explore, qui n'a pas encore les inclinaisons. */}
+      {angleGrade?.kilterAscensionists != null && (
+        <Text style={styles.kilterLine}>
+          On Kilter at {angle}° · {compactCount(angleGrade.kilterAscensionists)}{' '}
+          climbers
+          {angleGrade.kilterQuality !== null &&
+            ` · ★ ${angleGrade.kilterQuality.toFixed(1)}`}
+        </Text>
+      )}
 
       <View style={styles.logSection}>
         <Text style={styles.sectionLabel}>Log session</Text>
@@ -977,6 +1016,13 @@ const styles = StyleSheet.create({
     width: 1,
     alignSelf: 'stretch',
     backgroundColor: colors.border,
+  },
+  kilterLine: {
+    marginTop: -spacing.md,
+    textAlign: 'center',
+    fontFamily: typography.family.data,
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
   },
   statLabel: {
     fontFamily: typography.family.data,

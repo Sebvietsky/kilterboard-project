@@ -2,6 +2,10 @@
 // par pas de 5°. Une valeur absente ici ou là-bas donne un 400 au log.
 export const ANGLES = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
 
+// Inclinaison d'Explore à l'ouverture de l'app : la plus grimpée sur la
+// Kilter. Explore est toujours à une inclinaison (décision du 2026-11-06).
+export const DEFAULT_ANGLE = 40;
+
 // Tags "style" (slugs du seed). En dur pour l'instant, comme ANGLES.
 export const TAGS = [
   { slug: 'crimp', label: 'Crimp' },

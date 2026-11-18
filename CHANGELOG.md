@@ -54,6 +54,30 @@ versions selon [SemVer](https://semver.org/lang/fr/).
 - **`GET /board-sizes` et `GET /board-sizes/:id`** (module `boards`) : les
   tailles importées, puis le cadre d'une taille et ses prises, chacune avec sa
   position LED.
+- **Cotation de départ par inclinaison** : `boulder_angles.base_grade_id`.
+  La règle de cotation communautaire l'applique à toute inclinaison qui en a
+  une (et non plus seulement à celle du créateur) ; `GET /boulders/:id`
+  renvoie `baseGradeRank` par inclinaison.
+- **Blocs Kilter** : `pnpm --filter api db:import-climbs`, après
+  `db:import-catalog` et `db:seed`, importe les blocs grimpés par au moins 20
+  personnes (16 301), avec une cotation de départ à chaque inclinaison cotée
+  et leurs statistiques Kilter (`kilter_angle_stats`). Ils appartiennent au
+  compte système `kilter` ; le pseudo du setter est dans `setterName`,
+  affiché sur les cartes et le détail, et cherché par le filtre « creator ».
+- **Explore toujours à une inclinaison** (changement de contrat) :
+  `GET /boulders` exige `angle`. Une carte est le bloc à cette inclinaison :
+  il n'apparaît que s'il y est coté, avec la cotation, les ascensions et la
+  note de cette inclinaison ; le filtre de cotation porte sur elle. Tri par
+  popularité Kilter à cette inclinaison (`boulder_angles.kilter_ascensionists`),
+  puis par nos ascensions. Mobile : 40° par défaut, bouton d'inclinaison dans
+  l'en-tête d'Explore, l'inclinaison ne s'efface plus avec les filtres.
+- **Statistiques Kilter affichées à part des nôtres** : `kilterAscensionists`
+  et `kilterQuality` (note sur 5) sur les cartes d'Explore, à l'inclinaison de
+  la carte, et par inclinaison dans `angleGrades` du détail. Mobile :
+  « 104k on Kilter · ★ 3.1 » sur la carte (nos ascensions à la suite, « in
+  app »), et « On Kilter at 40° · … » sous les statistiques du détail. Les
+  chiffres ne sont jamais additionnés : grimpeurs Kilter contre nos lignes
+  d'ascension.
 - **Mobile — plan de la board** : le détail d'un bloc dessine le vrai cadre de
   la taille et toutes ses prises, au lieu d'une grille 12 × 12.
 

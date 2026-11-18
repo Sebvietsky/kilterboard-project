@@ -6,9 +6,17 @@ export interface BoulderSummary {
   gradeRank: number;
   angleDegrees: number;
   creatorUsername: string;
+  // Pseudo Kilter d'un bloc importé, à afficher à la place du compte système
+  // `kilter` ; `null` pour un bloc créé dans l'app.
+  setterName: string | null;
   tags: string[];
   ascentCount: number;
   averageRating: number | null;
+  // Statistiques Kilter à l'inclinaison de la carte, `null` sans elles (bloc
+  // créé dans l'app). À afficher à part de nos chiffres, avec leur source :
+  // des grimpeurs sur toute la communauté Kilter.
+  kilterAscensionists: number | null;
+  kilterQuality: number | null;
   isPublic: boolean;
   createdAt: string; // string JSON, PAS Date
 }
@@ -19,7 +27,8 @@ export interface PaginatedResponse<T> {
 }
 
 export interface BoulderFilters {
-  angle?: number;
+  // Obligatoire côté API : une carte = un bloc à cette inclinaison.
+  angle: number;
   gradeMin?: number;
   gradeMax?: number;
   tags?: string[];
@@ -49,11 +58,18 @@ export interface PublicNote {
 // Cotation du bloc à une inclinaison (GET /boulders/:id, `angleGrades`).
 export interface AngleGrade {
   angleDegrees: number;
-  // Cotation effective ; `null` tant que personne n'y a envoyé le bloc.
+  // Cotation effective ; sans cotation de départ, `null` tant que personne
+  // n'y a envoyé le bloc.
   gradeRank: number | null;
+  // Cotation de départ : celle du créateur à son inclinaison, celle de Kilter
+  // pour un bloc importé. `null` s'il n'y en a pas.
+  baseGradeRank: number | null;
   votesCount: number;
-  // Peu de votes, hors inclinaison du créateur.
+  // Peu de votes, sans cotation de départ.
   isEstimated: boolean;
+  // Statistiques Kilter à cette inclinaison, `null` sans elles.
+  kilterAscensionists: number | null;
+  kilterQuality: number | null;
 }
 
 // `gradeRank` et `angleDegrees` hérités de BoulderSummary restent la

@@ -17,7 +17,7 @@ import { showToast } from '@/lib/toast/useToastStore';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useMyRecentAscents } from '@/lib/ascents/queries';
 import type { MyAscentHistoryItem } from '@/lib/ascents/types';
-import { boulderHref } from '@/lib/boulders/href';
+import { ascentBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import type { GradeSystem } from '@/lib/auth/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
@@ -210,6 +210,7 @@ function RecentAscents({
   onRetry: () => void;
 }) {
   const router = useRouter();
+  const openBoulder = useOpenBoulder();
 
   return (
     <View style={styles.section}>
@@ -230,8 +231,9 @@ function RecentAscents({
           <Pressable
             key={ascent.id}
             onPress={() =>
-              router.push(
-                boulderHref(ascent.boulderId, ascent.angle.valueDegrees),
+              openBoulder(
+                ascents.map(ascentBrowseItem),
+                ascentBrowseItem(ascent),
               )
             }
           >

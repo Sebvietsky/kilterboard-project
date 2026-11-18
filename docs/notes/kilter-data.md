@@ -42,8 +42,20 @@ Relevé le 2026-10-19 sur le catalogue boardsesh du 2026-10-17. Remplace BoardLi
 - `board_product_sizes` : id, product_id, name, edge_left/right/bottom/top
 - Blocs (fichier séparé) : `board_climbs` (uuid, name, setter_username, angle, `frames`, is_listed, required_set_ids, compatible_size_ids…), `board_climb_stats` par (bloc, inclinaison).
 
+## Blocs (`board_climbs`, `board_climb_stats`), relevé le 2026-11-06
+
+Snapshot du 2026-11-05, Kilter Original (layout 1) : 388 554 blocs, 378 658 lignes de statistiques. Import : `prisma/import-climbs.ts` (`db:import-climbs`).
+
+- **Prises** : `frames` = suite de `p<placement>r<rôle>` (`p1091r15p1131r12…`), placements de `board_placements`. Rôles du product 1 : 12 start, 13 middle (main), 14 finish, 15 foot. Quelques blocs utilisent d'autres rôles (20, 23…) : écartés.
+- `frames_count` > 1 : blocs animés (une centaine), écartés.
+- `compatible_size_ids` : JSON (`[7,10,16]`). 288 790 blocs publiés vont sur la taille 10 ; sur 3 000 testés, toutes leurs prises existent dans `holds` et ont une LED à la taille 10.
+- **Statistiques par inclinaison**, de 0 à 70° : `display_difficulty` (décimale, sur l'échelle des rangs 10 à 33), `ascensionist_count`, `quality_average`, `benchmark_difficulty` (non nul = benchmark). 40° concentre l'essentiel des ascensions.
+- `board_climbs.angle` (inclinaison du setter) est nul pour 116 185 blocs.
+- Volume selon le nombre de grimpeurs à une inclinaison ≥ 20° : ≥ 1 → 134 833 blocs, ≥ 5 → 54 139, ≥ 20 → 16 925, ≥ 100 → 5 407.
+- **Import (décisions du 2026-11-06)** : ≥ 20 grimpeurs ; inclinaisons 20 à 70° seulement ; créateur = compte système `kilter`, pseudo dans `boulders.setter_name` ; cotation de départ à chaque inclinaison cotée (`boulder_angles.base_grade_id`, `display_difficulty` arrondi) ; statistiques brutes dans `kilter_angle_stats` ; inclinaison de référence = celle du setter si elle est cotée, sinon la plus grimpée. Résultat : 16 301 blocs, 300 écartés (taille 221, prise ou rôle inconnu 77, prise en double 1, sans cotation 1), en 20 s.
+
 ## Encore à faire
 
 - ~~Identifier la taille exacte de la board de Seb.~~ **Confirmée le 2026-10-23 : 12 x 12 with kickboard (id 10, 476 LED)**, par l'essai BLE en salle (motif des 4 coins et du centre, `docs/notes/ble-essai-salle.md`).
-- Lire le format de `frames` sur des blocs réels (fichier des blocs pas encore téléchargé).
-- Concevoir la correspondance avec notre modèle (`Hold`, `boulder_holds`, cotations) : conception de Seb.
+- ~~Lire le format de `frames` sur des blocs réels.~~ Fait le 2026-11-06 (ci-dessus).
+- ~~Concevoir la correspondance avec notre modèle.~~ Faite le 2026-11-06 (ci-dessus).

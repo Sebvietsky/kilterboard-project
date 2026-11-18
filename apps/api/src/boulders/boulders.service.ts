@@ -19,15 +19,26 @@ import { isEstimatedGrade } from './community-grade';
 export class BouldersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Catalogue d'Explore, toujours à une inclinaison (décision du 2026-11-06) :
+   * une carte = un bloc à cette inclinaison. La requête part donc de
+   * `boulder_angles`, une ligne par bloc et par inclinaison.
+   *
+   * - Un bloc n'apparaît que s'il est coté à cette inclinaison (décision du
+   *   2026-10-15) : cotation de départ (créateur, Kilter) ou votes.
+   * - La cotation, le nombre d'ascensions et la note sont ceux de cette
+   *   inclinaison, comme le filtre de cotation.
+   * - Tri : popularité Kilter à cette inclinaison (`kilter_ascensionists`,
+   *   0 pour un bloc créé dans l'app, qui passe donc après), puis nos
+   *   ascensions à cette inclinaison.
+   */
   async findAll(
     filters: FilterBoulderDto,
   ): Promise<PaginatedResponse<BoulderSummaryDto>> {
-    const where: Prisma.BoulderWhereInput = {
-      isPublic: true,
-      isDraft: false,
-      ...(filters.angle && {
-        angle: { valueDegrees: filters.angle },
-      }),
+    const angleId = await resolveAngleId(this.prisma, filters.angle);
+    const where: Prisma.BoulderAngleWhereInput = {
+      angleId,
+      gradeId: { not: null },
       ...((filters.gradeMin ?? filters.gradeMax) && {
         grade: {
           rank: {
@@ -36,51 +47,74 @@ export class BouldersService {
           },
         },
       }),
-      ...(filters.name && {
-        name: { contains: filters.name, mode: 'insensitive' },
-      }),
-      ...(filters.creator && {
-        creator: {
-          username: { contains: filters.creator, mode: 'insensitive' },
-        },
-      }),
-      ...(filters.tags?.length && {
-        AND: filters.tags.map((slug) => ({
-          boulderTags: {
-            some: { tag: { slug } },
-          },
-        })),
-      }),
+      boulder: {
+        isPublic: true,
+        isDraft: false,
+        ...(filters.name && {
+          name: { contains: filters.name, mode: 'insensitive' },
+        }),
+        // Le créateur d'un bloc importé est son setter Kilter, pas le compte
+        // système qui le porte en base.
+        ...(filters.creator && {
+          OR: [
+            {
+              creator: {
+                username: { contains: filters.creator, mode: 'insensitive' },
+              },
+            },
+            { setterName: { contains: filters.creator, mode: 'insensitive' } },
+          ],
+        }),
+        ...(filters.tags?.length && {
+          AND: filters.tags.map((slug) => ({
+            boulderTags: {
+              some: { tag: { slug } },
+            },
+          })),
+        }),
+      },
     };
     const { skip, take, page, limit } = getPaginationParams(
       filters.page,
       filters.limit,
     );
 
-    const [boulders, total] = await Promise.all([
-      this.prisma.boulder.findMany({
+    const [rows, total] = await Promise.all([
+      this.prisma.boulderAngle.findMany({
         where,
         include: {
-          grade: { select: { vScale: true, fontScale: true, rank: true } },
-          creator: { select: { username: true } },
-          angle: { select: { valueDegrees: true } },
-          boulderTags: {
-            select: { tag: { select: { name: true, slug: true } } },
-          },
+          grade: { select: { rank: true } },
           _count: { select: { ascents: true } },
+          kilterStats: {
+            select: { ascensionistCount: true, qualityAverage: true },
+          },
+          boulder: {
+            include: {
+              creator: { select: { username: true } },
+              boulderTags: {
+                select: { tag: { select: { name: true, slug: true } } },
+              },
+            },
+          },
         },
         skip,
         take,
-        orderBy: [{ ascents: { _count: 'desc' } }, { id: 'asc' }],
+        orderBy: [
+          { kilterAscensionists: 'desc' },
+          { ascents: { _count: 'desc' } },
+          { boulderId: 'asc' },
+        ],
       }),
-      this.prisma.boulder.count({ where }),
+      this.prisma.boulderAngle.count({ where }),
     ]);
-
-    const boulderIds = boulders.map((b) => b.id);
 
     const ratings = await this.prisma.ascent.groupBy({
       by: ['boulderId'],
-      where: { boulderId: { in: boulderIds }, rating: { not: null } },
+      where: {
+        boulderId: { in: rows.map((row) => row.boulderId) },
+        angleId,
+        rating: { not: null },
+      },
       _avg: { rating: true },
     });
 
@@ -89,15 +123,19 @@ export class BouldersService {
     );
 
     return {
-      data: boulders.map((boulder) => ({
+      data: rows.map(({ boulder, grade, _count, kilterStats }) => ({
         id: boulder.id,
         name: boulder.name,
-        gradeRank: boulder.grade.rank,
-        angleDegrees: boulder.angle.valueDegrees,
+        // Non nul : le where ne garde que les inclinaisons cotées.
+        gradeRank: grade?.rank as number,
+        angleDegrees: filters.angle,
         creatorUsername: boulder.creator.username,
+        setterName: boulder.setterName,
         tags: boulder.boulderTags.map((bt) => bt.tag.slug),
-        ascentCount: boulder._count.ascents,
+        ascentCount: _count.ascents,
         averageRating: ratingByBoulder.get(boulder.id) ?? null,
+        kilterAscensionists: kilterStats?.ascensionistCount ?? null,
+        kilterQuality: kilterStats?.qualityAverage ?? null,
         isPublic: boulder.isPublic,
         createdAt: boulder.createdAt,
       })),
@@ -124,10 +162,13 @@ export class BouldersService {
         _count: { select: { ascents: true } },
         boulderAngles: {
           select: {
-            angleId: true,
             votesCount: true,
             angle: { select: { valueDegrees: true } },
             grade: { select: { vScale: true, rank: true } },
+            baseGrade: { select: { rank: true } },
+            kilterStats: {
+              select: { ascensionistCount: true, qualityAverage: true },
+            },
           },
           orderBy: { angle: { valueDegrees: 'asc' } },
         },
@@ -143,15 +184,25 @@ export class BouldersService {
       _avg: { rating: true },
     });
 
+    // Le premier niveau décrit l'inclinaison de référence (`gradeRank`,
+    // `angleDegrees`) : ses statistiques Kilter aussi. Les autres sont dans
+    // `angleGrades`.
+    const referenceStats = boulder.boulderAngles.find(
+      (ba) => ba.angle.valueDegrees === boulder.angle.valueDegrees,
+    )?.kilterStats;
+
     return {
       id: boulder.id,
       name: boulder.name,
       gradeRank: boulder.grade.rank,
       angleDegrees: boulder.angle.valueDegrees,
       creatorUsername: boulder.creator.username,
+      setterName: boulder.setterName,
       tags: boulder.boulderTags.map((bt) => bt.tag.slug),
       ascentCount: boulder._count.ascents,
       averageRating: ratings._avg.rating,
+      kilterAscensionists: referenceStats?.ascensionistCount ?? null,
+      kilterQuality: referenceStats?.qualityAverage ?? null,
       isPublic: boulder.isPublic,
       createdAt: boulder.createdAt,
       description: boulder.description,
@@ -165,11 +216,11 @@ export class BouldersService {
       angleGrades: boulder.boulderAngles.map((ba) => ({
         angleDegrees: ba.angle.valueDegrees,
         gradeRank: ba.grade?.rank ?? null,
+        baseGradeRank: ba.baseGrade?.rank ?? null,
         votesCount: ba.votesCount,
-        isEstimated: isEstimatedGrade(
-          ba.votesCount,
-          ba.angleId === boulder.angleId,
-        ),
+        isEstimated: isEstimatedGrade(ba.votesCount, ba.baseGrade !== null),
+        kilterAscensionists: ba.kilterStats?.ascensionistCount ?? null,
+        kilterQuality: ba.kilterStats?.qualityAverage ?? null,
       })),
     };
   }

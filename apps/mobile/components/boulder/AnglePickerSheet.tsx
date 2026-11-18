@@ -13,11 +13,11 @@ import { colors, radii, spacing, typography } from '@/constants/theme';
 const ICON_SIZE = spacing.xl - spacing.xs;
 
 /**
- * Choix de l'inclinaison sur le détail d'un bloc.
+ * Choix de l'inclinaison : sur le détail d'un bloc, et pour Explore.
  *
- * Choix local à l'écran : il change la cotation affichée, les statuts
- * disponibles et l'inclinaison envoyée avec l'ascension, jamais le filtre
- * d'Explore.
+ * Sur le détail, choix local à l'écran : il change la cotation affichée, les
+ * statuts disponibles et l'inclinaison envoyée avec l'ascension, jamais
+ * l'inclinaison d'Explore.
  *
  * Même feuille native que « Add to playlist » (`pageSheet`, fermeture par
  * geste ou bouton retour Android).
@@ -31,8 +31,8 @@ export function AnglePickerSheet({
 }: {
   visible: boolean;
   selected: number;
-  // Signalée dans la liste : c'est la seule cotée à cette étape.
-  creatorAngle: number;
+  // Inclinaison du créateur, signalée dans la liste (détail d'un bloc).
+  creatorAngle?: number;
   onSelect: (angle: number) => void;
   onClose: () => void;
 }) {

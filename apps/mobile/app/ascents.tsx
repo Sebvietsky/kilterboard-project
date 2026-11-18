@@ -5,18 +5,17 @@ import {
   RefreshControl,
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { AscentHistoryRow } from '@/components/profile/AscentHistoryRow';
 import { AscentsEmptyState } from '@/components/profile/ProfileView';
 import { useMyAscentsInfinite } from '@/lib/ascents/queries';
-import { boulderHref } from '@/lib/boulders/href';
+import { ascentBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
 import { colors, spacing } from '@/constants/theme';
 
 // Historique complet de mes ascensions, ouvert depuis « See all » du profil.
 // Même tri que l'aperçu (date d'envoi, projets ouverts en tête), par pages de
 // 20 chargées au scroll.
 export default function AscentsScreen() {
-  const router = useRouter();
+  const openBoulder = useOpenBoulder();
   const {
     data,
     isPending,
@@ -41,7 +40,10 @@ export default function AscentsScreen() {
       renderItem={({ item }) => (
         <Pressable
           onPress={() =>
-            router.push(boulderHref(item.boulderId, item.angle.valueDegrees))
+            openBoulder(
+              (data ?? []).map(ascentBrowseItem),
+              ascentBrowseItem(item),
+            )
           }
         >
           <AscentHistoryRow ascent={item} />
