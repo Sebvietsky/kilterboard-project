@@ -181,6 +181,10 @@ function RootNavigation() {
         <Stack.Screen name="draft/new" options={EDITOR_HEADER} />
         <Stack.Screen name="draft/[id]" options={EDITOR_HEADER} />
         <Stack.Screen
+          name="my-boulders"
+          options={{ ...DETAIL_HEADER, title: 'My boulders' }}
+        />
+        <Stack.Screen
           name="ascents"
           options={{ ...DETAIL_HEADER, title: 'Ascents' }}
         />

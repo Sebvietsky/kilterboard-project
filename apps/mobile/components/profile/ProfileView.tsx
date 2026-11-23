@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Avatar } from '@/components/Avatar';
 import { AscentHistoryRow } from '@/components/profile/AscentHistoryRow';
+import { MyBoulderRow } from '@/components/profile/MyBoulderRow';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useUpdateGradeSystem, useUser } from '@/lib/users/queries';
 import { useGradeSystem } from '@/lib/grades/useGradeLabel';
@@ -17,7 +18,13 @@ import { showToast } from '@/lib/toast/useToastStore';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useMyRecentAscents } from '@/lib/ascents/queries';
 import type { MyAscentHistoryItem } from '@/lib/ascents/types';
-import { ascentBrowseItem, useOpenBoulder } from '@/lib/boulders/browse';
+import {
+  ascentBrowseItem,
+  boulderBrowseItem,
+  useOpenBoulder,
+} from '@/lib/boulders/browse';
+import { useMyRecentBoulders } from '@/lib/boulders/queries';
+import type { MyBoulder } from '@/lib/boulders/types';
 import type { GradeSystem } from '@/lib/auth/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
@@ -44,6 +51,8 @@ export function ProfileView({ username }: { username?: string }) {
   // L'historique n'existe que pour soi : GET /ascents/me. Un profil tiers
   // attendra une route publique.
   const recent = useMyRecentAscents(isOwnProfile);
+  // Mes blocs publiés : seulement sur son propre profil (Seb, 2026-11-23).
+  const myBoulders = useMyRecentBoulders(isOwnProfile);
 
   if (profile.isLoading) {
     return (
@@ -75,7 +84,10 @@ export function ProfileView({ username }: { username?: string }) {
 
   const onRefresh = () => {
     void profile.refetch();
-    if (isOwnProfile) void recent.refetch();
+    if (isOwnProfile) {
+      void recent.refetch();
+      void myBoulders.refetch();
+    }
   };
 
   return (
@@ -85,7 +97,11 @@ export function ProfileView({ username }: { username?: string }) {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={profile.isRefetching || recent.isRefetching}
+          refreshing={
+            profile.isRefetching ||
+            recent.isRefetching ||
+            myBoulders.isRefetching
+          }
           onRefresh={onRefresh}
           tintColor={colors.primary}
         />
@@ -129,6 +145,15 @@ export function ProfileView({ username }: { username?: string }) {
           total={recent.data?.meta.total ?? 0}
           isError={recent.isError}
           onRetry={() => void recent.refetch()}
+        />
+      )}
+
+      {isOwnProfile && (
+        <MyBoulders
+          boulders={myBoulders.data?.data}
+          total={myBoulders.data?.meta.total ?? 0}
+          isError={myBoulders.isError}
+          onRetry={() => void myBoulders.refetch()}
         />
       )}
 
@@ -247,6 +272,101 @@ function RecentAscents({
           onRetry={onRetry}
         />
       )}
+    </View>
+  );
+}
+
+// Mes derniers blocs publiés, et un lien vers la liste complète quand il y
+// en a davantage. Même recette que RecentAscents.
+function MyBoulders({
+  boulders,
+  total,
+  isError,
+  onRetry,
+}: {
+  boulders: MyBoulder[] | undefined;
+  total: number;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const router = useRouter();
+  const openBoulder = useOpenBoulder();
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>My boulders</Text>
+        {boulders && total > boulders.length ? (
+          <Pressable
+            onPress={() => router.push('/my-boulders')}
+            hitSlop={spacing.sm}
+          >
+            <Text style={styles.sectionLink}>See all</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {boulders && boulders.length > 0 ? (
+        boulders.map((boulder) => (
+          <Pressable
+            key={boulder.id}
+            onPress={() =>
+              openBoulder(
+                boulders.map(boulderBrowseItem),
+                boulderBrowseItem(boulder),
+              )
+            }
+          >
+            <MyBoulderRow boulder={boulder} />
+          </Pressable>
+        ))
+      ) : (
+        <MyBouldersEmptyState
+          isPending={!boulders && !isError}
+          isError={isError}
+          onRetry={onRetry}
+        />
+      )}
+    </View>
+  );
+}
+
+// Partagé avec l'écran de la liste complète.
+export function MyBouldersEmptyState({
+  isPending,
+  isError,
+  onRetry,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  if (isError) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.stateTitle}>Couldn&apos;t load your boulders</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.retryButton,
+            pressed && styles.retryButtonPressed,
+          ]}
+          onPress={onRetry}
+        >
+          <Text style={styles.retryText}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (isPending) {
+    return (
+      <View style={styles.emptyState}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.stateTitle}>No boulders published yet</Text>
     </View>
   );
 }
