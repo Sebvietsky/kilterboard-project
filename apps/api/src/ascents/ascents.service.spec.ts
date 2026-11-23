@@ -8,7 +8,7 @@ import {
 import { AscentsService } from './ascents.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionsService } from '../sessions/sessions.service';
-import { AscentStatus, Role } from '../generated/prisma/client';
+import { AscentStatus, BoulderStatus, Role } from '../generated/prisma/client';
 import { CreateAscentDto } from './dto/create-ascent.dto';
 import { recomputeAngleGrade } from '../boulders/community-grade';
 
@@ -54,7 +54,7 @@ const sessionsMock = { resolveSessionId: jest.fn() };
 const user = { userId: 1, role: Role.USER, username: 'seb' };
 
 // Un bloc valide : public et publié. Les cas d'accès sont testés à part.
-const publicBoulder = { id: 10, isPublic: true, isDraft: false };
+const publicBoulder = { id: 10, status: BoulderStatus.PUBLIC };
 
 // Le DTO minimal qui passe : premier contact, grade ressenti fourni.
 const baseDto: CreateAscentDto = {
@@ -206,12 +206,13 @@ describe('AscentsService', () => {
       );
     });
 
-    // 404 et non 403 : révéler qu'un bloc privé existe est déjà une fuite.
-    it.each([
-      ['privé', { ...publicBoulder, isPublic: false }],
-      ['brouillon', { ...publicBoulder, isDraft: true }],
-    ])('rejette un bloc %s en 404', async (_label, boulder) => {
-      prismaMock.boulder.findUnique.mockResolvedValue(boulder);
+    // 404 et non 403 : révéler qu'un brouillon existe est déjà une fuite. On
+    // ne logge pas un brouillon, même le sien (décision du 2026-11-18).
+    it('rejette un brouillon en 404', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...publicBoulder,
+        status: BoulderStatus.DRAFT,
+      });
 
       await expect(service.create(baseDto, user)).rejects.toThrow(
         NotFoundException,

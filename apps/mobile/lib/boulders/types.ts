@@ -17,7 +17,7 @@ export interface BoulderSummary {
   // des grimpeurs sur toute la communauté Kilter.
   kilterAscensionists: number | null;
   kilterQuality: number | null;
-  isPublic: boolean;
+  status: BoulderStatus;
   createdAt: string; // string JSON, PAS Date
 }
 
@@ -37,6 +37,7 @@ export interface BoulderFilters {
 }
 
 export type HoldRole = 'START' | 'HAND' | 'FOOT' | 'FINISH'; // = enum Prisma
+export type BoulderStatus = 'DRAFT' | 'PUBLIC'; // = enum Prisma
 export interface Hold {
   holdCode: string;
   x: number;

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PlaylistsService } from './playlists.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '../generated/prisma/client';
+import { BoulderStatus, Role } from '../generated/prisma/client';
 
 const prismaMock = {
   playlist: {
@@ -30,7 +30,11 @@ const user = { userId: 1, role: Role.USER, username: 'seb' };
 const stranger = { userId: 999, role: Role.USER, username: 'other' };
 
 // Un bloc public et publié, créé par quelqu'un d'autre.
-const publicBoulder = { id: 10, isPublic: true, isDraft: false, creatorId: 42 };
+const publicBoulder = {
+  id: 10,
+  status: BoulderStatus.PUBLIC,
+  creatorId: 42,
+};
 
 // La forme complète attendue par findOne, qui déréférence les relations.
 const ownedPlaylist = {
@@ -311,14 +315,14 @@ describe('PlaylistsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    // B4 (décision du 2026-10-15) : un bloc privé ou brouillon n'existe que
-    // pour son créateur. 404 et non 403 : révéler qu'il existe est déjà une
-    // fuite, et une playlist publique exposerait son nom.
-    it.each([
-      ['privé', { ...publicBoulder, isPublic: false }],
-      ['brouillon', { ...publicBoulder, isDraft: true }],
-    ])("rejette en 404 le bloc %s d'un autre", async (_label, boulder) => {
-      prismaMock.boulder.findUnique.mockResolvedValue(boulder);
+    // B4 (décision du 2026-10-15) : un brouillon n'existe que pour son
+    // créateur. 404 et non 403 : révéler qu'il existe est déjà une fuite, et
+    // une playlist publique exposerait son nom.
+    it("rejette en 404 le brouillon d'un autre", async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...publicBoulder,
+        status: BoulderStatus.DRAFT,
+      });
 
       await expect(
         service.addBoulder(user, { boulderId: 10, angleDegrees: 50 }, 3),
@@ -329,8 +333,7 @@ describe('PlaylistsService', () => {
     it('accepte le brouillon de son créateur', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue({
         ...publicBoulder,
-        isPublic: false,
-        isDraft: true,
+        status: BoulderStatus.DRAFT,
         creatorId: user.userId,
       });
       prismaMock.playlistBoulder.findUnique.mockResolvedValue(null);

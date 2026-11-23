@@ -1,4 +1,4 @@
-import { HoldRole } from '../../generated/prisma/client';
+import { BoulderStatus, HoldRole } from '../../generated/prisma/client';
 
 export class HoldDto {
   holdCode!: string;
@@ -40,12 +40,38 @@ export class BoulderSummaryDto {
   // d'ascension (décision du 2026-11-06).
   kilterAscensionists!: number | null;
   kilterQuality!: number | null;
-  isPublic!: boolean;
+  status!: BoulderStatus;
   createdAt!: Date;
 }
 
 export class BoulderLikeStatusDto {
   liked!: boolean;
+}
+
+export class BoulderCreatedDto {
+  id!: number;
+  status!: BoulderStatus;
+}
+
+// Lecture d'un brouillon par son créateur, pour l'éditer : la forme de
+// `PATCH /boulders/:id` (ids de prises), pas celle de l'affichage. Le
+// client retrouve la position des prises par `GET /board-sizes/:id`.
+export class BoulderDraftHoldDto {
+  holdId!: number;
+  role!: HoldRole;
+}
+
+export class BoulderDraftSummaryDto {
+  id!: number;
+  name!: string;
+  angleDegrees!: number;
+  gradeRank!: number;
+  updatedAt!: Date;
+}
+
+export class BoulderDraftDto extends BoulderDraftSummaryDto {
+  description!: string | null;
+  holds!: BoulderDraftHoldDto[];
 }
 
 export class LikedBoulderDto {

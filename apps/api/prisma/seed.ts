@@ -1,5 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { HoldRole, PrismaClient } from '../src/generated/prisma/client';
+import {
+  BoulderStatus,
+  HoldRole,
+  PrismaClient,
+} from '../src/generated/prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ensureBoulderAngles } from './seed-utils';
 import { KILTER_LAYOUT_NAME } from './kilter-snapshot';
@@ -215,8 +219,7 @@ async function main() {
         ...boulderFields,
         creatorId: adminUser.id,
         layoutId: kilterboardLayout.id,
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
         boulderHolds: {
           create: holdRoles.map(({ code, role }) => ({
             holdId: getHold(code).id,

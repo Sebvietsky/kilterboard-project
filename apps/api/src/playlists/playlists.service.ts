@@ -16,7 +16,7 @@ import {
 } from './dto/playlist-response.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddBoulderDto } from './dto/add-boulder.dto';
-import { PlaylistBoulder } from '../generated/prisma/client';
+import { BoulderStatus, PlaylistBoulder } from '../generated/prisma/client';
 
 @Injectable()
 export class PlaylistsService {
@@ -213,12 +213,12 @@ export class PlaylistsService {
       where: { id: dto.boulderId },
     });
 
-    // Un bloc privé ou brouillon n'existe que pour son créateur (décision du
+    // Un brouillon n'existe que pour son créateur (décision du
     // 2026-10-15) : 404 pour les autres, comme le like et le log. Sans ça,
     // une playlist publique exposerait le nom du brouillon d'un autre.
     const isVisible =
       boulder !== null &&
-      ((boulder.isPublic && !boulder.isDraft) ||
+      (boulder.status === BoulderStatus.PUBLIC ||
         boulder.creatorId === user.userId);
     if (!isVisible) throw new NotFoundException('Boulder not found');
     const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);

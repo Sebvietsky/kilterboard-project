@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma/client';
+import { BoulderStatus, PrismaClient } from '../src/generated/prisma/client';
 import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
@@ -96,8 +96,7 @@ async function main() {
         angleId: angle.id,
         creatorId: creator.id,
         layoutId: layout.id,
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
         boulderHolds: {
           create: [
             ...startHolds.map((h) => ({

@@ -1,18 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
-  ForbiddenException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { BouldersService } from './boulders.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BoulderStatus, HoldRole } from '../generated/prisma/client';
 
 const prismaMock = {
   boulder: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     count: jest.fn(),
-    update: jest.fn(),
+    updateMany: jest.fn(),
   },
   ascent: { groupBy: jest.fn(), aggregate: jest.fn() },
   ascentNote: { findMany: jest.fn() },
@@ -22,8 +24,19 @@ const prismaMock = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
   },
-  angle: { findUnique: jest.fn() },
+  angle: { findUnique: jest.fn(), findMany: jest.fn() },
   boulderAngle: { findMany: jest.fn(), count: jest.fn() },
+  grade: { findUnique: jest.fn() },
+  hold: { findMany: jest.fn() },
+  $transaction: jest.fn(),
+};
+
+// Le client que reçoit le callback de la transaction. Ses écritures n'existent
+// pas sur prismaMock : un appel par `this.prisma` au lieu de `tx` échouerait.
+const txMock = {
+  boulder: { create: jest.fn(), update: jest.fn() },
+  boulderAngle: { createMany: jest.fn(), update: jest.fn() },
+  boulderHold: { deleteMany: jest.fn(), createMany: jest.fn() },
 };
 
 // La forme minimale que findOne déréférence (et que le catalogue reprend
@@ -37,7 +50,7 @@ const boulderRow = {
   angle: { valueDegrees: 40 },
   boulderTags: [{ tag: { name: 'Crimp', slug: 'crimp' } }],
   _count: { ascents: 3 },
-  isPublic: true,
+  status: BoulderStatus.PUBLIC,
   createdAt: new Date(),
 };
 
@@ -91,12 +104,11 @@ describe('BouldersService', () => {
     // Le catalogue ne montre que le publié. Ces deux conditions ne dépendent
     // d'aucun filtre : une régression les rendrait invisibles, mais exposerait
     // les brouillons de tout le monde.
-    it('exclut toujours les brouillons et les blocs privés', async () => {
+    it('exclut toujours les brouillons', async () => {
       await service.findAll({ angle: 40 });
 
       expect(findManyArg().where.boulder).toMatchObject({
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
       });
     });
 
@@ -111,7 +123,7 @@ describe('BouldersService', () => {
       expect(findManyArg().where).toEqual({
         angleId: ANGLE_ID,
         gradeId: { not: null },
-        boulder: { isPublic: true, isDraft: false },
+        boulder: { status: BoulderStatus.PUBLIC },
       });
     });
 
@@ -344,7 +356,7 @@ describe('BouldersService', () => {
     });
 
     // La visibilité est portée par le where, pas par un test après coup : un
-    // bloc privé n'est pas trouvé du tout, donc 404 et non 403 — révéler qu'il
+    // brouillon n'est pas trouvé du tout, donc 404 et non 403 — révéler qu'il
     // existe serait déjà une fuite.
     it('ne cherche que parmi les blocs publics et publiés', async () => {
       prismaMock.boulder.findUnique.mockResolvedValue(detailRow);
@@ -353,7 +365,7 @@ describe('BouldersService', () => {
 
       expect(prismaMock.boulder.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 10, isPublic: true, isDraft: false },
+          where: { id: 10, status: BoulderStatus.PUBLIC },
         }),
       );
     });
@@ -498,27 +510,40 @@ describe('BouldersService', () => {
   });
 
   describe('publishBoulder', () => {
-    // Boulder porte creatorId, pas userId : assertOwnerShip reçoit un objet
-    // adapté. Une inversion ici laisserait n'importe qui publier le brouillon
-    // d'un autre.
+    const draft = {
+      creatorId: 1,
+      status: BoulderStatus.DRAFT,
+      boulderHolds: [
+        { role: HoldRole.START },
+        { role: HoldRole.HAND },
+        { role: HoldRole.FINISH },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.boulder.updateMany.mockResolvedValue({ count: 1 });
+    });
+
     it('publie le brouillon de son créateur', async () => {
-      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10, creatorId: 1 });
+      await expect(service.publishBoulder(10, 1)).resolves.toEqual({
+        id: 10,
+        status: BoulderStatus.PUBLIC,
+      });
 
-      await service.publishBoulder(10, 1);
-
-      expect(prismaMock.boulder.update).toHaveBeenCalledWith({
-        where: { id: 10 },
-        data: { isDraft: false, isPublic: true },
+      expect(prismaMock.boulder.updateMany).toHaveBeenCalledWith({
+        where: { id: 10, status: BoulderStatus.DRAFT },
+        data: { status: BoulderStatus.PUBLIC },
       });
     });
 
-    it("refuse de publier le bloc d'un autre", async () => {
-      prismaMock.boulder.findUnique.mockResolvedValue({ id: 10, creatorId: 1 });
-
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403, qui
+    // révélerait qu'il existe.
+    it("renvoie 404 sur le brouillon d'un autre", async () => {
       await expect(service.publishBoulder(10, 999)).rejects.toThrow(
-        ForbiddenException,
+        NotFoundException,
       );
-      expect(prismaMock.boulder.update).not.toHaveBeenCalled();
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
     });
 
     it('rejette un bloc inexistant', async () => {
@@ -527,6 +552,47 @@ describe('BouldersService', () => {
       await expect(service.publishBoulder(10, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    // Publier est un aller simple : un bloc publié ne revient pas en
+    // brouillon, et ne se republie pas.
+    it('renvoie 409 sur un bloc déjà publié', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        status: BoulderStatus.PUBLIC,
+      });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
+    });
+
+    // Publié entre la lecture et l'écriture (autre appareil) : l'écriture
+    // conditionnée au statut ne trouve plus de brouillon.
+    it('renvoie 409 si le bloc a été publié entre-temps', async () => {
+      prismaMock.boulder.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    // START et FINISH ne s'exigent qu'à la publication (décision du
+    // 2026-11-18).
+    it.each([
+      ['sans START', [HoldRole.HAND, HoldRole.FINISH]],
+      ['sans FINISH', [HoldRole.START, HoldRole.HAND]],
+    ])('refuse un bloc %s', async (_label, roles) => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        boulderHolds: roles.map((role) => ({ role })),
+      });
+
+      await expect(service.publishBoulder(10, 1)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prismaMock.boulder.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -559,7 +625,7 @@ describe('BouldersService', () => {
       const [arg] = prismaMock.boulder.findUnique.mock.calls[0] as [
         { where: Record<string, unknown> },
       ];
-      expect(arg.where).toMatchObject({ isPublic: true, isDraft: false });
+      expect(arg.where).toMatchObject({ status: BoulderStatus.PUBLIC });
     });
 
     it('rejette un bloc introuvable', async () => {
@@ -667,6 +733,385 @@ describe('BouldersService', () => {
         angleDegrees: 50,
         gradeRank: null,
       });
+    });
+  });
+  describe('createDraft', () => {
+    const CREATOR_ANGLE_ID = 3;
+    const GRADE_ID = 16;
+    const dto = {
+      name: 'Crimpy',
+      angleDegrees: 40,
+      gradeRank: 6,
+      holds: [
+        { holdId: 1, role: HoldRole.START },
+        { holdId: 2, role: HoldRole.FINISH },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.angle.findUnique.mockResolvedValue({ id: CREATOR_ANGLE_ID });
+      prismaMock.grade.findUnique.mockResolvedValue({ id: GRADE_ID });
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 1 },
+      ]);
+      prismaMock.angle.findMany.mockResolvedValue([
+        { id: 2 },
+        { id: CREATOR_ANGLE_ID },
+        { id: 4 },
+      ]);
+      prismaMock.$transaction.mockImplementation(
+        (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+      );
+      txMock.boulder.create.mockResolvedValue({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    const createArg = () =>
+      (
+        txMock.boulder.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0].data;
+
+    // Un bloc ne naît jamais publié : le statut n'est pas écrit, la colonne
+    // vaut DRAFT par défaut. L'écrire PUBLIC le publierait sans contrôle.
+    it('crée un brouillon, sans statut explicite', async () => {
+      await expect(service.createDraft(7, dto)).resolves.toEqual({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+      expect(createArg()).not.toHaveProperty('status');
+      expect(createArg()).toMatchObject({
+        creatorId: 7,
+        angleId: CREATOR_ANGLE_ID,
+        gradeId: GRADE_ID,
+      });
+    });
+
+    it('déduit le layout des prises', async () => {
+      await service.createDraft(7, dto);
+
+      expect(createArg()).toMatchObject({ layoutId: 1 });
+    });
+
+    it('refuse des prises de deux layouts', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 2 },
+      ]);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une prise inconnue', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 1 }]);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une cotation inconnue', async () => {
+      prismaMock.grade.findUnique.mockResolvedValue(null);
+
+      await expect(service.createDraft(7, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
+
+    it('enregistre chaque prise avec son rôle', async () => {
+      await service.createDraft(7, dto);
+
+      expect(createArg().boulderHolds).toEqual({
+        create: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+    });
+
+    // Une ligne par inclinaison, créées avec le bloc (décision du
+    // 2026-10-15). Seule celle du créateur a une cotation de départ.
+    it('crée toutes les inclinaisons, cotées seulement à celle du créateur', async () => {
+      await service.createDraft(7, dto);
+
+      expect(txMock.boulderAngle.createMany).toHaveBeenCalledWith({
+        data: [
+          { boulderId: 99, angleId: 2, baseGradeId: null, gradeId: null },
+          {
+            boulderId: 99,
+            angleId: CREATOR_ANGLE_ID,
+            baseGradeId: GRADE_ID,
+            gradeId: GRADE_ID,
+          },
+          { boulderId: 99, angleId: 4, baseGradeId: null, gradeId: null },
+        ],
+      });
+    });
+  });
+  describe('findMyDrafts', () => {
+    const findManyArg = () =>
+      (
+        prismaMock.boulder.findMany.mock.calls[0] as [
+          { where: unknown; orderBy: unknown },
+        ]
+      )[0];
+
+    // Les miens, et seulement les brouillons : sans le filtre de créateur,
+    // la liste exposerait les brouillons de tout le monde.
+    it('ne lit que mes brouillons', async () => {
+      prismaMock.boulder.findMany.mockResolvedValue([]);
+
+      await service.findMyDrafts(7);
+
+      expect(findManyArg().where).toEqual({
+        creatorId: 7,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    it('trie du dernier modifié au plus ancien', async () => {
+      prismaMock.boulder.findMany.mockResolvedValue([]);
+
+      await service.findMyDrafts(7);
+
+      expect(findManyArg().orderBy).toEqual([
+        { updatedAt: 'desc' },
+        { id: 'desc' },
+      ]);
+    });
+
+    it("renvoie l'inclinaison et la cotation provisoire", async () => {
+      const updatedAt = new Date();
+      prismaMock.boulder.findMany.mockResolvedValue([
+        {
+          id: 99,
+          name: 'Crimpy',
+          updatedAt,
+          angle: { valueDegrees: 40 },
+          grade: { rank: 16 },
+        },
+      ]);
+
+      await expect(service.findMyDrafts(7)).resolves.toEqual([
+        { id: 99, name: 'Crimpy', angleDegrees: 40, gradeRank: 16, updatedAt },
+      ]);
+    });
+  });
+
+  describe('findMyDraft', () => {
+    // Le brouillon d'un autre (B4) et un bloc publié donnent le même 404 :
+    // la règle est dans le where, la base ne les trouve pas.
+    it('ne cherche que parmi mes brouillons', async () => {
+      prismaMock.boulder.findFirst.mockResolvedValue(null);
+
+      await expect(service.findMyDraft(7, 99)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(
+        (prismaMock.boulder.findFirst.mock.calls[0] as [{ where: unknown }])[0]
+          .where,
+      ).toEqual({ id: 99, creatorId: 7, status: BoulderStatus.DRAFT });
+    });
+
+    // La forme de PATCH : l'écran renvoie les prises telles qu'il les a lues.
+    it("renvoie les prises par id, comme les attend l'édition", async () => {
+      const updatedAt = new Date();
+      prismaMock.boulder.findFirst.mockResolvedValue({
+        id: 99,
+        name: 'Crimpy',
+        description: null,
+        updatedAt,
+        angle: { valueDegrees: 40 },
+        grade: { rank: 16 },
+        boulderHolds: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+
+      await expect(service.findMyDraft(7, 99)).resolves.toEqual({
+        id: 99,
+        name: 'Crimpy',
+        description: null,
+        angleDegrees: 40,
+        gradeRank: 16,
+        updatedAt,
+        holds: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+    });
+  });
+
+  describe('updateDraft', () => {
+    const CREATOR_ID = 7;
+    const CREATOR_ANGLE_ID = 3;
+    const draft = {
+      id: 99,
+      creatorId: CREATOR_ID,
+      status: BoulderStatus.DRAFT,
+      layoutId: 1,
+      angleId: CREATOR_ANGLE_ID,
+    };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.grade.findUnique.mockResolvedValue({ id: 18 });
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 1 }]);
+      prismaMock.$transaction.mockImplementation(
+        (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+      );
+      txMock.boulder.update.mockResolvedValue({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    const nothingWritten = () => {
+      expect(txMock.boulder.update).not.toHaveBeenCalled();
+      expect(txMock.boulderAngle.update).not.toHaveBeenCalled();
+      expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
+    };
+
+    it('renvoie 404 pour un bloc inconnu', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(NotFoundException);
+      nothingWritten();
+    });
+
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403,
+    // pour ne pas révéler qu'il existe.
+    it("renvoie 404 sur le brouillon d'un autre", async () => {
+      await expect(
+        service.updateDraft(8, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(NotFoundException);
+      nothingWritten();
+    });
+
+    // Un bloc publié peut avoir des ascensions : changer ses prises ou sa
+    // cotation les rendrait fausses.
+    it('renvoie 409 sur un bloc publié', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        status: BoulderStatus.PUBLIC,
+      });
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' }),
+      ).rejects.toThrow(ConflictException);
+      nothingWritten();
+    });
+
+    it('modifie le nom et la description', async () => {
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          name: 'Crimpy',
+          description: 'Petites réglettes',
+        }),
+      ).resolves.toEqual({ id: 99, status: BoulderStatus.DRAFT });
+
+      expect(txMock.boulder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 99 },
+          data: expect.objectContaining({
+            name: 'Crimpy',
+            description: 'Petites réglettes',
+          }) as unknown,
+        }),
+      );
+    });
+
+    it('refuse une cotation inconnue', async () => {
+      prismaMock.grade.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, { gradeRank: 99 }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    // La cotation de départ vit sur la ligne de l'inclinaison du créateur.
+    // Un brouillon n'a pas de vote : la cotation effective est la cotation
+    // de départ, sans recalcul.
+    it("reporte la cotation sur la ligne de l'inclinaison du créateur", async () => {
+      await service.updateDraft(CREATOR_ID, 99, { gradeRank: 18 });
+
+      expect(txMock.boulder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ gradeId: 18 }) as unknown,
+        }),
+      );
+      expect(txMock.boulderAngle.update).toHaveBeenCalledWith({
+        where: {
+          boulderId_angleId: { boulderId: 99, angleId: CREATOR_ANGLE_ID },
+        },
+        data: { baseGradeId: 18, gradeId: 18 },
+      });
+    });
+
+    it('ne touche pas aux inclinaisons sans nouvelle cotation', async () => {
+      await service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' });
+
+      expect(txMock.boulderAngle.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse une prise inconnue', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          holds: [{ holdId: 1, role: HoldRole.START }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    // Le layout du bloc est fixé à la création, par ses premières prises.
+    it("refuse une prise d'un autre layout que celui du bloc", async () => {
+      prismaMock.hold.findMany.mockResolvedValue([{ layoutId: 2 }]);
+
+      await expect(
+        service.updateDraft(CREATOR_ID, 99, {
+          holds: [{ holdId: 1, role: HoldRole.START }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      nothingWritten();
+    });
+
+    it('remplace toutes les prises du bloc', async () => {
+      await service.updateDraft(CREATOR_ID, 99, {
+        holds: [{ holdId: 5, role: HoldRole.FINISH }],
+      });
+
+      expect(txMock.boulderHold.deleteMany).toHaveBeenCalledWith({
+        where: { boulderId: 99 },
+      });
+      expect(txMock.boulderHold.createMany).toHaveBeenCalledWith({
+        data: [{ boulderId: 99, holdId: 5, role: HoldRole.FINISH }],
+      });
+      // Supprimer après avoir recréé effacerait les nouvelles prises.
+      expect(
+        txMock.boulderHold.deleteMany.mock.invocationCallOrder[0],
+      ).toBeLessThan(txMock.boulderHold.createMany.mock.invocationCallOrder[0]);
+    });
+
+    it('ne touche pas aux prises sans nouvelle liste', async () => {
+      await service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' });
+
+      expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

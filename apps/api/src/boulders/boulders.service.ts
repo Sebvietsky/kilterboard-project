@@ -1,15 +1,28 @@
-import { Injectable } from '@nestjs/common';
-import { assertFound, assertOwnerShip } from '../common/utils/ownership.utils';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { assertFound } from '../common/utils/ownership.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
+  BoulderHoldInputDto,
+  CreateBoulderDto,
+} from './dto/create-boulder.dto';
+import { UpdateBoulderDto } from './dto/update-boulder.dto';
+import {
+  BoulderCreatedDto,
   BoulderDetailDto,
+  BoulderDraftDto,
+  BoulderDraftSummaryDto,
   BoulderLikeStatusDto,
   BoulderSummaryDto,
   LikedBoulderDto,
   PublicNoteDto,
 } from './dto/boulder-response.dto';
-import { Prisma } from '../generated/prisma/client';
+import { BoulderStatus, HoldRole, Prisma } from '../generated/prisma/client';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { getPaginationParams } from '../common/utils/pagination.utils';
 import { resolveAngleId } from '../common/utils/angle.utils';
@@ -48,8 +61,7 @@ export class BouldersService {
         },
       }),
       boulder: {
-        isPublic: true,
-        isDraft: false,
+        status: BoulderStatus.PUBLIC,
         ...(filters.name && {
           name: { contains: filters.name, mode: 'insensitive' },
         }),
@@ -136,7 +148,7 @@ export class BouldersService {
         averageRating: ratingByBoulder.get(boulder.id) ?? null,
         kilterAscensionists: kilterStats?.ascensionistCount ?? null,
         kilterQuality: kilterStats?.qualityAverage ?? null,
-        isPublic: boulder.isPublic,
+        status: boulder.status,
         createdAt: boulder.createdAt,
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -145,7 +157,7 @@ export class BouldersService {
 
   async findOne(id: number): Promise<BoulderDetailDto> {
     const boulder = await this.prisma.boulder.findUnique({
-      where: { id, isPublic: true, isDraft: false },
+      where: { id, status: BoulderStatus.PUBLIC },
       include: {
         grade: { select: { vScale: true, fontScale: true, rank: true } },
         creator: { select: { username: true } },
@@ -203,7 +215,7 @@ export class BouldersService {
       averageRating: ratings._avg.rating,
       kilterAscensionists: referenceStats?.ascensionistCount ?? null,
       kilterQuality: referenceStats?.qualityAverage ?? null,
-      isPublic: boulder.isPublic,
+      status: boulder.status,
       createdAt: boulder.createdAt,
       description: boulder.description,
       holds: boulder.boulderHolds.map((bh) => ({
@@ -256,17 +268,251 @@ export class BouldersService {
     }));
   }
 
-  async publishBoulder(id: number, userId: number): Promise<void> {
-    const boulder = await this.prisma.boulder.findUnique({ where: { id } });
-    assertFound(boulder, 'Boulder');
+  /**
+   * Crée un brouillon. Le statut DRAFT est la valeur par défaut de la
+   * colonne : un bloc ne naît jamais publié.
+   */
+  async createDraft(
+    userId: number,
+    dto: CreateBoulderDto,
+  ): Promise<BoulderCreatedDto> {
+    const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
-    // Boulder uses creatorId instead of userId
-    assertOwnerShip({ userId: boulder.creatorId }, userId);
+    const gradeId = await this.resolveGradeId(dto.gradeRank);
+    // Le layout se déduit des prises.
+    const layoutId = await this.resolveHoldsLayout(dto.holds);
 
-    await this.prisma.boulder.update({
-      where: { id },
-      data: { isDraft: false, isPublic: true },
+    const angles = await this.prisma.angle.findMany({ select: { id: true } });
+
+    return this.prisma.$transaction(async (tx) => {
+      const boulder = await tx.boulder.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          creatorId: userId,
+          layoutId,
+          angleId,
+          gradeId,
+          boulderHolds: {
+            create: dto.holds.map((h) => ({ holdId: h.holdId, role: h.role })),
+          },
+        },
+        select: { id: true, status: true },
+      });
+      // Une ligne par inclinaison de la table, comme pour tout bloc. Seule
+      // celle du créateur a une cotation de départ ; sans vote, la cotation
+      // effective est la cotation de départ (community-grade.ts).
+      await tx.boulderAngle.createMany({
+        data: angles.map((a) => {
+          const base = a.id === angleId ? gradeId : null;
+          return {
+            boulderId: boulder.id,
+            angleId: a.id,
+            baseGradeId: base,
+            gradeId: base,
+          };
+        }),
+      });
+      return boulder;
     });
+  }
+
+  /** Mes brouillons, du dernier modifié au plus ancien. */
+  async findMyDrafts(userId: number): Promise<BoulderDraftSummaryDto[]> {
+    const drafts = await this.prisma.boulder.findMany({
+      where: { creatorId: userId, status: BoulderStatus.DRAFT },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        updatedAt: true,
+        angle: { select: { valueDegrees: true } },
+        grade: { select: { rank: true } },
+      },
+    });
+    return drafts.map((d) => ({
+      id: d.id,
+      name: d.name,
+      angleDegrees: d.angle.valueDegrees,
+      gradeRank: d.grade.rank,
+      updatedAt: d.updatedAt,
+    }));
+  }
+
+  /**
+   * Un brouillon, pour l'éditer. 404 sur le brouillon d'un autre (B4) comme
+   * sur un bloc publié, qui n'est plus un brouillon : sa page est
+   * `GET /boulders/:id`. La règle est portée par le where.
+   */
+  async findMyDraft(userId: number, id: number): Promise<BoulderDraftDto> {
+    const draft = await this.prisma.boulder.findFirst({
+      where: { id, creatorId: userId, status: BoulderStatus.DRAFT },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        updatedAt: true,
+        angle: { select: { valueDegrees: true } },
+        grade: { select: { rank: true } },
+        boulderHolds: {
+          select: { holdId: true, role: true },
+          orderBy: { holdId: 'asc' },
+        },
+      },
+    });
+    if (!draft) throw new NotFoundException('Boulder not found');
+    return {
+      id: draft.id,
+      name: draft.name,
+      description: draft.description,
+      angleDegrees: draft.angle.valueDegrees,
+      gradeRank: draft.grade.rank,
+      updatedAt: draft.updatedAt,
+      holds: draft.boulderHolds,
+    };
+  }
+
+  /**
+   * Modifie un brouillon : nom, description, cotation provisoire, prises.
+   * L'inclinaison est fixée à la création (décision du 2026-11-18).
+   */
+  async updateDraft(
+    userId: number,
+    id: number,
+    dto: UpdateBoulderDto,
+  ): Promise<BoulderCreatedDto> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id },
+      select: { creatorId: true, status: true, layoutId: true, angleId: true },
+    });
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403,
+    // qui révélerait qu'il existe.
+    if (!boulder || boulder.creatorId !== userId) {
+      throw new NotFoundException('Boulder not found');
+    }
+    // Un bloc publié peut avoir des ascensions : ses prises et sa cotation
+    // ne bougent plus.
+    if (boulder.status !== BoulderStatus.DRAFT) {
+      throw new ConflictException('Only a draft can be edited.');
+    }
+
+    const gradeId =
+      dto.gradeRank === undefined
+        ? undefined
+        : await this.resolveGradeId(dto.gradeRank);
+    // Le layout est fixé à la création, par les premières prises.
+    if (dto.holds) await this.resolveHoldsLayout(dto.holds, boulder.layoutId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.boulder.update({
+        where: { id },
+        data: { name: dto.name, description: dto.description, gradeId },
+        select: { id: true, status: true },
+      });
+      // La cotation de départ vit sur la ligne de l'inclinaison du créateur.
+      // Un brouillon n'a pas de vote (on ne logge pas un brouillon) : la
+      // cotation effective est la cotation de départ, sans recalcul.
+      if (gradeId !== undefined) {
+        await tx.boulderAngle.update({
+          where: {
+            boulderId_angleId: { boulderId: id, angleId: boulder.angleId },
+          },
+          data: { baseGradeId: gradeId, gradeId },
+        });
+      }
+      // Le client envoie toutes les prises : elles remplacent les anciennes.
+      if (dto.holds) {
+        await tx.boulderHold.deleteMany({ where: { boulderId: id } });
+        await tx.boulderHold.createMany({
+          data: dto.holds.map((h) => ({
+            boulderId: id,
+            holdId: h.holdId,
+            role: h.role,
+          })),
+        });
+      }
+      return updated;
+    });
+  }
+
+  /** Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400). */
+  private async resolveGradeId(rank: number): Promise<number> {
+    const grade = await this.prisma.grade.findUnique({
+      where: { rank },
+      select: { id: true },
+    });
+    if (!grade) throw new BadRequestException('Invalid grade.');
+    return grade.id;
+  }
+
+  /**
+   * Vérifie que les prises existent et viennent toutes d'un même layout, et
+   * le renvoie. `expectedLayoutId` : celui du bloc, quand il existe déjà.
+   */
+  private async resolveHoldsLayout(
+    holds: readonly BoulderHoldInputDto[],
+    expectedLayoutId?: number,
+  ): Promise<number> {
+    // Le DTO garantit des ids distincts : une prise absente se voit au compte.
+    const holdIds = holds.map((h) => h.holdId);
+    const found = await this.prisma.hold.findMany({
+      where: { id: { in: holdIds } },
+      select: { layoutId: true },
+    });
+    if (found.length !== holdIds.length) {
+      throw new BadRequestException('Invalid hold.');
+    }
+    const layoutIds = new Set(found.map((h) => h.layoutId));
+    const [layoutId] = layoutIds;
+    if (
+      layoutIds.size !== 1 ||
+      (expectedLayoutId !== undefined && layoutId !== expectedLayoutId)
+    ) {
+      throw new BadRequestException('Holds must belong to the same layout.');
+    }
+    return layoutId;
+  }
+
+  /**
+   * Publie un brouillon : DRAFT -> PUBLIC, sans retour (décision du
+   * 2026-11-18). Un bloc publié peut recevoir des ascensions, il ne se
+   * modifie plus.
+   */
+  async publishBoulder(id: number, userId: number): Promise<BoulderCreatedDto> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id },
+      select: {
+        creatorId: true,
+        status: true,
+        boulderHolds: { select: { role: true } },
+      },
+    });
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403.
+    if (!boulder || boulder.creatorId !== userId) {
+      throw new NotFoundException('Boulder not found');
+    }
+    if (boulder.status !== BoulderStatus.DRAFT) {
+      throw new ConflictException('Boulder is already published.');
+    }
+    // Un bloc se grimpe d'un départ à un top : exigé ici et non à la
+    // création, où le brouillon peut ne pas être fini.
+    const roles = new Set(boulder.boulderHolds.map((h) => h.role));
+    if (!roles.has(HoldRole.START) || !roles.has(HoldRole.FINISH)) {
+      throw new BadRequestException(
+        'A boulder needs at least one START and one FINISH hold.',
+      );
+    }
+
+    // Le statut dans le where : un PATCH ou une publication arrivés entre la
+    // lecture et l'écriture ne s'appliquent pas à un bloc déjà publié.
+    const { count } = await this.prisma.boulder.updateMany({
+      where: { id, status: BoulderStatus.DRAFT },
+      data: { status: BoulderStatus.PUBLIC },
+    });
+    if (count === 0) {
+      throw new ConflictException('Boulder is already published.');
+    }
+    return { id, status: BoulderStatus.PUBLIC };
   }
 
   /**
@@ -281,7 +527,7 @@ export class BouldersService {
     angleDegrees: number,
   ): Promise<BoulderLikeStatusDto> {
     const boulder = await this.prisma.boulder.findUnique({
-      where: { id: boulderId, isPublic: true, isDraft: false },
+      where: { id: boulderId, status: BoulderStatus.PUBLIC },
       select: { id: true },
     });
     assertFound(boulder, 'Boulder');
