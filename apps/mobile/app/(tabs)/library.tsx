@@ -16,6 +16,9 @@ import { useMyProjects } from '@/lib/ascents/queries';
 import { useGradeLabel } from '@/lib/grades/useGradeLabel';
 import { useMyPlaylists } from '@/lib/playlists/queries';
 import { useMyLikedBoulders } from '@/lib/boulders/queries';
+import { useMyDrafts } from '@/lib/drafts/queries';
+import type { DraftSummary } from '@/lib/drafts/types';
+import { relativeTime } from '@/lib/format/relativeTime';
 import {
   ascentBrowseItem,
   boulderBrowseItem,
@@ -26,7 +29,7 @@ import type { PlaylistSummary } from '@/lib/playlists/types';
 import type { BoulderLiked } from '@/lib/boulders/types';
 import { colors, spacing, typography, radii, shadows } from '@/constants/theme';
 
-type Segment = 'projects' | 'playlists' | 'liked';
+type Segment = 'projects' | 'playlists' | 'liked' | 'drafts';
 
 // Bouton de création : rond de 56 pt, la taille d'usage d'un bouton flottant.
 const FAB_SIZE = spacing.xxxl + spacing.sm;
@@ -36,6 +39,7 @@ const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'projects', label: 'Projects' },
   { value: 'liked', label: 'Liked' },
   { value: 'playlists', label: 'Playlists' },
+  { value: 'drafts', label: 'Drafts' },
 ];
 
 // Un Record plutôt qu'une chaîne de ternaires : ajouter un segment au type
@@ -44,6 +48,7 @@ const SEGMENT_LISTS: Record<Segment, () => React.JSX.Element> = {
   projects: ProjectsList,
   playlists: PlaylistsList,
   liked: LikedList,
+  drafts: DraftsList,
 };
 
 export default function LibraryScreen() {
@@ -208,6 +213,50 @@ function LikedList() {
   );
 }
 
+// Mes brouillons, du dernier modifié au plus ancien (ordre de l'API). Le
+// bouton + ouvre l'écran de création.
+function DraftsList() {
+  const router = useRouter();
+  const drafts = useMyDrafts();
+
+  return (
+    <View style={styles.fill}>
+      <ListState
+        query={drafts}
+        emptyLabel="No drafts yet."
+        emptyHint="Tap + to set a new boulder."
+      >
+        <FlatList
+          data={drafts.data}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <Pressable onPress={() => router.push(`/draft/${item.id}`)}>
+              <DraftRow draft={item} />
+            </Pressable>
+          )}
+          contentContainerStyle={[styles.listContent, styles.listContentFab]}
+          refreshControl={
+            <RefreshControl
+              refreshing={drafts.isRefetching}
+              onRefresh={() => void drafts.refetch()}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      </ListState>
+
+      <Pressable
+        onPress={() => router.push('/draft/new')}
+        accessibilityRole="button"
+        accessibilityLabel="New boulder"
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+      >
+        <Plus size={FAB_ICON_SIZE} color={colors.textOnPrimary} />
+      </Pressable>
+    </View>
+  );
+}
+
 /**
  * Chargement / erreur / vide, mutualisés entre les listes.
  *
@@ -335,6 +384,32 @@ function LikedCard({ boulder }: { boulder: BoulderLiked }) {
       </View>
 
       <Text style={styles.metaData}>{boulder.angleDegrees}°</Text>
+    </View>
+  );
+}
+
+// Cotation provisoire, celle du créateur à son inclinaison.
+function DraftRow({ draft }: { draft: DraftSummary }) {
+  const formatGrade = useGradeLabel();
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {draft.name}
+        </Text>
+        <View style={styles.gradeBadge}>
+          <Text style={styles.gradeText}>{formatGrade(draft.gradeRank)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.metaRow}>
+        <Text style={styles.metaData}>{draft.angleDegrees}°</Text>
+        <Text style={styles.metaDot}>·</Text>
+        <Text style={styles.metaData}>
+          Edited {relativeTime(draft.updatedAt)}
+        </Text>
+      </View>
     </View>
   );
 }
