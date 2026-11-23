@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { mergeBoard } from './mergeBoard';
+import { lightMessage, type LitHold } from './protocol';
 import {
   BluetoothUnavailableError,
   type BoardConnection,
@@ -20,11 +21,31 @@ type BoardStore = {
   // Injectée par RootLayout, qui possède le BleManager (un seul par app).
   // `null` avant son premier effet : les actions ne font alors rien.
   connection: BoardConnection | null;
+  // Dernière board connectée, gardée après une coupure qui ne vient pas de
+  // l'app (un autre grimpeur prend la main) : l'ampoule s'y reconnecte.
+  // Oubliée par un Disconnect voulu.
+  lastBoard: DiscoveredBoard | null;
+  // Mode « suivre » de l'ampoule (décision du 2026-11-23) : activé par un
+  // tap qui affiche un bloc, il affiche ensuite tout seul chaque bloc ouvert
+  // ou atteint par un swipe. Arrêté par un second tap ou par la perte de la
+  // connexion : la board ne dit jamais qu'un autre grimpeur a pris la main.
+  following: boolean;
+  // Dernier bloc affiché sur la board : revenir sur lui ne le renvoie pas.
+  shownBoulderId: number | null;
   setConnection: (connection: BoardConnection | null) => void;
   scan: () => Promise<void>;
   connect: (board: DiscoveredBoard) => Promise<void>;
   disconnect: () => Promise<void>;
+  // Allume ces prises, et seulement elles. Lève si aucune board n'est
+  // connectée ou si l'écriture échoue.
+  light: (holds: LitHold[]) => Promise<void>;
+  // Allume le bloc et le retient comme affiché.
+  show: (boulderId: number, holds: LitHold[]) => Promise<void>;
+  setFollowing: (following: boolean) => void;
 };
+
+// La connexion perdue arrête le mode « suivre » et oublie le bloc affiché.
+const DISCONNECTED = { following: false, shownBoulderId: null } as const;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -36,6 +57,9 @@ function errorMessage(error: unknown): string {
 export const useBoardStore = create<BoardStore>((set, get) => ({
   state: { status: 'idle' },
   connection: null,
+  lastBoard: null,
+  following: false,
+  shownBoulderId: null,
 
   setConnection: (connection) => set({ connection }),
 
@@ -80,9 +104,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     set({ state: { status: 'connecting', board } });
     try {
       await connection.connect(board, () => {
-        set({ state: { status: 'idle' } });
+        set({ state: { status: 'idle' }, ...DISCONNECTED });
       });
-      set({ state: { status: 'connected', board } });
+      set({ state: { status: 'connected', board }, lastBoard: board });
     } catch (error) {
       set({ state: { status: 'error', message: errorMessage(error) } });
     }
@@ -90,6 +114,21 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
   disconnect: async () => {
     await get().connection?.disconnect();
-    set({ state: { status: 'idle' } });
+    set({ state: { status: 'idle' }, lastBoard: null, ...DISCONNECTED });
   },
+
+  light: async (holds) => {
+    const { state, connection } = get();
+    if (!connection || state.status !== 'connected') {
+      throw new Error('Not connected to a board');
+    }
+    await connection.write(lightMessage(holds));
+  },
+
+  show: async (boulderId, holds) => {
+    await get().light(holds);
+    set({ shownBoulderId: boulderId });
+  },
+
+  setFollowing: (following) => set({ following }),
 }));

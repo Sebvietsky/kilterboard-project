@@ -8,7 +8,7 @@ import {
   TextInput,
   Switch,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useIsFocused, useLocalSearchParams } from 'expo-router';
 import {
   colors,
   spacing,
@@ -19,6 +19,7 @@ import {
 } from '@/constants/theme';
 import { ChevronDown } from 'lucide-react-native';
 import { BoardLED } from '@/components/BoardLED';
+import { LightBoulderButton } from '@/components/LightBoulderButton';
 import { useDefaultBoardSize } from '@/lib/boardSizes/queries';
 import { AddToPlaylistSheet } from '@/components/playlists/AddToPlaylistSheet';
 import { AnglePickerSheet } from '@/components/boulder/AnglePickerSheet';
@@ -68,12 +69,16 @@ const LOGGED_MESSAGE: Record<AscentStatus, string> = {
 // bloc à l'autre.
 export default function BoulderDetailRoute() {
   const { id, angle } = useLocalSearchParams<{ id: string; angle?: string }>();
+  // Un écran de détail recouvert par un autre garde sa page centrale : sans
+  // ce test, les deux renverraient chacun leur bloc à la board, sans fin.
+  const isFocused = useIsFocused();
   return (
     <BoulderPager
       opened={{ boulderId: Number(id), angleDegrees: Number(angle) }}
-      renderPage={(item) => (
+      renderPage={(item, isActive) => (
         <BoulderDetailScreen
           boulderId={item.boulderId}
+          isActive={isFocused && isActive}
           // Hors d'une liste, l'inclinaison reste celle du lien, même absente.
           angleParam={
             Number.isNaN(item.angleDegrees) ? angle : String(item.angleDegrees)
@@ -86,9 +91,11 @@ export default function BoulderDetailRoute() {
 
 function BoulderDetailScreen({
   boulderId,
+  isActive,
   angleParam,
 }: {
   boulderId: number;
+  isActive: boolean;
   angleParam: string | undefined;
 }) {
   const [logStatus, setLogStatus] = useState<AscentStatus | null>(null);
@@ -367,7 +374,16 @@ function BoulderDetailScreen({
         </View>
       </View>
 
-      <BoardLED size={boardSize.data} holds={detail.holds} />
+      {/* L'ampoule hors de BoardLED, qui rogne ce qui dépasse de son cadre. */}
+      <View>
+        <BoardLED size={boardSize.data} holds={detail.holds} />
+        <LightBoulderButton
+          boulderId={boulderId}
+          isActive={isActive}
+          size={boardSize.data}
+          holds={detail.holds}
+        />
+      </View>
 
       <View style={styles.statsCard}>
         <View style={styles.statCol}>
