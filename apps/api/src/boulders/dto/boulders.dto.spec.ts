@@ -72,6 +72,10 @@ describe('AngleQueryDto', () => {
   });
 });
 
+// `count` prises distinctes, pour tester la limite sans buter sur le doublon.
+const holdsOf = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({ holdId: i + 1, role: 'HAND' }));
+
 describe('CreateBoulderDto', () => {
   const valid = {
     name: 'Crimpy',
@@ -116,6 +120,20 @@ describe('CreateBoulderDto', () => {
     ).resolves.toEqual(['holds']);
   });
 
+  // Limite de 45 prises (décision du 2026-11-23) : les deux côtés de la
+  // borne, pour qu'un 44 ou un 46 dans le DTO fasse échouer un test.
+  it('accepte 45 prises', async () => {
+    await expect(
+      rejectedFields(CreateBoulderDto, { ...valid, holds: holdsOf(45) }),
+    ).resolves.toEqual([]);
+  });
+
+  it('refuse 46 prises', async () => {
+    await expect(
+      rejectedFields(CreateBoulderDto, { ...valid, holds: holdsOf(46) }),
+    ).resolves.toEqual(['holds']);
+  });
+
   // Une prise n'a qu'un rôle par bloc : le doublon est refusé même avec deux
   // rôles différents.
   it('refuse la même prise deux fois', async () => {
@@ -156,6 +174,12 @@ describe('UpdateBoulderDto', () => {
     await expect(rejectedFields(UpdateBoulderDto, {})).resolves.toEqual([]);
   });
 
+  it('accepte 45 prises', async () => {
+    await expect(
+      rejectedFields(UpdateBoulderDto, { holds: holdsOf(45) }),
+    ).resolves.toEqual([]);
+  });
+
   it('accepte une cotation seule', async () => {
     await expect(
       rejectedFields(UpdateBoulderDto, { gradeRank: 18 }),
@@ -167,6 +191,7 @@ describe('UpdateBoulderDto', () => {
   it.each([
     ['un nom fait seulement d’espaces', { name: '   ' }, 'name'],
     ['une liste de prises vide', { holds: [] }, 'holds'],
+    ['46 prises', { holds: holdsOf(46) }, 'holds'],
     [
       'la même prise deux fois',
       {
