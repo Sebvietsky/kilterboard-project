@@ -134,6 +134,25 @@ describe('CreateBoulderDto', () => {
     ).resolves.toEqual(['holds']);
   });
 
+  // Au plus 3 tags (décision du 2026-10-12).
+  it('accepte 3 tags', async () => {
+    await expect(
+      rejectedFields(CreateBoulderDto, {
+        ...valid,
+        tags: ['crimp', 'dyno', 'power'],
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['4 tags', ['crimp', 'dyno', 'power', 'sloper']],
+    ['le même tag deux fois', ['crimp', 'crimp']],
+  ])('refuse %s', async (_label, tags) => {
+    await expect(
+      rejectedFields(CreateBoulderDto, { ...valid, tags }),
+    ).resolves.toEqual(['tags']);
+  });
+
   // Une prise n'a qu'un rôle par bloc : le doublon est refusé même avec deux
   // rôles différents.
   it('refuse la même prise deux fois', async () => {
@@ -192,6 +211,7 @@ describe('UpdateBoulderDto', () => {
     ['un nom fait seulement d’espaces', { name: '   ' }, 'name'],
     ['une liste de prises vide', { holds: [] }, 'holds'],
     ['46 prises', { holds: holdsOf(46) }, 'holds'],
+    ['4 tags', { tags: ['crimp', 'dyno', 'power', 'sloper'] }, 'tags'],
     [
       'la même prise deux fois',
       {

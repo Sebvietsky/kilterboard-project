@@ -20,6 +20,14 @@ import { HoldRole } from '../../generated/prisma/client';
 // Même valeur côté mobile, dans l'écran de création.
 export const MAX_HOLDS_PER_BOULDER = 45;
 
+// Au plus 2 prises de départ et 2 de fin (Seb, 2026-11-23). Vérifié par le
+// service, qui compte les rôles : la règle porte sur l'ensemble des prises,
+// pas sur une prise seule.
+export const MAX_END_HOLDS = 2;
+
+// Limite décidée le 2026-10-12, posée avec la création de bloc.
+export const MAX_TAGS_PER_BOULDER = 3;
+
 export class BoulderHoldInputDto {
   // Id de la prise en base, celui que renvoie `GET /board-sizes/:id`.
   @IsInt()
@@ -68,4 +76,13 @@ export class CreateBoulderDto {
   @ValidateNested({ each: true })
   @Type(() => BoulderHoldInputDto)
   holds!: BoulderHoldInputDto[];
+
+  // Slugs des tags (`crimp`, `dyno`…) ; un slug inconnu donne un 400 au
+  // service.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TAGS_PER_BOULDER)
+  @ArrayUnique()
+  @IsString({ each: true })
+  tags?: string[];
 }

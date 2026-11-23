@@ -105,6 +105,16 @@ export class BouldersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  @HttpCode(204)
+  async deleteDraft(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<void> {
+    return this.boulderService.deleteDraft(user.userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/publish')
   @HttpCode(200)
   async publishBoulder(

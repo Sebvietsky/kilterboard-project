@@ -14,6 +14,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   BoulderHoldInputDto,
   MAX_HOLDS_PER_BOULDER,
+  MAX_TAGS_PER_BOULDER,
 } from './create-boulder.dto';
 
 // Modification d'un brouillon (décision du 2026-11-18). Tout est facultatif,
@@ -53,4 +54,12 @@ export class UpdateBoulderDto {
   @ValidateNested({ each: true })
   @Type(() => BoulderHoldInputDto)
   holds?: BoulderHoldInputDto[];
+
+  // Comme les prises : remplacent tous les tags du bloc. `[]` les retire.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TAGS_PER_BOULDER)
+  @ArrayUnique()
+  @IsString({ each: true })
+  tags?: string[];
 }
