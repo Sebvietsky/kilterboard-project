@@ -64,6 +64,16 @@ const DETAIL_HEADER = {
   ],
 };
 
+// Création et édition d'un brouillon : la barre native pour le retour, sans
+// la pastille de session (on ne logge pas depuis cet écran). Le titre est
+// posé par l'écran, qui sait s'il crée ou modifie.
+const EDITOR_HEADER = {
+  headerShown: true,
+  headerBackButtonDisplayMode: 'minimal' as const,
+  headerShadowVisible: false,
+  headerStyle: { backgroundColor: colors.background },
+};
+
 function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -168,6 +178,8 @@ function RootNavigation() {
         <Stack.Screen name="boulder/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="session/[id]" options={DETAIL_HEADER} />
         <Stack.Screen name="playlist/[id]" options={DETAIL_HEADER} />
+        <Stack.Screen name="draft/new" options={EDITOR_HEADER} />
+        <Stack.Screen name="draft/[id]" options={EDITOR_HEADER} />
         <Stack.Screen
           name="ascents"
           options={{ ...DETAIL_HEADER, title: 'Ascents' }}
