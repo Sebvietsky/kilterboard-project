@@ -24,7 +24,13 @@ export type AuthTokens = {
   refreshToken: TokenPayload;
 };
 
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+// `offline` : au lancement, le serveur n'a pas répondu. La session est
+// peut-être bonne, on ne sait pas : ni écran de connexion, ni onglets.
+export type AuthStatus =
+  | 'loading'
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'offline';
 
 export type AuthContextValue = {
   status: AuthStatus;
@@ -37,4 +43,8 @@ export type AuthContextValue = {
     username: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
+  // Relance le démarrage depuis l'état `offline`.
+  retry: () => void;
+  // Remplace l'identité après une modification du compte (PATCH /users/me).
+  updateUser: (user: User) => void;
 };

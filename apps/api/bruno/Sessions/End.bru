@@ -1,0 +1,22 @@
+meta {
+  name: End
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/sessions/{{sessionId}}/end
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "note": "Bonne séance sur les réglettes",
+    "isShared": false
+  }
+}
+
+docs {
+  `sessionId` est posé par **Start**. Session déjà terminée : 409.
+}

@@ -1,4 +1,4 @@
-import { HoldRole } from '../../generated/prisma/client';
+import { BoulderStatus, HoldRole } from '../../generated/prisma/client';
 
 export class HoldDto {
   holdCode!: string;
@@ -8,10 +8,14 @@ export class HoldDto {
 }
 
 export class PublicNoteDto {
+  id!: number;
+  // Inclinaison de l'ascension commentée : un bloc à 40° et à 50° se
+  // commente séparément, et le client filtre sur l'inclinaison affichée.
+  angleDegrees!: number;
   username!: string;
   avatarUrl!: string | null;
   content!: string;
-  feltGradeLabel!: string | null;
+  feltGradeRank!: number | null;
   likesCount!: number;
   createdAt!: Date;
 }
@@ -19,19 +23,91 @@ export class PublicNoteDto {
 export class BoulderSummaryDto {
   id!: number;
   name!: string;
-  gradeLabel!: string;
+  // Le rang seul : le client l'affiche dans l'échelle de l'utilisateur
+  // (Font ou V), que cette route publique ne connaît pas.
   gradeRank!: number;
   angleDegrees!: number;
   creatorUsername!: string;
+  // Pseudo Kilter du créateur d'un bloc importé (`creatorUsername` est alors
+  // le compte système `kilter`) ; `null` pour un bloc créé dans l'app.
+  setterName!: string | null;
   tags!: string[];
   ascentCount!: number;
   averageRating!: number | null;
-  isPublic!: boolean;
+  // Statistiques Kilter à l'inclinaison de la carte, `null` sans elles (bloc
+  // créé dans l'app). Séparées de nos chiffres, qui ne mesurent pas la même
+  // chose : des grimpeurs sur toute la communauté Kilter, contre nos lignes
+  // d'ascension (décision du 2026-11-06).
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
+  status!: BoulderStatus;
   createdAt!: Date;
+}
+
+export class BoulderLikeStatusDto {
+  liked!: boolean;
+}
+
+export class BoulderCreatedDto {
+  id!: number;
+  status!: BoulderStatus;
+}
+
+// Lecture d'un brouillon par son créateur, pour l'éditer : la forme de
+// `PATCH /boulders/:id` (ids de prises), pas celle de l'affichage. Le
+// client retrouve la position des prises par `GET /board-sizes/:id`.
+export class BoulderDraftHoldDto {
+  holdId!: number;
+  role!: HoldRole;
+}
+
+export class BoulderDraftSummaryDto {
+  id!: number;
+  name!: string;
+  angleDegrees!: number;
+  gradeRank!: number;
+  updatedAt!: Date;
+}
+
+export class BoulderDraftDto extends BoulderDraftSummaryDto {
+  description!: string | null;
+  holds!: BoulderDraftHoldDto[];
+  // Slugs, la forme de `PATCH /boulders/:id`.
+  tags!: string[];
+}
+
+export class LikedBoulderDto {
+  id!: number;
+  name!: string;
+  // Cotation à l'inclinaison du like ; `null` quand elle n'est pas cotée.
+  gradeRank!: number | null;
+  angleDegrees!: number;
+  likedAt!: Date;
+}
+
+// Cotation du bloc à une inclinaison (ligne de `boulder_angles`).
+export class AngleGradeDto {
+  angleDegrees!: number;
+  // Cotation effective ; sans cotation de départ, `null` tant que personne
+  // n'y a envoyé le bloc.
+  gradeRank!: number | null;
+  // Cotation de départ (créateur à son inclinaison, Kilter pour un bloc
+  // importé), `null` s'il n'y en a pas : le client montre qu'elle a été
+  // remplacée par les votes.
+  baseGradeRank!: number | null;
+  votesCount!: number;
+  // Peu de votes, sans cotation de départ.
+  isEstimated!: boolean;
+  // Statistiques Kilter à cette inclinaison, `null` sans elles.
+  kilterAscensionists!: number | null;
+  kilterQuality!: number | null;
 }
 
 export class BoulderDetailDto extends BoulderSummaryDto {
   description!: string | null;
   holds!: HoldDto[];
   publicNotes!: PublicNoteDto[];
+  // Une entrée par inclinaison, dans l'ordre croissant. `gradeRank` et
+  // `angleDegrees` au premier niveau restent la référence du créateur.
+  angleGrades!: AngleGradeDto[];
 }

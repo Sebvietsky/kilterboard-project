@@ -1,0 +1,26 @@
+meta {
+  name: Refresh
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/refresh
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+script:post-response {
+  // Rotation : l'ancien refresh token est supprimé côté serveur, il faut
+  // donc conserver le NOUVEAU, sinon le prochain refresh renvoie 401.
+  if (res.status === 201) {
+    bru.setEnvVar("accessToken", res.body.accessToken.token);
+    bru.setEnvVar("refreshToken", res.body.refreshToken.token);
+  }
+}

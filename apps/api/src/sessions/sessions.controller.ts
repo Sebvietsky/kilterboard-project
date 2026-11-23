@@ -48,4 +48,15 @@ export class SessionsController {
   async getMySessions(@CurrentUser() user: JwtPayload) {
     return this.sessionsService.getMySessions(user.userId);
   }
+
+  // Déclarée APRÈS `active` et `me` : les routes se résolvent dans l'ordre, et
+  // `:id` placé plus haut capturerait ces deux segments (puis les rejetterait
+  // en 400, ParseIntPipe ne sachant pas lire « active »).
+  @Get(':id')
+  async getSession(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.sessionsService.getSession(id, user.userId);
+  }
 }

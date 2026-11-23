@@ -1,0 +1,26 @@
+meta {
+  name: Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/ascents/{{ascentId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "attemptsToAdd": 2
+  }
+}
+
+docs {
+  Faire vivre un PROJECT :
+  - séance de plus : `{ "attemptsToAdd": 2 }` — le serveur additionne ;
+  - clore en envoi : `{ "status": "SENT", "attemptsToAdd": 1,
+    "feltGradeRank": 6 }` — grade ressenti obligatoire.
+
+  Aucune transition vers FLASH n'est acceptée.
+}

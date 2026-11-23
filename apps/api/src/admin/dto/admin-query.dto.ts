@@ -9,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { Role } from '../../generated/prisma/client';
+import { BoulderStatus, Role } from '../../generated/prisma/client';
 
 export class AdminQueryDto {
   // Recherche textuelle générique
@@ -27,7 +27,7 @@ export class AdminQueryDto {
     'country',
     'name',
     'isPublic',
-    'isDraft',
+    'status',
   ])
   orderBy?: string;
   @IsOptional()
@@ -53,9 +53,14 @@ export class AdminQueryDto {
   @IsEnum(Role)
   role?: Role;
 
-  // Spécifique boulders
+  // Spécifique playlists
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }: { value: string }) => value === 'true')
   isPublic?: boolean;
+
+  // Spécifique boulders
+  @IsOptional()
+  @IsEnum(BoulderStatus)
+  status?: BoulderStatus;
 }

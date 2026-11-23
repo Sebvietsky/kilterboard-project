@@ -1,0 +1,24 @@
+meta {
+  name: Playlists
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/admin/playlists?page=1&limit=20
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 20
+  ~search:
+  ~orderBy: createdAt
+  ~order: desc
+  ~isPublic: true
+}
+
+docs {
+  Compte ADMIN requis (sinon 403).
+}

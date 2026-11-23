@@ -8,6 +8,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { assertFound } from '../common/utils/ownership.utils';
+import { getPaginationParams } from '../common/utils/pagination.utils';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { BoulderStatus } from '../generated/prisma/client';
+import { MyBoulderDto } from './dto/my-boulder.dto';
 
 @Injectable()
 export class UsersService {
@@ -139,15 +144,76 @@ export class UsersService {
     return this.prisma.ascent.findMany({
       where: { userId, status: 'PROJECT' },
       include: {
+        // Un projet est ouvert À une inclinaison ; `boulder.angle` n'est que
+        // celle de la création du bloc.
+        angle: { select: { valueDegrees: true } },
         boulder: {
           select: {
             name: true,
-            grade: { select: { vScale: true, fontScale: true, rank: true } },
             angle: { select: { valueDegrees: true } },
+          },
+        },
+        // Cotation effective à l'inclinaison du projet, et non celle du
+        // créateur : `boulder.grade` n'est volontairement pas exposé ici.
+        boulderAngle: {
+          select: {
+            grade: { select: { vScale: true, fontScale: true, rank: true } },
           },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Mes blocs publiés, du plus récent au plus ancien, chacun à son
+   * inclinaison de création. Les brouillons ont leur liste (Library).
+   */
+  async getMyBoulders(
+    userId: number,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<MyBoulderDto>> {
+    const where = { creatorId: userId, status: BoulderStatus.PUBLIC };
+    const { skip, take, page, limit } = getPaginationParams(
+      query.page,
+      query.limit,
+    );
+
+    const [boulders, total] = await Promise.all([
+      this.prisma.boulder.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          angleId: true,
+          angle: { select: { valueDegrees: true } },
+          // Toutes les inclinaisons : Prisma ne sait pas filtrer une relation
+          // sur une colonne du parent (`angle_id`). Une page de 20 blocs en
+          // lit environ 220 lignes, filtrées ci-dessous.
+          boulderAngles: {
+            select: { angleId: true, grade: { select: { rank: true } } },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take,
+      }),
+      this.prisma.boulder.count({ where }),
+    ]);
+
+    return {
+      data: boulders.map((b) => ({
+        id: b.id,
+        name: b.name,
+        angleDegrees: b.angle.valueDegrees,
+        // Non nulle : la cotation de départ est posée à la création, à cette
+        // inclinaison.
+        gradeRank: b.boulderAngles.find((ba) => ba.angleId === b.angleId)?.grade
+          ?.rank as number,
+        createdAt: b.createdAt,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 }

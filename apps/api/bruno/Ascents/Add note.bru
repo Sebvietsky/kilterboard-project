@@ -1,0 +1,24 @@
+meta {
+  name: Add note
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/ascents/{{ascentId}}/notes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "content": "Le talon à gauche change tout.",
+    "visibility": "PUBLIC"
+  }
+}
+
+docs {
+  - `visibility` : `PUBLIC` | `PRIVATE`. `content` : 2000 caractères max.
+  - Note publique : réservée au premier envoi, une seule par (utilisateur,
+    bloc).
+}

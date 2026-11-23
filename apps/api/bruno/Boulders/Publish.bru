@@ -1,0 +1,15 @@
+meta {
+  name: Publish
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/boulders/{{boulderId}}/publish
+  body: none
+  auth: inherit
+}
+
+docs {
+  Réservé au créateur du brouillon (404 sinon). DRAFT -> PUBLIC, sans retour (409 si déjà publié). Au moins un START et un FINISH (400 sinon).
+}

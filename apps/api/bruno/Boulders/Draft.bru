@@ -1,0 +1,15 @@
+meta {
+  name: Draft
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/boulders/drafts/{{boulderId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Un de mes brouillons, pour l'éditer : prises par id, comme les attend PATCH /boulders/:id. 404 sur celui d'un autre et sur un bloc publié.
+}

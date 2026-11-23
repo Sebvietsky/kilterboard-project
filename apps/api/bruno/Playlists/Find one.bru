@@ -1,0 +1,11 @@
+meta {
+  name: Find one
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/playlists/{{playlistId}}
+  body: none
+  auth: inherit
+}

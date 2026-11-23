@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { PlaylistsModule } from './playlists/playlists.module';
 import { AdminModule } from './admin/admin.module';
 import { GradesModule } from './grades/grades.module';
+import { BoardsModule } from './boards/boards.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -31,6 +32,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     PlaylistsModule,
     AdminModule,
     GradesModule,
+    BoardsModule,
   ],
   controllers: [],
   providers: [],

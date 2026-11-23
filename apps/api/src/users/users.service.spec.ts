@@ -7,11 +7,13 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BoulderStatus } from '../generated/prisma/client';
 
 const prismaMock = {
   user: { findUnique: jest.fn(), update: jest.fn() },
   userFollow: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
   ascent: { findMany: jest.fn() },
+  boulder: { findMany: jest.fn(), count: jest.fn() },
 };
 
 const me = 1;
@@ -102,7 +104,9 @@ describe('UsersService', () => {
     // La route est atteignable par n'importe quel compte authentifié à partir
     // du seul username. Sans ces omissions, elle sert un annuaire d'adresses
     // doublé de la liste des comptes ADMIN.
-    it("n'expose ni l'email ni le rôle", async () => {
+    // Le hash en plus : `toMatchObject` ne vérifiait que l'email et le rôle,
+    // et retirer l'omission du hash ne faisait échouer aucun test.
+    it("n'expose ni l'email, ni le rôle, ni le hash du mot de passe", async () => {
       prismaMock.user.findUnique.mockResolvedValue(target);
 
       await service.getPublicProfile('alice', me);
@@ -110,7 +114,11 @@ describe('UsersService', () => {
       const [arg] = prismaMock.user.findUnique.mock.calls[0] as [
         { omit: Record<string, boolean> },
       ];
-      expect(arg.omit).toMatchObject({ email: true, role: true });
+      expect(arg.omit).toMatchObject({
+        ...hiddenFields,
+        email: true,
+        role: true,
+      });
     });
 
     // Un profil privé existe mais n'est pas consultable. Le 403 le dit — c'est
@@ -228,6 +236,63 @@ describe('UsersService', () => {
         { where: Record<string, unknown> },
       ];
       expect(arg.where).toEqual({ userId: me, status: 'PROJECT' });
+    });
+  });
+  describe('getMyBoulders', () => {
+    const createdAt = new Date();
+
+    beforeEach(() => {
+      prismaMock.boulder.findMany.mockResolvedValue([
+        {
+          id: 99,
+          name: 'Crimpy',
+          createdAt,
+          angleId: 3,
+          angle: { valueDegrees: 40 },
+          boulderAngles: [
+            { angleId: 2, grade: null },
+            { angleId: 3, grade: { rank: 18 } },
+            { angleId: 4, grade: { rank: 20 } },
+          ],
+        },
+      ]);
+      prismaMock.boulder.count.mockResolvedValue(45);
+    });
+
+    const findManyArg = () =>
+      (
+        prismaMock.boulder.findMany.mock.calls[0] as [
+          { where: unknown; orderBy: unknown; skip: number; take: number },
+        ]
+      )[0];
+
+    // Les miens, et seulement publiés : les brouillons ont leur liste.
+    it('ne lit que mes blocs publiés, du plus récent au plus ancien', async () => {
+      await service.getMyBoulders(me, {});
+
+      expect(findManyArg().where).toEqual({
+        creatorId: me,
+        status: BoulderStatus.PUBLIC,
+      });
+      expect(findManyArg().orderBy).toEqual([
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ]);
+    });
+
+    it("renvoie la cotation effective à l'inclinaison de création", async () => {
+      const { data } = await service.getMyBoulders(me, {});
+
+      expect(data).toEqual([
+        { id: 99, name: 'Crimpy', angleDegrees: 40, gradeRank: 18, createdAt },
+      ]);
+    });
+
+    it('pagine', async () => {
+      const { meta } = await service.getMyBoulders(me, { page: 2, limit: 20 });
+
+      expect(findManyArg()).toMatchObject({ skip: 20, take: 20 });
+      expect(meta).toEqual({ total: 45, page: 2, limit: 20, totalPages: 3 });
     });
   });
 });

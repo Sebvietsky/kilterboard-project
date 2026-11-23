@@ -9,12 +9,14 @@ import {
 import { Transform, Type } from 'class-transformer';
 
 export class FilterBoulderDto {
-  @IsOptional()
+  // Obligatoire : Explore est toujours à une inclinaison, une carte = un bloc
+  // à cette inclinaison (décision du 2026-11-06). Une valeur hors du pas de 5°
+  // passe ici et donne un 400 au service (`resolveAngleId`).
   @IsInt()
   @Min(20)
   @Max(70)
   @Type(() => Number)
-  angle?: number;
+  angle!: number;
 
   @IsOptional()
   @IsInt()

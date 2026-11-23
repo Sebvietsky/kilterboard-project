@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '../generated/prisma/client';
+import { BoulderStatus, Role } from '../generated/prisma/client';
 
 const prismaMock = {
   user: { findMany: jest.fn() },
@@ -94,13 +94,14 @@ describe('AdminService', () => {
   });
 
   describe('findAllBoulders', () => {
-    // isPublic est un booléen : le tester avec `&&` ferait disparaître le
-    // filtre quand on cherche justement les blocs privés.
-    it.each([true, false])('filtre sur isPublic: %s', async (isPublic) => {
-      await service.findAllBoulders({ isPublic });
+    it.each([BoulderStatus.DRAFT, BoulderStatus.PUBLIC])(
+      'filtre sur status: %s',
+      async (status) => {
+        await service.findAllBoulders({ status });
 
-      expect(queryArg(prismaMock.boulder.findMany).where).toEqual({ isPublic });
-    });
+        expect(queryArg(prismaMock.boulder.findMany).where).toEqual({ status });
+      },
+    );
 
     it('replie un champ de tri non autorisé', async () => {
       await service.findAllBoulders({ orderBy: 'creatorId' });
