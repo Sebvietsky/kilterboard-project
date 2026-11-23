@@ -19,7 +19,10 @@ export function BoulderPager({
   renderPage,
 }: {
   opened: BrowseItem;
-  renderPage: (item: BrowseItem) => ReactElement;
+  // `isActive` : la page au centre de l'écran. Le pager rend aussi ses deux
+  // voisines ; seule la page active doit agir pour l'utilisateur (l'ampoule
+  // n'allume que le bloc regardé).
+  renderPage: (item: BrowseItem, isActive: boolean) => ReactElement;
 }) {
   const { width } = useWindowDimensions();
   // Hauteur mesurée : sans elle, une page horizontale n'a que la hauteur de
@@ -33,6 +36,7 @@ export function BoulderPager({
     const index = indexOfBrowseItem(items, opened);
     return index === -1 ? { items: [opened], index: 0 } : { items, index };
   });
+  const [activeIndex, setActiveIndex] = useState(pages.index);
 
   return (
     <View
@@ -47,6 +51,14 @@ export function BoulderPager({
           data={pages.items}
           keyExtractor={(item) => `${item.boulderId}@${item.angleDegrees}`}
           initialScrollIndex={pages.index}
+          // Page entière (pagingEnabled) : l'index se déduit du décalage, une
+          // fois le défilement arrêté.
+          onMomentumScrollEnd={(event) =>
+            setActiveIndex(
+              Math.round(event.nativeEvent.contentOffset.x / width),
+            )
+          }
+          extraData={activeIndex}
           getItemLayout={(_, index) => ({
             length: width,
             offset: width * index,
@@ -56,8 +68,10 @@ export function BoulderPager({
           windowSize={3}
           initialNumToRender={1}
           maxToRenderPerBatch={1}
-          renderItem={({ item }) => (
-            <View style={{ width, height }}>{renderPage(item)}</View>
+          renderItem={({ item, index }) => (
+            <View style={{ width, height }}>
+              {renderPage(item, index === activeIndex)}
+            </View>
           )}
         />
       ) : null}

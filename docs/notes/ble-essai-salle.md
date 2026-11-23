@@ -67,7 +67,7 @@ Essai fait le 2026-10-23.
 
 ## Prochain essai : l'ampoule (`feature/light-boulder`)
 
-Préparé le 2026-11-05. Bouton ampoule en bas à droite du plan de la board, sur le détail d'un bloc. Comportement retenu le 2026-11-05 : si deux téléphones sont connectés à la fois, le dernier envoi l'emporte, sans alerte (l'app ne peut pas savoir qu'un autre est connecté).
+Préparé le 2026-11-05, mode « suivre » ajouté le 2026-11-23. Bouton ampoule en bas à droite du plan de la board, sur le détail d'un bloc : neutre quand on est connecté sans rien afficher (contour bleu), pleine en mode « suivre ». Comportement retenu le 2026-11-05 : si deux téléphones sont connectés à la fois, le dernier envoi l'emporte, sans alerte (l'app ne peut pas savoir qu'un autre est connecté).
 
 ### Avant de partir
 
@@ -81,7 +81,8 @@ Préparé le 2026-11-05. Bouton ampoule en bas à droite du plan de la board, su
 Blocs du seed sur de vrais trous : « Midnight Sun » (8 prises), « Silent Sky » (8), « The Orbit » (6).
 
 1. **Board libre, cas nominal.** Home → se connecter. Ouvrir « Midnight Sun », taper l'ampoule (bleue). Attendu : exactement 8 LED ; 2 départs en vert à mi-hauteur basse, 3 mains en cyan, la fin en magenta en haut au centre, 2 pieds en jaune sur le kickboard ; toast « Shown on the board ».
-2. **Changer de bloc.** Ouvrir « The Orbit », taper l'ampoule. Attendu : les 8 prises précédentes s'éteignent, seules les 6 nouvelles restent.
+2. **Changer de bloc, mode « suivre »** (2026-11-23). Après le test 1, l'ampoule est pleine. Revenir à la liste, ouvrir « The Orbit » **sans taper l'ampoule**. Attendu : les 8 prises précédentes s'éteignent, seules les 6 nouvelles restent. Puis swiper vers le bloc voisin : il s'affiche tout seul, et c'est bien le bloc à l'écran (pas un voisin chargé d'avance).
+2 bis. **Arrêt du mode.** Taper l'ampoule pleine : elle redevient neutre (contour), toast « Stopped showing boulders », les LED restent allumées. Swiper : rien ne change sur la board.
 3. **Disconnect volontaire.** Home → Disconnect. Taper l'ampoule (neutre). Attendu : « No board connected », pas de proposition de reconnexion.
 4. **Un autre grimpeur se connecte pendant qu'on l'est** (lui demander de lancer l'app Kilter et d'afficher un bloc). Noter lequel des deux cas se produit :
    - **Cas 1, coupure** : la carte Board de Home repasse « non connecté », l'ampoule devient neutre. Taper : alerte « Board disconnected », puis « Show ». Attendu : reconnexion, puis notre bloc remplace le sien. Chronométrer la reconnexion (plus de 8 s : un identifiant mort essayé en premier).
@@ -95,7 +96,8 @@ Blocs du seed sur de vrais trous : « Midnight Sun » (8 prises), « Silent Sky 
 | Test | Résultat |
 | --- | --- |
 | 1. 8 LED, couleurs et positions conformes | |
-| 2. Changement de bloc : les anciennes s'éteignent | |
+| 2. Mode « suivre » : bloc ouvert puis swipe affichés tout seuls, le bon bloc | |
+| 2 bis. Arrêt du mode : rien n'est plus envoyé | |
 | 3. Disconnect : « No board connected » | |
 | 4. Autre grimpeur : cas 1 ou cas 2 ; durée de la reconnexion ; son téléphone déconnecté ? | |
 | 5. Identité de passage : allumé ou non | |
