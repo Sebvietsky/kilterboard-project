@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
@@ -12,6 +13,12 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { HoldRole } from '../../generated/prisma/client';
+
+// Limite métier (décision du 2026-11-23) : 99,9 % des blocs Kilter importés
+// ont au plus 35 prises ; au-delà de 45, c'est un motif et non un bloc. Le BLE
+// n'impose rien ici : l'envoi en plusieurs paquets a été validé à 97 prises.
+// Même valeur côté mobile, dans l'écran de création.
+export const MAX_HOLDS_PER_BOULDER = 45;
 
 export class BoulderHoldInputDto {
   // Id de la prise en base, celui que renvoie `GET /board-sizes/:id`.
@@ -56,6 +63,7 @@ export class CreateBoulderDto {
   // d'une violation de clé en base.
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_HOLDS_PER_BOULDER)
   @ArrayUnique((hold: BoulderHoldInputDto) => hold.holdId)
   @ValidateNested({ each: true })
   @Type(() => BoulderHoldInputDto)

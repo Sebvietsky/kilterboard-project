@@ -104,6 +104,7 @@ Abréviations :
 | Publication : au moins un START et un FINISH | Seb 2026-11-18 | S | bo › refuse un bloc sans START / sans FINISH | P02 tuée (2026-11-18) | — |
 | Création : un bloc naît brouillon ; nom, inclinaison, cotation et au moins une prise obligatoires ; START et FINISH pas exigés | Seb 2026-11-18 | D + S + B | boulders.dto › CreateBoulderDto ; bo › createDraft — crée un brouillon, sans statut explicite | — | défaut `DRAFT` de la colonne : e2e |
 | Création : une prise n'a qu'un rôle (doublon refusé en 400) | CL | D + B | boulders.dto › refuse la même prise deux fois | N01 tuée (2026-11-18) | — |
+| Création et modification : au plus 45 prises par bloc | Seb 2026-11-23 | D | boulders.dto › accepte 45 prises ; refuse 46 prises (création et modification) | L01 (44), L02 (46) tuées (2026-11-23) | — |
 | Création : prises connues et d'un seul layout, dont se déduit le layout du bloc | Seb 2026-11-18 | S | bo › déduit le layout des prises ; refuse des prises de deux layouts ; refuse une prise inconnue | N02 tuée (2026-11-18) | — |
 | Création : une ligne `boulder_angles` par inclinaison, cotation de départ seulement à celle du créateur | DEC 10-15, 11-06 | S | bo › crée toutes les inclinaisons, cotées seulement à celle du créateur | N03 tuée (2026-11-18) | atomicité de la transaction : e2e |
 | Modification : brouillon seulement (409 sinon), 404 sur celui d'un autre (B4) | Seb 2026-11-18 | S | bo › updateDraft — renvoie 404 sur le brouillon d'un autre ; renvoie 409 sur un bloc publié | U01, U02 tuées (2026-11-18) | — |

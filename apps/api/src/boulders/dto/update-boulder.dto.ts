@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
@@ -10,7 +11,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { BoulderHoldInputDto } from './create-boulder.dto';
+import {
+  BoulderHoldInputDto,
+  MAX_HOLDS_PER_BOULDER,
+} from './create-boulder.dto';
 
 // Modification d'un brouillon (décision du 2026-11-18). Tout est facultatif,
 // mais jamais vide s'il est fourni : la création l'exige, et l'édition ne
@@ -44,6 +48,7 @@ export class UpdateBoulderDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_HOLDS_PER_BOULDER)
   @ArrayUnique((hold: BoulderHoldInputDto) => hold.holdId)
   @ValidateNested({ each: true })
   @Type(() => BoulderHoldInputDto)
