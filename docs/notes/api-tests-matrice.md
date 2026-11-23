@@ -97,6 +97,8 @@ Abréviations :
 | Bornes de pagination, tag seul en tableau | code | D | boulders.dto › FilterBoulderDto | D06, D07 tuées | — |
 | Like idempotent, par inclinaison, sur bloc visible | DEC 10-14, 10-15 | S + D + B | bo › like, unlike, isLiked ; boulders.dto › AngleQueryDto | M35, M36 tuées | unicité en base : e2e |
 | Mes likes : les miens, à l'inclinaison du like, cotation effective | DEC 10-15 | S | bo › findMyLikes | M37 tuée | — |
+| Mes brouillons : les miens, du dernier modifié au plus ancien | Seb 2026-11-23 | S | bo › findMyDrafts — ne lit que mes brouillons ; trie du dernier modifié au plus ancien | R01 tuée (2026-11-23) | route `drafts` déclarée avant `:id` : e2e |
+| Détail d'un brouillon : 404 sur celui d'un autre (B4) et sur un bloc publié ; prises par id, forme du PATCH | Seb 2026-11-23 | S | bo › findMyDraft — ne cherche que parmi mes brouillons ; renvoie les prises par id | R02 tuée (2026-11-23) | — |
 | Publication réservée au créateur du brouillon (404 pour les autres, B4) | Seb 2026-11-18 | S | bo › publishBoulder — renvoie 404 sur le brouillon d'un autre | P01 tuée (2026-11-18) | — |
 | Publication : DRAFT → PUBLIC sans retour, 409 si déjà publié, même entre la lecture et l'écriture | Seb 2026-11-18 | S | bo › renvoie 409 sur un bloc déjà publié ; si le bloc a été publié entre-temps | P03, P04 tuées (2026-11-18) | concurrence réelle : e2e |
 | Publication : au moins un START et un FINISH | Seb 2026-11-18 | S | bo › refuse un bloc sans START / sans FINISH | P02 tuée (2026-11-18) | — |

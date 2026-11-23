@@ -19,6 +19,8 @@ import { UpdateBoulderDto } from './dto/update-boulder.dto';
 import {
   BoulderCreatedDto,
   BoulderDetailDto,
+  BoulderDraftDto,
+  BoulderDraftSummaryDto,
   BoulderLikeStatusDto,
   BoulderSummaryDto,
   LikedBoulderDto,
@@ -49,6 +51,24 @@ export class BouldersController {
     @CurrentUser() user: JwtPayload,
   ): Promise<BoulderCreatedDto> {
     return this.boulderService.createDraft(user.userId, dto);
+  }
+
+  // Avant `:id` : sinon « drafts » serait lu comme un id (400 de ParseIntPipe).
+  @UseGuards(JwtAuthGuard)
+  @Get('drafts')
+  async findMyDrafts(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<BoulderDraftSummaryDto[]> {
+    return this.boulderService.findMyDrafts(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('drafts/:id')
+  async findMyDraft(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<BoulderDraftDto> {
+    return this.boulderService.findMyDraft(user.userId, id);
   }
 
   @UseGuards(JwtAuthGuard)

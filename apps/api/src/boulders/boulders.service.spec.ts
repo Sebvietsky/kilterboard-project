@@ -12,6 +12,7 @@ const prismaMock = {
   boulder: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     count: jest.fn(),
     updateMany: jest.fn(),
   },
@@ -856,6 +857,102 @@ describe('BouldersService', () => {
       });
     });
   });
+  describe('findMyDrafts', () => {
+    const findManyArg = () =>
+      (
+        prismaMock.boulder.findMany.mock.calls[0] as [
+          { where: unknown; orderBy: unknown },
+        ]
+      )[0];
+
+    // Les miens, et seulement les brouillons : sans le filtre de créateur,
+    // la liste exposerait les brouillons de tout le monde.
+    it('ne lit que mes brouillons', async () => {
+      prismaMock.boulder.findMany.mockResolvedValue([]);
+
+      await service.findMyDrafts(7);
+
+      expect(findManyArg().where).toEqual({
+        creatorId: 7,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    it('trie du dernier modifié au plus ancien', async () => {
+      prismaMock.boulder.findMany.mockResolvedValue([]);
+
+      await service.findMyDrafts(7);
+
+      expect(findManyArg().orderBy).toEqual([
+        { updatedAt: 'desc' },
+        { id: 'desc' },
+      ]);
+    });
+
+    it("renvoie l'inclinaison et la cotation provisoire", async () => {
+      const updatedAt = new Date();
+      prismaMock.boulder.findMany.mockResolvedValue([
+        {
+          id: 99,
+          name: 'Crimpy',
+          updatedAt,
+          angle: { valueDegrees: 40 },
+          grade: { rank: 16 },
+        },
+      ]);
+
+      await expect(service.findMyDrafts(7)).resolves.toEqual([
+        { id: 99, name: 'Crimpy', angleDegrees: 40, gradeRank: 16, updatedAt },
+      ]);
+    });
+  });
+
+  describe('findMyDraft', () => {
+    // Le brouillon d'un autre (B4) et un bloc publié donnent le même 404 :
+    // la règle est dans le where, la base ne les trouve pas.
+    it('ne cherche que parmi mes brouillons', async () => {
+      prismaMock.boulder.findFirst.mockResolvedValue(null);
+
+      await expect(service.findMyDraft(7, 99)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(
+        (prismaMock.boulder.findFirst.mock.calls[0] as [{ where: unknown }])[0]
+          .where,
+      ).toEqual({ id: 99, creatorId: 7, status: BoulderStatus.DRAFT });
+    });
+
+    // La forme de PATCH : l'écran renvoie les prises telles qu'il les a lues.
+    it("renvoie les prises par id, comme les attend l'édition", async () => {
+      const updatedAt = new Date();
+      prismaMock.boulder.findFirst.mockResolvedValue({
+        id: 99,
+        name: 'Crimpy',
+        description: null,
+        updatedAt,
+        angle: { valueDegrees: 40 },
+        grade: { rank: 16 },
+        boulderHolds: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+
+      await expect(service.findMyDraft(7, 99)).resolves.toEqual({
+        id: 99,
+        name: 'Crimpy',
+        description: null,
+        angleDegrees: 40,
+        gradeRank: 16,
+        updatedAt,
+        holds: [
+          { holdId: 1, role: HoldRole.START },
+          { holdId: 2, role: HoldRole.FINISH },
+        ],
+      });
+    });
+  });
+
   describe('updateDraft', () => {
     const CREATOR_ID = 7;
     const CREATOR_ANGLE_ID = 3;

@@ -15,6 +15,8 @@ import { UpdateBoulderDto } from './dto/update-boulder.dto';
 import {
   BoulderCreatedDto,
   BoulderDetailDto,
+  BoulderDraftDto,
+  BoulderDraftSummaryDto,
   BoulderLikeStatusDto,
   BoulderSummaryDto,
   LikedBoulderDto,
@@ -313,6 +315,61 @@ export class BouldersService {
       });
       return boulder;
     });
+  }
+
+  /** Mes brouillons, du dernier modifié au plus ancien. */
+  async findMyDrafts(userId: number): Promise<BoulderDraftSummaryDto[]> {
+    const drafts = await this.prisma.boulder.findMany({
+      where: { creatorId: userId, status: BoulderStatus.DRAFT },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        updatedAt: true,
+        angle: { select: { valueDegrees: true } },
+        grade: { select: { rank: true } },
+      },
+    });
+    return drafts.map((d) => ({
+      id: d.id,
+      name: d.name,
+      angleDegrees: d.angle.valueDegrees,
+      gradeRank: d.grade.rank,
+      updatedAt: d.updatedAt,
+    }));
+  }
+
+  /**
+   * Un brouillon, pour l'éditer. 404 sur le brouillon d'un autre (B4) comme
+   * sur un bloc publié, qui n'est plus un brouillon : sa page est
+   * `GET /boulders/:id`. La règle est portée par le where.
+   */
+  async findMyDraft(userId: number, id: number): Promise<BoulderDraftDto> {
+    const draft = await this.prisma.boulder.findFirst({
+      where: { id, creatorId: userId, status: BoulderStatus.DRAFT },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        updatedAt: true,
+        angle: { select: { valueDegrees: true } },
+        grade: { select: { rank: true } },
+        boulderHolds: {
+          select: { holdId: true, role: true },
+          orderBy: { holdId: 'asc' },
+        },
+      },
+    });
+    if (!draft) throw new NotFoundException('Boulder not found');
+    return {
+      id: draft.id,
+      name: draft.name,
+      description: draft.description,
+      angleDegrees: draft.angle.valueDegrees,
+      gradeRank: draft.grade.rank,
+      updatedAt: draft.updatedAt,
+      holds: draft.boulderHolds,
+    };
   }
 
   /**
