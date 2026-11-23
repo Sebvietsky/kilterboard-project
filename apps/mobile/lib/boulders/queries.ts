@@ -13,6 +13,7 @@ import {
   BoulderLiked,
   BoulderLikeStatus,
   BoulderSummary,
+  MyBoulder,
   PaginatedResponse,
 } from './types';
 import { boulderKeys, boulderLikedKeys } from './keys';
@@ -165,5 +166,43 @@ export function useToggleBoulderLike() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: boulderLikedKeys.all });
     },
+  });
+}
+
+export function fetchMyBoulders(
+  page: number,
+  limit: number,
+): Promise<PaginatedResponse<MyBoulder>> {
+  return api.get<PaginatedResponse<MyBoulder>>(
+    `/users/me/boulders?page=${page}&limit=${limit}`,
+  );
+}
+
+// Aperçu du profil : les derniers publiés, et le total pour « See all ».
+export const RECENT_BOULDERS_COUNT = 5;
+
+export function useMyRecentBoulders(
+  enabled: boolean,
+): UseQueryResult<PaginatedResponse<MyBoulder>, Error> {
+  return useQuery({
+    enabled,
+    queryKey: boulderKeys.mineRecent(),
+    queryFn: () => fetchMyBoulders(1, RECENT_BOULDERS_COUNT),
+  });
+}
+
+export function useMyBouldersInfinite(): UseInfiniteQueryResult<
+  MyBoulder[],
+  Error
+> {
+  return useInfiniteQuery({
+    queryKey: boulderKeys.mineList(),
+    queryFn: ({ pageParam }) => fetchMyBoulders(pageParam, 20),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
+    select: (data) => data.pages.flatMap((p) => p.data),
   });
 }

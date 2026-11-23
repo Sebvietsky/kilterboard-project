@@ -29,11 +29,12 @@ import {
 } from '@/lib/drafts/holds';
 import {
   useDraft,
+  useDeleteDraft,
   usePublishDraft,
   useSaveDraft,
   type DraftFields,
 } from '@/lib/drafts/queries';
-import { DEFAULT_ANGLE } from '@/lib/filters/const';
+import { DEFAULT_ANGLE, TAGS } from '@/lib/filters/const';
 import { showToast } from '@/lib/toast/useToastStore';
 import {
   colors,
@@ -49,6 +50,7 @@ const LEGEND_DOT_SIZE = spacing.md;
 // Mêmes bornes que `CreateBoulderDto`.
 const NAME_MAX_LENGTH = 150;
 const DESCRIPTION_MAX_LENGTH = 1000;
+const MAX_TAGS_PER_BOULDER = 3;
 
 const LEGEND: { role: HoldRole; label: string; color: string }[] = [
   { role: 'START', label: 'Start', color: holdColors.start },
@@ -64,6 +66,7 @@ type Initial = {
   angleDegrees: number;
   gradeRank: number | undefined;
   holds: DraftHolds;
+  tags: readonly string[];
 };
 
 const EMPTY: Initial = {
@@ -73,6 +76,7 @@ const EMPTY: Initial = {
   angleDegrees: DEFAULT_ANGLE,
   gradeRank: undefined,
   holds: new Map(),
+  tags: [],
 };
 
 /**
@@ -120,42 +124,45 @@ export function DraftEditor({ draftId }: { draftId?: number }) {
         angleDegrees: d.angleDegrees,
         gradeRank: d.gradeRank,
         holds: toDraftHolds(d.holds),
+        tags: d.tags,
       }}
     />
   );
 }
 
+// Ce que l'utilisateur modifie (l'inclinaison est à part : fixée à la
+// création, elle ne part qu'avec le `POST`).
+type FormState = Pick<
+  Initial,
+  'name' | 'description' | 'gradeRank' | 'holds' | 'tags'
+>;
+
 // Ce qui part au serveur, `undefined` tant qu'un champ obligatoire manque.
-function toFields(
-  name: string,
-  description: string,
-  gradeRank: number | undefined,
-  holds: DraftHolds,
-): DraftFields | undefined {
-  const trimmed = name.trim();
-  if (!trimmed || gradeRank === undefined || holds.size === 0) return undefined;
+function toFields(form: FormState): DraftFields | undefined {
+  const name = form.name.trim();
+  if (!name || form.gradeRank === undefined || form.holds.size === 0) {
+    return undefined;
+  }
   return {
-    name: trimmed,
+    name,
     // Chaîne vide -> null : « pas de description » n'a qu'une représentation.
-    description: description.trim() || null,
-    gradeRank,
-    holds: toHoldsInput(holds),
+    description: form.description.trim() || null,
+    gradeRank: form.gradeRank,
+    holds: toHoldsInput(form.holds),
+    tags: [...form.tags],
   };
 }
 
 // Empreinte comparable de l'état du formulaire : différente de celle du
-// dernier enregistrement = modifications non enregistrées.
-function fingerprint(
-  name: string,
-  description: string,
-  gradeRank: number | undefined,
-  holds: DraftHolds,
-): string {
+// dernier enregistrement = modifications non enregistrées. Tags triés : les
+// mêmes tags dans un autre ordre ne sont pas une modification.
+function fingerprint(form: FormState): string {
   return JSON.stringify([
-    name.trim(),
-    description.trim(),
-    gradeRank,
-    toHoldsInput(holds),
+    form.name.trim(),
+    form.description.trim(),
+    form.gradeRank,
+    toHoldsInput(form.holds),
+    [...form.tags].sort(),
   ]);
 }
 
@@ -170,6 +177,7 @@ function DraftForm({ initial }: { initial: Initial }) {
   const size = useDefaultBoardSize();
   const save = useSaveDraft();
   const publish = usePublishDraft();
+  const remove = useDeleteDraft();
 
   const [draftId, setDraftId] = useState(initial.draftId);
   const [name, setName] = useState(initial.name);
@@ -177,23 +185,19 @@ function DraftForm({ initial }: { initial: Initial }) {
   const [angleDegrees, setAngleDegrees] = useState(initial.angleDegrees);
   const [gradeRank, setGradeRank] = useState(initial.gradeRank);
   const [holds, setHolds] = useState(initial.holds);
+  const [tags, setTags] = useState(initial.tags);
   const [limitHit, setLimitHit] = useState(false);
   const [anglePickerOpen, setAnglePickerOpen] = useState(false);
   const [savedFingerprint, setSavedFingerprint] = useState(() =>
-    fingerprint(
-      initial.name,
-      initial.description,
-      initial.gradeRank,
-      initial.holds,
-    ),
+    fingerprint(initial),
   );
   // Levé par « Discard » : la sortie n'est plus bloquée.
   const [discarding, setDiscarding] = useState(false);
 
-  const fields = toFields(name, description, gradeRank, holds);
-  const dirty =
-    fingerprint(name, description, gradeRank, holds) !== savedFingerprint;
-  const busy = save.isPending || publish.isPending;
+  const form: FormState = { name, description, gradeRank, holds, tags };
+  const fields = toFields(form);
+  const dirty = fingerprint(form) !== savedFingerprint;
+  const busy = save.isPending || publish.isPending || remove.isPending;
   const overLimit = endRolesOverLimit(holds);
   const valid = fields !== undefined && overLimit.length === 0;
   const canSave = valid && dirty && !busy;
@@ -237,7 +241,7 @@ function DraftForm({ initial }: { initial: Initial }) {
         : { draftId, fields: toSave },
     );
     setDraftId(written.id);
-    setSavedFingerprint(fingerprint(name, description, gradeRank, holds));
+    setSavedFingerprint(fingerprint(form));
     return written.id;
   }
 
@@ -247,6 +251,38 @@ function DraftForm({ initial }: { initial: Initial }) {
       .then(() => showToast('Draft saved'))
       // L'erreur reste dans `save.error`, affichée sous les boutons.
       .catch(() => undefined);
+  }
+
+  // Au-delà de 3, un tag de plus n'est pas posé : les chips non choisies sont
+  // grisées, la limite se voit avant le tap.
+  function toggleTag(slug: string) {
+    if (tags.includes(slug)) {
+      setTags(tags.filter((t) => t !== slug));
+    } else if (tags.length < MAX_TAGS_PER_BOULDER) {
+      setTags([...tags, slug]);
+    }
+  }
+
+  function onDelete() {
+    if (draftId === undefined || busy) return;
+    Alert.alert('Delete this draft?', 'This can’t be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          remove
+            .mutateAsync(draftId)
+            .then(() => {
+              // Supprimé : plus rien à perdre en quittant l'écran.
+              disablePrevention();
+              showToast('Draft deleted');
+              router.back();
+            })
+            .catch(() => undefined);
+        },
+      },
+    ]);
   }
 
   function onPublish() {
@@ -280,7 +316,7 @@ function DraftForm({ initial }: { initial: Initial }) {
     );
   }
 
-  const error = publish.error ?? save.error;
+  const error = remove.error ?? publish.error ?? save.error;
   const missing = [
     !name.trim() && 'a name',
     gradeRank === undefined && 'a grade',
@@ -362,6 +398,45 @@ function DraftForm({ initial }: { initial: Initial }) {
         </View>
 
         <View style={styles.field}>
+          <View style={styles.boardHeader}>
+            <Text style={styles.label}>Tags</Text>
+            <Text style={styles.counter}>
+              {tags.length} / {MAX_TAGS_PER_BOULDER}
+            </Text>
+          </View>
+          <View style={styles.tagRow}>
+            {TAGS.map((tag) => {
+              const active = tags.includes(tag.slug);
+              const full = !active && tags.length >= MAX_TAGS_PER_BOULDER;
+              return (
+                <Pressable
+                  key={tag.slug}
+                  onPress={() => toggleTag(tag.slug)}
+                  disabled={full}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active, disabled: full }}
+                  style={[
+                    styles.tagChip,
+                    active && styles.tagChipActive,
+                    full && styles.tagChipDisabled,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tagChipText,
+                      active && styles.tagChipTextActive,
+                      full && styles.buttonTextDisabled,
+                    ]}
+                  >
+                    {tag.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.field}>
           <Text style={styles.label}>Description</Text>
           <TextInput
             value={description}
@@ -427,6 +502,21 @@ function DraftForm({ initial }: { initial: Initial }) {
             </Text>
           </Pressable>
         </View>
+        {/* Seulement un brouillon déjà enregistré : avant, quitter l'écran
+            suffit à l'abandonner. */}
+        {draftId !== undefined ? (
+          <Pressable
+            onPress={onDelete}
+            disabled={busy}
+            hitSlop={spacing.sm}
+            style={styles.deleteButton}
+            accessibilityRole="button"
+          >
+            <Text style={styles.deleteText}>
+              {remove.isPending ? 'Deleting…' : 'Delete draft'}
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <AnglePickerSheet
@@ -560,6 +650,45 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: typography.family.body,
     fontSize: typography.size.sm,
+    color: colors.danger,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  // Même recette que les chips de cotation.
+  tagChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  tagChipActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  tagChipDisabled: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.surfaceMuted,
+  },
+  tagChipText: {
+    fontFamily: typography.family.bodyMedium,
+    fontSize: typography.size.sm,
+    color: colors.text,
+  },
+  tagChipTextActive: {
+    color: colors.textOnInk,
+  },
+  deleteButton: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+  },
+  deleteText: {
+    fontFamily: typography.family.bodySemibold,
+    fontSize: typography.size.md,
     color: colors.danger,
   },
   actions: {

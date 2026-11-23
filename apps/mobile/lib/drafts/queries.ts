@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { boulderKeys } from '../boulders/keys';
+import { userKeys } from '../users/keys';
 import { draftKeys } from './keys';
 import type { BoulderWritten, Draft, DraftHold, DraftSummary } from './types';
 
@@ -29,6 +30,7 @@ export type DraftFields = {
   description: string | null;
   gradeRank: number;
   holds: DraftHold[];
+  tags: string[]; // slugs, 3 au plus
 };
 
 // Sans `draftId`, crée le brouillon (`POST`, avec son inclinaison) ; avec,
@@ -76,8 +78,27 @@ export function usePublishDraft() {
     // brouillons était fausse.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: draftKeys.mine() });
-      // Le bloc publié entre dans Explore.
+      // Le bloc publié entre dans Explore et dans mes blocs du profil.
       queryClient.invalidateQueries({ queryKey: boulderKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: boulderKeys.mine() });
+    },
+  });
+}
+
+export function useDeleteDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (draftId: number) => api.delete(`/boulders/${draftId}`),
+    onSuccess: (_data, draftId) => {
+      // Oublié et non relu : sa lecture répondrait 404.
+      queryClient.removeQueries({ queryKey: draftKeys.detail(draftId) });
+    },
+    // Après un échec aussi : un 409 (publié entre-temps) veut dire que la
+    // liste était fausse.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: draftKeys.mine() });
+      // Le compteur « Boulders » du profil compte aussi les brouillons.
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
   });
 }

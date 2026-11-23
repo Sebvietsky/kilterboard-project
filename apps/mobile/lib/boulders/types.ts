@@ -96,3 +96,13 @@ export interface BoulderLiked {
   angleDegrees: number;
   likedAt: string;
 }
+
+// Un bloc que j'ai créé et publié (`GET /users/me/boulders`), à son
+// inclinaison de création et avec la cotation effective de celle-ci.
+export interface MyBoulder {
+  id: number;
+  name: string;
+  angleDegrees: number;
+  gradeRank: number;
+  createdAt: string;
+}

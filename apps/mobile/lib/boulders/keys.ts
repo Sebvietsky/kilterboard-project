@@ -6,6 +6,11 @@ export const boulderKeys = {
   list: (filters: BoulderFilters) => [...boulderKeys.lists(), filters] as const,
   details: () => [...boulderKeys.all, 'detail'] as const,
   detail: (id: number) => [...boulderKeys.details(), id] as const,
+  // Mes blocs publiés : racine commune à l'aperçu du profil et à la liste
+  // complète, invalidées ensemble à la publication.
+  mine: () => [...boulderKeys.all, 'mine'] as const,
+  mineRecent: () => [...boulderKeys.mine(), 'recent'] as const,
+  mineList: () => [...boulderKeys.mine(), 'list'] as const,
 };
 
 export const boulderLikedKeys = {

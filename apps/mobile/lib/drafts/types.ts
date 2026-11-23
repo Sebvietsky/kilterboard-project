@@ -19,6 +19,7 @@ export interface DraftSummary {
 export interface Draft extends DraftSummary {
   description: string | null;
   holds: DraftHold[];
+  tags: string[]; // slugs
 }
 
 // Réponse de `POST /boulders`, `PATCH /boulders/:id` et de la publication.
