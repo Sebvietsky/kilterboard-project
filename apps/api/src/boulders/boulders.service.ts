@@ -10,6 +10,7 @@ import { FilterBoulderDto } from './dto/filter-boulders.dto';
 import {
   BoulderHoldInputDto,
   CreateBoulderDto,
+  MAX_END_HOLDS,
 } from './dto/create-boulder.dto';
 import { UpdateBoulderDto } from './dto/update-boulder.dto';
 import {
@@ -276,11 +277,13 @@ export class BouldersService {
     userId: number,
     dto: CreateBoulderDto,
   ): Promise<BoulderCreatedDto> {
+    assertEndHolds(dto.holds);
     const angleId = await resolveAngleId(this.prisma, dto.angleDegrees);
 
     const gradeId = await this.resolveGradeId(dto.gradeRank);
     // Le layout se déduit des prises.
     const layoutId = await this.resolveHoldsLayout(dto.holds);
+    const tagIds = await this.resolveTagIds(dto.tags ?? []);
 
     const angles = await this.prisma.angle.findMany({ select: { id: true } });
 
@@ -296,6 +299,7 @@ export class BouldersService {
           boulderHolds: {
             create: dto.holds.map((h) => ({ holdId: h.holdId, role: h.role })),
           },
+          boulderTags: { create: tagIds.map((tagId) => ({ tagId })) },
         },
         select: { id: true, status: true },
       });
@@ -358,6 +362,7 @@ export class BouldersService {
           select: { holdId: true, role: true },
           orderBy: { holdId: 'asc' },
         },
+        boulderTags: { select: { tag: { select: { slug: true } } } },
       },
     });
     if (!draft) throw new NotFoundException('Boulder not found');
@@ -369,6 +374,7 @@ export class BouldersService {
       gradeRank: draft.grade.rank,
       updatedAt: draft.updatedAt,
       holds: draft.boulderHolds,
+      tags: draft.boulderTags.map((bt) => bt.tag.slug),
     };
   }
 
@@ -401,7 +407,12 @@ export class BouldersService {
         ? undefined
         : await this.resolveGradeId(dto.gradeRank);
     // Le layout est fixé à la création, par les premières prises.
-    if (dto.holds) await this.resolveHoldsLayout(dto.holds, boulder.layoutId);
+    if (dto.holds) {
+      assertEndHolds(dto.holds);
+      await this.resolveHoldsLayout(dto.holds, boulder.layoutId);
+    }
+    const tagIds =
+      dto.tags === undefined ? undefined : await this.resolveTagIds(dto.tags);
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.boulder.update({
@@ -431,8 +442,43 @@ export class BouldersService {
           })),
         });
       }
+      // Comme les prises : les tags envoyés remplacent les anciens.
+      if (tagIds) {
+        await tx.boulderTag.deleteMany({ where: { boulderId: id } });
+        await tx.boulderTag.createMany({
+          data: tagIds.map((tagId) => ({ boulderId: id, tagId })),
+        });
+      }
       return updated;
     });
+  }
+
+  /**
+   * Supprime un brouillon. Un bloc publié ne se supprime pas : il peut avoir
+   * des ascensions, et la publication est un aller simple (décision du
+   * 2026-11-18). Prises, inclinaisons, tags et entrées de playlist partent
+   * avec lui (cascade).
+   */
+  async deleteDraft(userId: number, id: number): Promise<void> {
+    const boulder = await this.prisma.boulder.findUnique({
+      where: { id },
+      select: { creatorId: true, status: true },
+    });
+    // Un brouillon n'existe que pour son créateur (B4) : 404 et non 403.
+    if (!boulder || boulder.creatorId !== userId) {
+      throw new NotFoundException('Boulder not found');
+    }
+    if (boulder.status !== BoulderStatus.DRAFT) {
+      throw new ConflictException('Only a draft can be deleted.');
+    }
+    // Le statut dans le where, comme la publication : un brouillon publié
+    // entre la lecture et l'écriture n'est pas supprimé.
+    const { count } = await this.prisma.boulder.deleteMany({
+      where: { id, status: BoulderStatus.DRAFT },
+    });
+    if (count === 0) {
+      throw new ConflictException('Only a draft can be deleted.');
+    }
   }
 
   /** Résolution rank -> Grade.id (rank est @unique ; rank inconnu -> 400). */
@@ -443,6 +489,20 @@ export class BouldersService {
     });
     if (!grade) throw new BadRequestException('Invalid grade.');
     return grade.id;
+  }
+
+  /** Résolution slug -> Tag.id ; un slug inconnu -> 400. */
+  private async resolveTagIds(slugs: readonly string[]): Promise<number[]> {
+    if (slugs.length === 0) return [];
+    // Le DTO garantit des slugs distincts : un slug absent se voit au compte.
+    const tags = await this.prisma.tag.findMany({
+      where: { slug: { in: [...slugs] } },
+      select: { id: true },
+    });
+    if (tags.length !== slugs.length) {
+      throw new BadRequestException('Invalid tag.');
+    }
+    return tags.map((t) => t.id);
   }
 
   /**
@@ -607,5 +667,20 @@ export class BouldersService {
       angleDegrees: like.angle.valueDegrees,
       likedAt: like.createdAt,
     }));
+  }
+}
+
+/**
+ * Au plus 2 prises de départ et 2 de fin (Seb, 2026-11-23). Vérifié à chaque
+ * écriture des prises, brouillon compris ; le minimum (un START et un
+ * FINISH) ne s'exige qu'à la publication.
+ */
+function assertEndHolds(holds: readonly BoulderHoldInputDto[]): void {
+  for (const role of [HoldRole.START, HoldRole.FINISH]) {
+    if (holds.filter((h) => h.role === role).length > MAX_END_HOLDS) {
+      throw new BadRequestException(
+        `A boulder has at most ${MAX_END_HOLDS} START and ${MAX_END_HOLDS} FINISH holds.`,
+      );
+    }
   }
 }

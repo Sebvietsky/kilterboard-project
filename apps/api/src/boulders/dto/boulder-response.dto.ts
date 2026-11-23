@@ -72,6 +72,8 @@ export class BoulderDraftSummaryDto {
 export class BoulderDraftDto extends BoulderDraftSummaryDto {
   description!: string | null;
   holds!: BoulderDraftHoldDto[];
+  // Slugs, la forme de `PATCH /boulders/:id`.
+  tags!: string[];
 }
 
 export class LikedBoulderDto {

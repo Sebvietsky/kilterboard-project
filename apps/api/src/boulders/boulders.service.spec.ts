@@ -15,6 +15,7 @@ const prismaMock = {
     findFirst: jest.fn(),
     count: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
   ascent: { groupBy: jest.fn(), aggregate: jest.fn() },
   ascentNote: { findMany: jest.fn() },
@@ -28,6 +29,7 @@ const prismaMock = {
   boulderAngle: { findMany: jest.fn(), count: jest.fn() },
   grade: { findUnique: jest.fn() },
   hold: { findMany: jest.fn() },
+  tag: { findMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -37,6 +39,7 @@ const txMock = {
   boulder: { create: jest.fn(), update: jest.fn() },
   boulderAngle: { createMany: jest.fn(), update: jest.fn() },
   boulderHold: { deleteMany: jest.fn(), createMany: jest.fn() },
+  boulderTag: { deleteMany: jest.fn(), createMany: jest.fn() },
 };
 
 // La forme minimale que findOne déréférence (et que le catalogue reprend
@@ -856,6 +859,76 @@ describe('BouldersService', () => {
         ],
       });
     });
+
+    // Au plus 2 départs et 2 fins (Seb, 2026-11-23) : la règle porte sur
+    // l'ensemble des prises, d'où le service et non le DTO.
+    it.each([HoldRole.START, HoldRole.FINISH])(
+      'refuse un troisième %s',
+      async (role) => {
+        // Trois prises connues : sans cela, le refus viendrait de « prise
+        // inconnue », et le test passerait sans la règle.
+        prismaMock.hold.findMany.mockResolvedValue([
+          { layoutId: 1 },
+          { layoutId: 1 },
+          { layoutId: 1 },
+        ]);
+        await expect(
+          service.createDraft(7, {
+            ...dto,
+            holds: [
+              { holdId: 1, role },
+              { holdId: 2, role },
+              { holdId: 3, role },
+            ],
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(txMock.boulder.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('accepte 2 départs et 2 fins', async () => {
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 1 },
+        { layoutId: 1 },
+        { layoutId: 1 },
+      ]);
+
+      await expect(
+        service.createDraft(7, {
+          ...dto,
+          holds: [
+            { holdId: 1, role: HoldRole.START },
+            { holdId: 2, role: HoldRole.START },
+            { holdId: 3, role: HoldRole.FINISH },
+            { holdId: 4, role: HoldRole.FINISH },
+          ],
+        }),
+      ).resolves.toEqual({ id: 99, status: BoulderStatus.DRAFT });
+    });
+
+    it('enregistre les tags par leur id', async () => {
+      prismaMock.tag.findMany.mockResolvedValue([{ id: 4 }, { id: 6 }]);
+
+      await service.createDraft(7, { ...dto, tags: ['crimp', 'dyno'] });
+
+      expect(prismaMock.tag.findMany).toHaveBeenCalledWith({
+        where: { slug: { in: ['crimp', 'dyno'] } },
+        select: { id: true },
+      });
+      expect(createArg().boulderTags).toEqual({
+        create: [{ tagId: 4 }, { tagId: 6 }],
+      });
+    });
+
+    it('refuse un tag inconnu', async () => {
+      prismaMock.tag.findMany.mockResolvedValue([{ id: 4 }]);
+
+      await expect(
+        service.createDraft(7, { ...dto, tags: ['crimp', 'nope'] }),
+      ).rejects.toThrow(BadRequestException);
+      expect(txMock.boulder.create).not.toHaveBeenCalled();
+    });
   });
   describe('findMyDrafts', () => {
     const findManyArg = () =>
@@ -936,6 +1009,7 @@ describe('BouldersService', () => {
           { holdId: 1, role: HoldRole.START },
           { holdId: 2, role: HoldRole.FINISH },
         ],
+        boulderTags: [{ tag: { slug: 'crimp' } }],
       });
 
       await expect(service.findMyDraft(7, 99)).resolves.toEqual({
@@ -949,6 +1023,7 @@ describe('BouldersService', () => {
           { holdId: 1, role: HoldRole.START },
           { holdId: 2, role: HoldRole.FINISH },
         ],
+        tags: ['crimp'],
       });
     });
   });
@@ -1112,6 +1187,130 @@ describe('BouldersService', () => {
       await service.updateDraft(CREATOR_ID, 99, { name: 'Crimpy' });
 
       expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+  describe('updateDraft — départs, fins et tags', () => {
+    const draft = {
+      id: 99,
+      creatorId: 7,
+      status: BoulderStatus.DRAFT,
+      layoutId: 1,
+      angleId: 3,
+    };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.hold.findMany.mockResolvedValue([
+        { layoutId: 1 },
+        { layoutId: 1 },
+        { layoutId: 1 },
+      ]);
+      prismaMock.$transaction.mockImplementation(
+        (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+      );
+      txMock.boulder.update.mockResolvedValue({
+        id: 99,
+        status: BoulderStatus.DRAFT,
+      });
+    });
+
+    // L'édition ne doit pas contourner ce que la création refuse.
+    it('refuse un troisième FINISH', async () => {
+      await expect(
+        service.updateDraft(7, 99, {
+          holds: [
+            { holdId: 1, role: HoldRole.FINISH },
+            { holdId: 2, role: HoldRole.FINISH },
+            { holdId: 3, role: HoldRole.FINISH },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(txMock.boulderHold.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('remplace tous les tags du bloc', async () => {
+      prismaMock.tag.findMany.mockResolvedValue([{ id: 6 }]);
+
+      await service.updateDraft(7, 99, { tags: ['dyno'] });
+
+      expect(txMock.boulderTag.deleteMany).toHaveBeenCalledWith({
+        where: { boulderId: 99 },
+      });
+      expect(txMock.boulderTag.createMany).toHaveBeenCalledWith({
+        data: [{ boulderId: 99, tagId: 6 }],
+      });
+    });
+
+    it('retire tous les tags avec une liste vide', async () => {
+      await service.updateDraft(7, 99, { tags: [] });
+
+      expect(prismaMock.tag.findMany).not.toHaveBeenCalled();
+      expect(txMock.boulderTag.deleteMany).toHaveBeenCalledWith({
+        where: { boulderId: 99 },
+      });
+      expect(txMock.boulderTag.createMany).toHaveBeenCalledWith({ data: [] });
+    });
+
+    it('ne touche pas aux tags sans `tags`', async () => {
+      await service.updateDraft(7, 99, { name: 'Crimpy' });
+
+      expect(txMock.boulderTag.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteDraft', () => {
+    const draft = { creatorId: 7, status: BoulderStatus.DRAFT };
+
+    beforeEach(() => {
+      prismaMock.boulder.findUnique.mockResolvedValue(draft);
+      prismaMock.boulder.deleteMany.mockResolvedValue({ count: 1 });
+    });
+
+    // Le statut dans le where : un brouillon publié entre la lecture et
+    // l'écriture n'est pas supprimé.
+    it('supprime le brouillon de son créateur, et seulement un brouillon', async () => {
+      await expect(service.deleteDraft(7, 99)).resolves.toBeUndefined();
+
+      expect(prismaMock.boulder.deleteMany).toHaveBeenCalledWith({
+        where: { id: 99, status: BoulderStatus.DRAFT },
+      });
+    });
+
+    // B4 : 404 et non 403, pour ne pas révéler qu'il existe.
+    it("renvoie 404 sur le brouillon d'un autre", async () => {
+      await expect(service.deleteDraft(8, 99)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prismaMock.boulder.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('renvoie 404 sur un bloc inconnu', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteDraft(7, 99)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    // Un bloc publié peut avoir des ascensions : il ne se supprime pas.
+    it('renvoie 409 sur un bloc publié', async () => {
+      prismaMock.boulder.findUnique.mockResolvedValue({
+        ...draft,
+        status: BoulderStatus.PUBLIC,
+      });
+
+      await expect(service.deleteDraft(7, 99)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prismaMock.boulder.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('renvoie 409 si le bloc a été publié entre-temps', async () => {
+      prismaMock.boulder.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.deleteDraft(7, 99)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 });
